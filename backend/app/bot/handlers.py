@@ -7,7 +7,13 @@ from datetime import UTC, datetime
 
 from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    ChatMemberUpdated,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 from aiogram.types import User as TelegramUser
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,6 +58,9 @@ async def _known_user(db: AsyncSession, telegram: TelegramUser) -> User | None:
     user = await get_by_telegram_id(db, telegram.id)
     if user is None or not user.is_active:
         return None
+    if user.bot_blocked:  # пишет боту — значит, разблокировал
+        user.bot_blocked = False
+        await db.commit()
     if user.pd_consent_at is not None:
         profile = _profile(telegram)
         user.first_name = profile.first_name
@@ -100,6 +109,17 @@ def build_router(store: SettingsStore) -> Router:
             "и видите на сайте этот же код.",
             reply_markup=keyboard,
         )
+
+    @router.my_chat_member()
+    async def blocked_or_unblocked(event: ChatMemberUpdated) -> None:
+        """Пользователь заблокировал или разблокировал бота."""
+        if event.chat.type != "private":
+            return
+        async with get_sessionmaker()() as db:
+            user = await get_by_telegram_id(db, event.chat.id)
+            if user is not None:
+                user.bot_blocked = event.new_chat_member.status == "kicked"
+                await db.commit()
 
     @router.message(CommandStart())
     async def start(message: Message, command: CommandObject, bot: Bot) -> None:

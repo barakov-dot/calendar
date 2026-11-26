@@ -1,6 +1,6 @@
 """Планировщик: python -m app.worker.
 
-Раз в сутки (и при запуске) пересчитывает задачи. Рассылки появятся в Фазе 6.
+Раз в сутки (и при запуске) пересчитывает задачи, шлёт напоминания и дайджесты.
 Подключение к Telegram держится по актуальным настройкам.
 """
 
@@ -18,6 +18,8 @@ from app.core.config import Config, get_config
 from app.core.db import get_sessionmaker
 from app.core.service import cancel, run_service, wait_any
 from app.core.settings_store import SettingsStore, get_store
+from app.services.notify.planner import plan
+from app.services.notify.sender import deliver
 from app.services.tasks import Result, regenerate_all, today
 from app.services.telegram.client import TelegramClient
 from app.services.telegram.connect import REQUEST_TIMEOUT, RETRY_DELAYS, with_retries
@@ -26,6 +28,8 @@ from app.services.telegram.factory import Proxy, ProxyConfigError
 logger = logging.getLogger("worker")
 
 GENERATION_HOUR = 3
+PLAN_SECONDS = 60
+SEND_SECONDS = 5
 # Об отсутствии правил и календаря на следующий год напоминаем незадолго до его начала.
 WARNING_AHEAD = timedelta(days=60)
 # Одно и то же предупреждение повторяется администратору не чаще раза в неделю.
@@ -79,6 +83,34 @@ async def generate_and_report(client: TelegramClient, config: Config) -> None:
             _sent[text] = now
     except Exception:
         logger.exception("Ошибка ежедневной генерации задач")
+
+
+async def run_notifications(
+    stop: asyncio.Event,
+    store: SettingsStore,
+    config: Config,
+    client: TelegramClient,
+    plan_every: float = PLAN_SECONDS,
+    send_every: float = SEND_SECONDS,
+) -> None:
+    """Планирует напоминания и отправляет очередь."""
+    if config.bot_token is None:
+        return
+    next_plan = 0.0
+    loop = asyncio.get_running_loop()
+    while not stop.is_set():
+        try:
+            settings = store.get()
+            async with get_sessionmaker()() as db:
+                if loop.time() >= next_plan:
+                    await plan(db, settings, datetime.now(UTC))
+                    next_plan = loop.time() + plan_every
+                await deliver(db, await client.get_bot(), settings, datetime.now(UTC))
+        except ProxyConfigError as error:
+            logger.error("%s", error)
+        except Exception:
+            logger.exception("Ошибка рассылки уведомлений")
+        await wait_any(stop, seconds=send_every)
 
 
 async def run_telegram_check(
@@ -148,12 +180,15 @@ async def main(stop: asyncio.Event) -> None:
     scheduler.start()
     watcher = asyncio.create_task(store.watch())
     initial = asyncio.create_task(generate_and_report(alerts, config))
+    sender = TelegramClient(store, config)
+    notifications = asyncio.create_task(run_notifications(stop, store, config, sender))
     try:
         await run_telegram_check(stop, store, config, client)
     finally:
         scheduler.shutdown(wait=False)
-        await cancel(watcher, initial)
+        await cancel(watcher, initial, notifications)
         await alerts.close()
+        await sender.close()
 
 
 if __name__ == "__main__":

@@ -26,6 +26,9 @@ class ClientTaskOut(BaseModel):
     status: str
     client_note: str
     source_ref: str
+    # доступные клиенту действия; у сотрудников всегда false
+    can_mark_paid: bool = False
+    can_unmark_paid: bool = False
 
 
 class TaskOut(ClientTaskOut):

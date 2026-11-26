@@ -9,7 +9,7 @@ from app.bot.handlers import ACCESS_BY_INVITE, GREETINGS
 from app.bot.runner import BotRunner
 from app.core.config import Config
 from app.core.settings_store import SettingsStore
-from app.models import Role
+from app.models import Role, Task
 from app.services.telegram.client import TelegramClient
 from app.services.telegram.status import read_status, status_path
 from app.worker import run_telegram_check
@@ -193,3 +193,58 @@ async def test_bot_writes_status(store, config):
     status = read_status(path)
     assert status["state"] == "connected"
     assert f"127.0.0.1:{socks.port}" in status["proxy"]
+
+
+async def test_menu_button_follows_settings(store, config):
+    async with FakeTelegram() as telegram, FakeSocks5() as socks:
+        use_proxy(store, socks.port)
+        client = TelegramClient(store, config, telegram.api())
+        runner = BotRunner(
+            store,
+            config,
+            client,
+            build_dispatcher(store),
+            FAST_RETRIES,
+            polling_timeout=0,
+            menu_interval=0.02,
+        )
+        async with running(runner.run, store):
+            await eventually(lambda: telegram.menu_urls == [None])
+            store.update({"telegram": {"mini_app_url": "https://cal.example/"}})
+            await eventually(lambda: telegram.menu_urls[-1] == "https://cal.example/")
+
+    assert "setMyCommands" in telegram.calls
+    assert len(telegram.menu_urls) == 2
+
+
+async def test_worker_sends_notifications(store, config, db):
+    from datetime import date
+
+    from app.services.notify.queue import enqueue
+    from app.worker import run_notifications
+
+    user = await make_user(db, STRANGER_ID, Role.ACCOUNTANT)
+    db.add(
+        Task(
+            owner_id=user.id,
+            source="custom",
+            kind="other",
+            title="Личное дело",
+            due_date=date(2020, 1, 1),
+            original_due_date=date(2020, 1, 1),
+        )
+    )
+    await db.commit()
+    async with FakeTelegram() as telegram:
+        client = TelegramClient(store, config, telegram.api("127.0.0.1"))
+        async with running(
+            lambda stop: run_notifications(stop, store, config, client, 0.02, 0.02), store
+        ):
+            from app.services.tasks import today
+
+            await enqueue(db, user.id, "digest", today())
+            await db.commit()
+            await eventually(lambda: telegram.sent)
+        await client.close()
+
+    assert "Личное дело" in telegram.sent[0][1]

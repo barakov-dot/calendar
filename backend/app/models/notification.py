@@ -1,0 +1,79 @@
+from datetime import date, datetime
+from enum import StrEnum
+
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base
+from app.models.user import Timestamp, one_of
+
+
+class NotificationType(StrEnum):
+    DIGEST = "digest"
+    REMINDER = "reminder"
+    OVERDUE = "overdue"
+    CLIENT_MARKED_PAID = "client_marked_paid"
+    FILL_AMOUNT = "fill_amount"
+
+
+class NotificationStatus(StrEnum):
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+    SKIPPED = "skipped"  # к моменту отправки стало неактуально
+
+
+class NotificationSettings(Base):
+    """Личные настройки поверх значений из settings.json (пусто — по умолчанию)."""
+
+    __tablename__ = "notification_settings"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    offsets_days: Mapped[list[int] | None] = mapped_column(ARRAY(Integer))
+    on_due_day: Mapped[bool | None]
+    daily_digest: Mapped[bool] = mapped_column(default=True, server_default="true")
+    digest_time: Mapped[str | None] = mapped_column(String(5))
+
+
+class Notification(Base):
+    """Журнал и очередь отправки."""
+
+    __tablename__ = "notifications_log"
+    __table_args__ = (
+        # защита от дублей; пустой task_id (дайджест) тоже участвует в сравнении
+        UniqueConstraint(
+            "user_id",
+            "task_id",
+            "type",
+            "scheduled_for",
+            name="uq_notifications_log_key",
+            postgresql_nulls_not_distinct=True,
+        ),
+        CheckConstraint(one_of("type", NotificationType), name="type"),
+        CheckConstraint(one_of("status", NotificationStatus), name="status"),
+        Index("ix_notifications_log_queue", "status", "next_attempt_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    type: Mapped[str] = mapped_column(String(32))
+    scheduled_for: Mapped[date]
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+    attempts: Mapped[int] = mapped_column(default=0, server_default="0")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    sent_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    telegram_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    error: Mapped[str] = mapped_column(Text, default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())

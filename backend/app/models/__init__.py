@@ -9,6 +9,12 @@ from app.models.company import (
     ProfitAdvances,
     Regime,
 )
+from app.models.notification import (
+    Notification,
+    NotificationSettings,
+    NotificationStatus,
+    NotificationType,
+)
 from app.models.task import (
     Audience,
     ChangedBy,
@@ -33,6 +39,10 @@ __all__ = [
     "Invite",
     "InviteKind",
     "LoginRequest",
+    "Notification",
+    "NotificationSettings",
+    "NotificationStatus",
+    "NotificationType",
     "Patent",
     "ProfitAdvances",
     "RecurringReminder",

@@ -3,7 +3,7 @@ from collections import deque
 from aiogram import Dispatcher
 from aiogram.types import Update
 
-from app.bot.handlers import build_router
+from app.bot import handlers, payments
 from app.core.settings_store import SettingsStore
 
 REMEMBERED_UPDATES = 1000
@@ -29,5 +29,6 @@ class SkipRepeatedUpdates:
 def build_dispatcher(store: SettingsStore) -> Dispatcher:
     dispatcher = Dispatcher()
     dispatcher.update.outer_middleware(SkipRepeatedUpdates())
-    dispatcher.include_router(build_router(store))
+    dispatcher.include_router(handlers.build_router(store))
+    dispatcher.include_router(payments.build_router(store))
     return dispatcher

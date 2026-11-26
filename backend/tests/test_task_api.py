@@ -95,6 +95,8 @@ async def test_client_gets_only_visible_tasks_without_internal_fields(client, db
         "status",
         "client_note",
         "source_ref",
+        "can_mark_paid",
+        "can_unmark_paid",
     }
     assert all(set(item) == public for item in body["items"])
     assert set(detail.json()) == public

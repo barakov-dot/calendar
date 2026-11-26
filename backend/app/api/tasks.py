@@ -13,7 +13,7 @@ from app.api.companies import NOT_FOUND, Staff
 from app.api.deps import CurrentUser, Database
 from app.core.permissions import get_accessible_company
 from app.core.settings_store import get_settings
-from app.models import Task, TaskKind, TaskStatus
+from app.models import Task, TaskKind, TaskStatus, User
 from app.schemas.company import MAX_KOPECKS
 from app.schemas.task import (
     BulkIn,
@@ -25,7 +25,7 @@ from app.schemas.task import (
     TaskList,
     TaskPatch,
 )
-from app.services import task_actions, tasks
+from app.services import payments, task_actions, tasks
 
 router = APIRouter()
 
@@ -136,6 +136,25 @@ async def bulk(body: BulkIn, user: Staff, db: Database) -> BulkOut:
         raise HTTPException(status.HTTP_404_NOT_FOUND, TASK_NOT_FOUND)
     updated, skipped = await task_actions.bulk_status(db, user, found, body.status)
     return BulkOut(updated=updated, skipped=skipped)
+
+
+async def _payment(action, task_id: int, user: User, db: Database):
+    try:
+        await action(db, user, task_id)
+    except payments.PaymentError as error:
+        raise HTTPException(error.code, str(error)) from None
+    return await task_actions.read(db, user, _show_notices(), task_id)
+
+
+@router.post("/tasks/{task_id}/mark-paid")
+async def mark_paid(task_id: int, user: CurrentUser, db: Database) -> TaskDetail | ClientTaskOut:
+    """Только клиент с правом «Клиент платит сам»: planned → paid."""
+    return await _payment(payments.mark_paid, task_id, user, db)
+
+
+@router.post("/tasks/{task_id}/unmark-paid")
+async def unmark_paid(task_id: int, user: CurrentUser, db: Database) -> TaskDetail | ClientTaskOut:
+    return await _payment(payments.unmark_paid, task_id, user, db)
 
 
 @router.put("/tasks/nds/{company_id}/{period_key}")

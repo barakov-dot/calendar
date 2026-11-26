@@ -24,7 +24,7 @@ from app.schemas.task import (
     TaskOut,
     TaskPatch,
 )
-from app.services import audit
+from app.services import audit, payments
 from app.services.calendar.workdays import load_calendar
 from app.services.companies import person_name
 from app.services.reminders import shift
@@ -64,12 +64,25 @@ def _query(user: User, show_notices: bool):
     )
 
 
-def _view(user: User, task: Task, company: Company | None, changed_by: User | None):
+def _view(
+    user: User,
+    task: Task,
+    company: Company | None,
+    changed_by: User | None,
+    payer_ids: set[int] = frozenset(),
+):
     values = {name: getattr(task, name) for name in TaskOut.model_fields if hasattr(task, name)}
     values["company_name"] = (company.short_name or company.name) if company else "Личная задача"
     if user.role == Role.CLIENT:
+        may = task.company_id in payer_ids and task.kind == TaskKind.PAYMENT
+        values["can_mark_paid"] = may and task.status == TaskStatus.PLANNED
+        values["can_unmark_paid"] = may and payments.can_unmark(task, user, datetime.now(UTC))
         return ClientTaskOut.model_validate(values)
     return TaskOut.model_validate(values | {"status_changed_by_name": person_name(changed_by)})
+
+
+async def _payer_ids(db: AsyncSession, user: User) -> set[int]:
+    return await payments.payer_company_ids(db, user) if user.role == Role.CLIENT else set()
 
 
 async def search(
@@ -111,14 +124,15 @@ async def search(
         .limit(limit)
         .offset(offset)
     )
-    return [_view(user, *row) for row in rows], total
+    payer_ids = await _payer_ids(db, user)
+    return [_view(user, *row, payer_ids) for row in rows], total
 
 
 async def read(db: AsyncSession, user: User, show_notices: bool, task_id: int):
     row = (await db.execute(_query(user, show_notices).where(Task.id == task_id))).first()
     if row is None:
         return None
-    view = _view(user, *row)
+    view = _view(user, *row, await _payer_ids(db, user))
     if user.role == Role.CLIENT:
         return view
     task = row[0]

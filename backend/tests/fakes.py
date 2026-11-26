@@ -44,6 +44,10 @@ class FakeTelegram:
         self.sent: list[tuple[int, str]] = []
         self.keyboards: list[list[dict]] = []  # кнопки каждого отправленного сообщения
         self.edited: list[str] = []
+        self.answers: list[str] = []  # ответы на нажатия кнопок
+        self.menu_urls: list[str | None] = []
+        # chat_id → (код ошибки, описание, параметры) для sendMessage
+        self.failures: dict[int, tuple[int, str, dict]] = {}
         self.updates: list[dict] = []
         self.port = 0
         self._runner: web.AppRunner | None = None
@@ -121,6 +125,22 @@ class FakeTelegram:
             if not pending:
                 await asyncio.sleep(0.02)
             result = pending
+        elif method == "answerCallbackQuery":
+            self.answers.append(data.get("text", ""))
+        elif method == "setChatMenuButton":
+            button = json.loads(data["menu_button"])
+            self.menu_urls.append(button.get("web_app", {}).get("url"))
+        elif method == "sendMessage" and int(data["chat_id"]) in self.failures:
+            code, description, parameters = self.failures[int(data["chat_id"])]
+            return web.json_response(
+                {
+                    "ok": False,
+                    "error_code": code,
+                    "description": description,
+                    "parameters": parameters,
+                },
+                status=code,
+            )
         elif method == "editMessageText":
             self.edited.append(data["text"])
         elif method == "sendMessage":

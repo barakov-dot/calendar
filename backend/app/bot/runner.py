@@ -8,6 +8,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.utils.backoff import BackoffConfig
 from aiogram.utils.token import TokenValidationError
 
+from app.bot.menu import set_menu
 from app.core.config import Config
 from app.core.service import cancel, wait_any
 from app.core.settings_store import SettingsStore
@@ -31,6 +32,7 @@ class BotRunner:
         retry_delays: Sequence[float] = RETRY_DELAYS,
         polling_timeout: int = 10,
         status: BotStatus | None = None,
+        menu_interval: float = 5,
     ) -> None:
         self._store = store
         self._config = config
@@ -38,6 +40,7 @@ class BotRunner:
         self._dispatcher = dispatcher
         self._retry_delays = retry_delays
         self._polling_timeout = polling_timeout
+        self._menu_interval = menu_interval
         self._status = status or BotStatus(status_path(config.settings_path))
         self._changed = asyncio.Event()
         self._settings_error = asyncio.Event()
@@ -133,6 +136,7 @@ class BotRunner:
         self._status.username = me.username
         self._status.save()
         alerts = asyncio.create_task(self._send_alerts(bot))
+        menu = asyncio.create_task(self._keep_menu(bot))
         try:
             await self._dispatcher.start_polling(
                 bot,
@@ -143,7 +147,22 @@ class BotRunner:
                 tasks_shutdown_timeout=5,
             )
         finally:
-            await cancel(alerts)
+            await cancel(alerts, menu)
+
+    async def _keep_menu(self, bot: Bot) -> None:
+        """Команды и кнопка меню Mini App; обновляются при смене адреса в настройках."""
+        shown: str | None = None
+        while True:
+            url = self._store.get().telegram.mini_app_url
+            if url != shown:
+                try:
+                    await set_menu(bot, url)
+                    shown = url
+                except Exception as error:
+                    logger.warning(
+                        "Не удалось настроить меню бота: %s: %s", type(error).__name__, error
+                    )
+            await asyncio.sleep(self._menu_interval)
 
     async def _stop_session(self, session: asyncio.Task) -> None:
         if not session.done():
