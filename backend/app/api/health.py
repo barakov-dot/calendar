@@ -1,10 +1,15 @@
 import asyncio
 import logging
+import time
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import text
 
+from app.core.config import Config, get_config
 from app.core.db import get_engine
+from app.services.monitoring import read_worker, worker_status_path
+from app.services.telegram.status import read_status, status_path
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,3 +35,14 @@ async def health(response: Response, database_ok: bool = Depends(check_database)
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "error", "database": "unavailable"}
     return {"status": "ok", "database": "ok"}
+
+
+@router.get("/health/services")
+def services(response: Response, config: Annotated[Config, Depends(get_config)]) -> dict[str, str]:
+    """Для внешнего мониторинга: только состояния, без подробностей."""
+    now = time.time()
+    bot = read_status(status_path(config.settings_path), now)["state"]
+    worker = "ok" if read_worker(worker_status_path(config.settings_path), now) else "down"
+    if bot not in ("connected", "connecting") or worker != "ok":
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return {"bot": bot, "worker": worker}

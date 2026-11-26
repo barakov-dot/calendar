@@ -16,6 +16,7 @@ class Config(BaseSettings):
     settings_path: str = "/app/config/settings.json"
     rules_path: str = "/app/rules"
     data_path: str = "/app/data"
+    backups_path: str = "/app/backups"
     bot_token: SecretStr | None = None
     jwt_secret: SecretStr | None = None
     admin_telegram_id: int | None = None

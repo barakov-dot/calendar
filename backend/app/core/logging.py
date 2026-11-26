@@ -1,6 +1,9 @@
+import json
 import logging
+import os
 import re
 import sys
+from datetime import UTC, datetime
 
 # Страховка от утечки секретов в логи, в том числе из текстов чужих исключений.
 _REDACTIONS = (
@@ -24,9 +27,30 @@ class RedactingFormatter(logging.Formatter):
         return redact(super().format(record))
 
 
+class JsonFormatter(logging.Formatter):
+    """Одна запись — одна строка JSON (прод)."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        data = {
+            "time": datetime.fromtimestamp(record.created, UTC).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": redact(record.getMessage()),
+        }
+        if record.exc_info:
+            data["exception"] = redact(self.formatException(record.exc_info))
+        return json.dumps(data, ensure_ascii=False)
+
+
+def make_formatter(app_env: str) -> logging.Formatter:
+    if app_env == "dev":
+        return RedactingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    return JsonFormatter()
+
+
 def setup_logging() -> None:
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(RedactingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    handler.setFormatter(make_formatter(os.getenv("APP_ENV") or "prod"))
     logging.basicConfig(level=logging.INFO, handlers=[handler])
     # Логи uvicorn тоже идут через общий обработчик, чтобы из них вырезались секреты.
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):

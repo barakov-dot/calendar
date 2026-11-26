@@ -3,7 +3,7 @@ DEV := $(COMPOSE) -f docker-compose.dev.yml
 PROD := $(COMPOSE) -f docker-compose.prod.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help env dev down migrate test lint logs prod check-amd64 seed-dev gen calendar export
+.PHONY: help env dev down migrate test lint logs prod check-amd64 seed-dev gen calendar export backup restore
 
 help: ## Список команд
 	@grep -hE '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -52,6 +52,12 @@ check-amd64: ## Проверить, что образы собираются п�
 	docker buildx build --platform linux/amd64 --target prod --output type=cacheonly backend
 	docker buildx build --platform linux/amd64 --target dev --output type=cacheonly frontend
 	docker buildx build --platform linux/amd64 --target prod --output type=cacheonly frontend
+
+backup: env ## На сервере: копия базы и config в ./backups
+	./deploy/backup.sh
+
+restore: env ## Восстановить из копии: make restore file=backups/buh-....tar.gz
+	./deploy/restore.sh $(file)
 
 prod: env ## На сервере: собрать и запустить прод
 	$(PROD) up -d --build --remove-orphans

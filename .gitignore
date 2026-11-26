@@ -9,8 +9,10 @@ config/*
 data/exports/
 
 # дампы и бэкапы
-backups/
+/backups/*
+!/backups/.gitkeep
 *.sql.gz
+*.dump
 
 # Python
 __pycache__/

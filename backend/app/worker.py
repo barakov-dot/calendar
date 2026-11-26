@@ -6,8 +6,10 @@
 
 import asyncio
 import logging
+import time
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 from aiogram import Bot
 from aiogram.utils.token import TokenValidationError
@@ -18,12 +20,23 @@ from app.core.config import Config, get_config
 from app.core.db import get_sessionmaker
 from app.core.service import cancel, run_service, wait_any
 from app.core.settings_store import SettingsStore, get_store
+from app.services.monitoring import (
+    CHECK_SECONDS,
+    Alerter,
+    WorkerStatus,
+    backup_problems,
+    bot_problems,
+    sending_problems,
+    worker_status_path,
+)
 from app.services.notify.planner import plan
 from app.services.notify.sender import deliver
 from app.services.tasks import Result, regenerate_all, today
+from app.services.telegram.admin import admin_sender
 from app.services.telegram.client import TelegramClient
 from app.services.telegram.connect import REQUEST_TIMEOUT, RETRY_DELAYS, with_retries
 from app.services.telegram.factory import Proxy, ProxyConfigError
+from app.services.telegram.status import HEARTBEAT_SECONDS, status_path
 
 logger = logging.getLogger("worker")
 
@@ -85,6 +98,29 @@ async def generate_and_report(client: TelegramClient, config: Config) -> None:
         logger.exception("Ошибка ежедневной генерации задач")
 
 
+async def heartbeat(status: WorkerStatus) -> None:
+    while True:
+        status.save()
+        await asyncio.sleep(HEARTBEAT_SECONDS)
+
+
+async def run_monitor(store: SettingsStore, config: Config, client: TelegramClient) -> None:
+    """Следит за ботом, очередью и резервными копиями."""
+    alerter = Alerter(admin_sender(client, config), store.get().company.timezone)
+    while True:
+        try:
+            now = time.time()
+            problems = bot_problems(status_path(config.settings_path), now)
+            async with get_sessionmaker()() as db:
+                problems |= await sending_problems(db, datetime.now(UTC))
+            if not config.is_dev:
+                problems |= backup_problems(Path(config.backups_path), now)
+            await alerter.tick(problems, now)
+        except Exception:
+            logger.exception("Ошибка мониторинга")
+        await asyncio.sleep(CHECK_SECONDS)
+
+
 async def run_notifications(
     stop: asyncio.Event,
     store: SettingsStore,
@@ -92,6 +128,7 @@ async def run_notifications(
     client: TelegramClient,
     plan_every: float = PLAN_SECONDS,
     send_every: float = SEND_SECONDS,
+    status: WorkerStatus | None = None,
 ) -> None:
     """Планирует напоминания и отправляет очередь."""
     if config.bot_token is None:
@@ -106,6 +143,8 @@ async def run_notifications(
                     await plan(db, settings, datetime.now(UTC))
                     next_plan = loop.time() + plan_every
                 await deliver(db, await client.get_bot(), settings, datetime.now(UTC))
+            if status is not None:
+                status.sending_ok()
         except ProxyConfigError as error:
             logger.error("%s", error)
         except Exception:
@@ -181,12 +220,17 @@ async def main(stop: asyncio.Event) -> None:
     watcher = asyncio.create_task(store.watch())
     initial = asyncio.create_task(generate_and_report(alerts, config))
     sender = TelegramClient(store, config)
-    notifications = asyncio.create_task(run_notifications(stop, store, config, sender))
+    status = WorkerStatus(worker_status_path(config.settings_path))
+    background = [
+        asyncio.create_task(heartbeat(status)),
+        asyncio.create_task(run_notifications(stop, store, config, sender, status=status)),
+        asyncio.create_task(run_monitor(store, config, alerts)),
+    ]
     try:
         await run_telegram_check(stop, store, config, client)
     finally:
         scheduler.shutdown(wait=False)
-        await cancel(watcher, initial, notifications)
+        await cancel(watcher, initial, *background)
         await alerts.close()
         await sender.close()
 

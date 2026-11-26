@@ -24,6 +24,12 @@ services:
 
   worker:
     <<: *prod-backend
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./rules:/app/rules:ro
+      # только чтобы напоминать, если копии перестали создаваться
+      - ./backups:/app/backups:ro
 
   web:
     image: buh-calendar-web:prod
