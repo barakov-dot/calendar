@@ -1,0 +1,13 @@
+# Продакшен (Ubuntu): без монтирования кода, наружу смотрит только Caddy.
+
+x-prod-backend: &prod-backend
+  restart: unless-stopped
+  environment:
+    APP_ENV: prod
+
+services:
+  db:
+    restart: unless-stopped
+
+  api:
+    <<: *prod-backend

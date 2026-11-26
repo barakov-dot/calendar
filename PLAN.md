@@ -506,7 +506,7 @@ GET/POST /api/admin/calendar/{year}
 ### Фаза 0 — Каркас и Docker (1 день)
 - [x] Монорепо по структуре из CLAUDE.md, `.gitignore`, `.env.example`, `config/settings.example.json`
 - [ ] `docker-compose.yml` + `.dev.yml` + `.prod.yml`, `Makefile`
-- [ ] `backend/Dockerfile` (python:3.12-slim), FastAPI с `/api/health`, подключение к БД, Alembic, ruff, pytest
+- [x] `backend/Dockerfile` (python:3.12-slim), FastAPI с `/api/health`, подключение к БД, Alembic, ruff, pytest
 - [ ] Контейнеры `bot` и `worker` из того же образа (пока заглушки с логом «запущен»)
 - [ ] `frontend/Dockerfile` (multi-stage), Vite + React + TS + Tailwind, страница-заглушка, `node_modules` в volume
 - [ ] `deploy/Caddyfile` (prod), заготовка `deploy/DEPLOY.md`

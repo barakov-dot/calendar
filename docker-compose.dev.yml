@@ -1,0 +1,29 @@
+# Разработка на Mac: код монтируется в контейнеры, автоперезагрузка, порты только на localhost.
+
+# Код монтируем по частям, чтобы вложенные тома config/data/rules не создавали пустые папки в backend/
+x-dev-backend: &dev-backend
+  image: buh-calendar-backend:dev
+  environment:
+    APP_ENV: dev
+  volumes:
+    - ./backend/app:/app/app
+    - ./backend/alembic:/app/alembic
+    - ./backend/tests:/app/tests
+    - ./backend/scripts:/app/scripts
+    - ./backend/alembic.ini:/app/alembic.ini
+    - ./backend/pyproject.toml:/app/pyproject.toml
+    - ./config:/app/config
+    - ./data:/app/data
+    - ./rules:/app/rules:ro
+
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  api:
+    <<: *dev-backend
+    build:
+      target: dev
+    ports:
+      - "127.0.0.1:8000:8000"
