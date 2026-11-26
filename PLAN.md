@@ -472,6 +472,8 @@ GET  /api/companies/suggest?q=...               (DaData: ИНН или назв�
 GET/PATCH/DELETE /api/companies/{id}
 POST /api/companies/{id}/refresh-dadata
 POST /api/companies/{id}/invites                {can_mark_paid}
+GET/DELETE /api/companies/{id}/invites[/{invite_id}]
+GET  /api/staff                                 (admin: кому назначить компанию)
 PATCH /api/companies/{id}/members/{user_id}     {can_mark_paid, receive_reminders}
 DELETE /api/companies/{id}/members/{user_id}
 CRUD /api/companies/{id}/patents
@@ -534,12 +536,12 @@ GET/POST /api/admin/calendar/{year}
 - [ ] **Готово, когда:** админ входит через бота на сайт, настраивает прокси и DaData в вебе, приглашает бухгалтера, тот входит
 
 ### Фаза 3 — Компании (1–2 дня)
-- [ ] Модели `companies`, `patents`, `company_members`
-- [ ] Из Фазы 2 перенесено (нужны компании): внешний ключ `invites.company_id`; привязка клиента к компании при принятии приглашения; в `seed-dev` — 5 компаний разных режимов и клиент с `can_mark_paid`
-- [ ] Клиент DaData (ключи из настроек): подсказки по ИНН/названию, заполнение реквизитов, кэш, «Обновить из DaData»; ручной ввод, если DaData выключена
-- [ ] Мастер добавления, карточка, редактирование, архив
-- [ ] Приглашение клиента, список клиентов, отвязка; переключатели `can_mark_paid`, `receive_reminders` с записью в `audit_log`
-- [ ] `get_accessible_company_ids` + тесты изоляции
+- [x] Модели `companies`, `patents`, `company_members`
+- [x] Из Фазы 2 перенесено (нужны компании): внешний ключ `invites.company_id`; привязка клиента к компании при принятии приглашения; в `seed-dev` — 5 компаний разных режимов и клиент с `can_mark_paid`
+- [x] Клиент DaData (ключи из настроек): подсказки по ИНН/названию, заполнение реквизитов, кэш, «Обновить из DaData»; ручной ввод, если DaData выключена
+- [x] Мастер добавления, карточка, редактирование, архив
+- [x] Приглашение клиента, список клиентов, отвязка; переключатели `can_mark_paid`, `receive_reminders` с записью в `audit_log`
+- [x] `get_accessible_company_ids` + тесты изоляции
 - [ ] **Готово, когда:** бухгалтер добавляет компанию по ИНН за минуту и приглашает клиента
 
 ### Фаза 4 — Календарь и правила (3–5 дней, главная часть)

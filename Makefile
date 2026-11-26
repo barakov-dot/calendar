@@ -32,7 +32,7 @@ lint: env ## ruff + eslint (и проверка типов)
 	$(DEV) build frontend
 	$(DEV) run --rm --no-deps frontend sh -c "npm run lint && npm run typecheck"
 
-seed-dev: env ## Тестовые пользователи (только разработка, стек должен быть запущен)
+seed-dev: env ## Тестовые пользователи и компании (только разработка, стек должен быть запущен)
 	$(DEV) exec api python -m app.seed_dev
 
 logs: env ## Логи сервиса: make logs s=bot
