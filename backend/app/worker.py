@@ -1,26 +1,85 @@
-"""Планировщик рассылок: python -m app.worker. Задания появятся в Фазе 6.
+"""Планировщик: python -m app.worker.
 
-Пока воркер только держит подключение к Telegram по актуальным настройкам и проверяет его.
+Раз в сутки (и при запуске) пересчитывает задачи. Рассылки появятся в Фазе 6.
+Подключение к Telegram держится по актуальным настройкам.
 """
 
 import asyncio
 import logging
 from collections.abc import Sequence
+from datetime import UTC, date, datetime, timedelta
 
 from aiogram import Bot
 from aiogram.utils.token import TokenValidationError
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from app.core.config import Config, get_config
+from app.core.db import get_sessionmaker
 from app.core.service import cancel, run_service, wait_any
 from app.core.settings_store import SettingsStore, get_store
+from app.services.tasks import Result, regenerate_all, today
 from app.services.telegram.client import TelegramClient
 from app.services.telegram.connect import REQUEST_TIMEOUT, RETRY_DELAYS, with_retries
 from app.services.telegram.factory import Proxy, ProxyConfigError
 
 logger = logging.getLogger("worker")
 
+GENERATION_HOUR = 3
+# Об отсутствии правил на следующий год напоминаем незадолго до его начала.
+RULES_WARNING_AHEAD = timedelta(days=60)
+# Одно и то же предупреждение повторяется администратору не чаще раза в неделю.
+REPEAT_WARNING_AFTER = timedelta(days=7)
+_sent: dict[str, datetime] = {}
 
-async def run_worker(
+
+def should_send(text: str, now: datetime) -> bool:
+    previous = _sent.get(text)
+    return previous is None or now - previous >= REPEAT_WARNING_AFTER
+
+
+def warning_text(result: Result, current: date) -> str | None:
+    """Что сообщить администратору после генерации."""
+    lines = []
+    if result.missing_calendar_years:
+        years = ", ".join(map(str, sorted(result.missing_calendar_years)))
+        lines.append(
+            f"Нет производственного календаря на {years}: переносы считаются по пятидневке "
+            "без праздников. Загрузите календарь на странице настроек."
+        )
+    soon = (current + RULES_WARNING_AHEAD).year
+    if missing := sorted(year for year in result.missing_rule_years if year <= soon):
+        years = ", ".join(map(str, missing))
+        lines.append(f"Нет файла налоговых правил на {years}: задачи за эти периоды не созданы.")
+    return "⚠️ " + "\n".join(lines) if lines else None
+
+
+async def generate_and_report(client: TelegramClient, config: Config) -> None:
+    try:
+        async with get_sessionmaker()() as db:
+            result = await regenerate_all(db)
+        logger.info(
+            "Задачи пересчитаны: создано %s, обновлено %s, удалено %s",
+            result.created,
+            result.updated,
+            result.deleted,
+        )
+        text = warning_text(result, today())
+        if text is None:
+            return
+        logger.warning("%s", text)
+        now = datetime.now(UTC)
+        if not should_send(text, now):
+            return
+        if config.bot_token is not None and config.admin_telegram_id is not None:
+            bot = await client.get_bot()
+            await bot.send_message(config.admin_telegram_id, text, request_timeout=REQUEST_TIMEOUT)
+            _sent[text] = now
+    except Exception:
+        logger.exception("Ошибка ежедневной генерации задач")
+
+
+async def run_telegram_check(
     stop: asyncio.Event,
     store: SettingsStore,
     config: Config,
@@ -73,11 +132,26 @@ async def run_worker(
 async def main(stop: asyncio.Event) -> None:
     config = get_config()
     store = get_store()
+    client = TelegramClient(store, config)
+    # свой клиент для сообщений администратору: проверка связи пересоздаёт свой
+    alerts = TelegramClient(store, config)
+    scheduler = AsyncIOScheduler(timezone=store.get().company.timezone)
+    scheduler.add_job(
+        generate_and_report,
+        CronTrigger(hour=GENERATION_HOUR, timezone=store.get().company.timezone),
+        args=(alerts, config),
+        misfire_grace_time=3600,
+        coalesce=True,
+    )
+    scheduler.start()
     watcher = asyncio.create_task(store.watch())
+    initial = asyncio.create_task(generate_and_report(alerts, config))
     try:
-        await run_worker(stop, store, config, TelegramClient(store, config))
+        await run_telegram_check(stop, store, config, client)
     finally:
-        await cancel(watcher)
+        scheduler.shutdown(wait=False)
+        await cancel(watcher, initial)
+        await alerts.close()
 
 
 if __name__ == "__main__":

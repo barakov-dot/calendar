@@ -8,7 +8,7 @@ from app.core.config import get_config
 from app.core.security import create_token
 from app.core.settings_store import get_store
 from app.main import create_app, lifespan
-from app.models import Company, CompanyMember, LoginRequest, Patent, Role, User
+from app.models import Company, CompanyMember, LoginRequest, Patent, Role, Task, User
 from app.seed_dev import DEV_COMPANIES, DEV_USERS, seed
 from app.services import login
 from app.services.inn import is_valid_inn
@@ -158,6 +158,7 @@ async def test_dev_login(client, db):
     }
     assert all(is_valid_inn(c.inn) for c in companies)
     assert len((await db.scalars(select(Patent))).all()) == 1
+    assert (await db.scalars(select(Task).limit(1))).first() is not None
     assert True in (await db.scalars(select(CompanyMember.can_mark_paid))).all()
     tokens = await client.post("/api/auth/dev-login", json={"user_id": users[0]["id"]})
     assert tokens.status_code == 200

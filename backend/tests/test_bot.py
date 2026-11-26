@@ -12,7 +12,7 @@ from app.core.settings_store import SettingsStore
 from app.models import Role
 from app.services.telegram.client import TelegramClient
 from app.services.telegram.status import read_status, status_path
-from app.worker import run_worker
+from app.worker import run_telegram_check
 from tests.factories import make_user
 from tests.fakes import PROXIED_HOST, TOKEN, FakeSocks5, FakeTelegram, eventually
 
@@ -172,7 +172,7 @@ async def test_worker_uses_factory_and_follows_proxy_change(store, config, caplo
         use_proxy(store, first.port)
         client = TelegramClient(store, config, telegram.api())
         async with running(
-            lambda stop: run_worker(stop, store, config, client, FAST_RETRIES), store
+            lambda stop: run_telegram_check(stop, store, config, client, FAST_RETRIES), store
         ):
             await eventually(lambda: telegram.calls.count("getMe") == 1)
             use_proxy(store, second.port)

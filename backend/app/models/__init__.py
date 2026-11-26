@@ -9,11 +9,13 @@ from app.models.company import (
     ProfitAdvances,
     Regime,
 )
+from app.models.task import ChangedBy, Task, TaskKind, TaskSource, TaskStatus, WorkDay
 from app.models.user import AuditLog, Invite, InviteKind, LoginRequest, Role, User
 
 __all__ = [
     "AuditLog",
     "Base",
+    "ChangedBy",
     "Company",
     "CompanyMember",
     "EntityType",
@@ -24,5 +26,10 @@ __all__ = [
     "ProfitAdvances",
     "Regime",
     "Role",
+    "Task",
+    "TaskKind",
+    "TaskSource",
+    "TaskStatus",
     "User",
+    "WorkDay",
 ]

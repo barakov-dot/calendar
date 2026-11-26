@@ -15,6 +15,8 @@ class Config(BaseSettings):
     app_env: Literal["dev", "prod"] = "prod"
     app_domain: str = ""
     settings_path: str = "/app/config/settings.json"
+    rules_path: str = "/app/rules"
+    data_path: str = "/app/data"
     bot_token: SecretStr | None = None
     jwt_secret: SecretStr | None = None
     admin_telegram_id: int | None = None

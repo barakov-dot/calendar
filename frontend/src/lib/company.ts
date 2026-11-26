@@ -37,6 +37,8 @@ export interface CompanyForm {
   has_property_tax: boolean
   has_transport_tax: boolean
   has_land_tax: boolean
+  has_trade_fee: boolean
+  has_tourist_tax: boolean
   notes: string
 }
 
@@ -58,6 +60,8 @@ export const EMPTY_COMPANY: CompanyForm = {
   has_property_tax: false,
   has_transport_tax: false,
   has_land_tax: false,
+  has_trade_fee: false,
+  has_tourist_tax: false,
   notes: '',
 }
 

@@ -120,6 +120,16 @@ export function TaxFields({ form, onChange }: Props) {
           />
         </>
       )}
+      <Checkbox
+        label="Торговый сбор"
+        checked={form.has_trade_fee}
+        onChange={(has_trade_fee) => change({ has_trade_fee })}
+      />
+      <Checkbox
+        label="Туристический налог"
+        checked={form.has_tourist_tax}
+        onChange={(has_tourist_tax) => change({ has_tourist_tax })}
+      />
       <label className="block text-sm">
         <span className="mb-1 block font-medium">Заметки (клиент их не видит)</span>
         <textarea

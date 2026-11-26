@@ -3,7 +3,7 @@ DEV := $(COMPOSE) -f docker-compose.dev.yml
 PROD := $(COMPOSE) -f docker-compose.prod.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help env dev down migrate test lint logs prod check-amd64 seed-dev
+.PHONY: help env dev down migrate test lint logs prod check-amd64 seed-dev gen calendar export
 
 help: ## Список команд
 	@grep -hE '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -34,6 +34,15 @@ lint: env ## ruff + eslint (и проверка типов)
 
 seed-dev: env ## Тестовые пользователи и компании (только разработка, стек должен быть запущен)
 	$(DEV) exec api python -m app.seed_dev
+
+gen: env ## Перегенерировать задачи по всем компаниям (стек должен быть запущен)
+	$(DEV) exec api python -m app.generate
+
+calendar: env ## Загрузить производственный календарь: make calendar year=2027
+	$(DEV) exec api python -m app.load_calendar $(year)
+
+export: env ## Календарь тестовых компаний в Excel: make export year=2026
+	$(DEV) run --rm --no-deps api python -m app.export_calendar $(or $(year),2026)
 
 logs: env ## Логи сервиса: make logs s=bot
 	$(DEV) logs -f $(s)

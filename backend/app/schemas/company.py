@@ -63,6 +63,8 @@ class CompanyData(Input):
     has_property_tax: bool = False
     has_transport_tax: bool = False
     has_land_tax: bool = False
+    has_trade_fee: bool = False
+    has_tourist_tax: bool = False
     notes: str = Field("", max_length=10000)
 
     @field_validator("inn")
@@ -169,6 +171,8 @@ class CompanyOut(BaseModel):
     has_property_tax: bool
     has_transport_tax: bool
     has_land_tax: bool
+    has_trade_fee: bool
+    has_tourist_tax: bool
     notes: str
     is_archived: bool
     accountant_id: int | None

@@ -97,6 +97,8 @@ make migrate      # alembic upgrade head в контейнере api
 make test         # pytest в контейнере api
 make lint         # ruff + eslint
 make gen          # перегенерировать задачи по всем компаниям
+make calendar year=2027  # загрузить производственный календарь из data/calendar
+make export year=2026    # календарь тестовых компаний в Excel (data/exports)
 make logs s=bot   # логи сервиса
 make seed-dev     # тестовые пользователи и компании (только dev, стек запущен)
 make check-amd64  # docker buildx build --platform linux/amd64 для backend и frontend

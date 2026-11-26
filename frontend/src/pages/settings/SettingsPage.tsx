@@ -6,6 +6,7 @@ import { api } from '../../lib/api'
 import { navClass } from '../../lib/navClass'
 import type { SettingsResponse } from '../../lib/types'
 import BackupsTab from './BackupsTab'
+import CalendarTab from './CalendarTab'
 import CompanyTab from './CompanyTab'
 import DadataTab from './DadataTab'
 import NotificationsTab from './NotificationsTab'
@@ -17,6 +18,7 @@ const TABS = [
   ['dadata', 'DaData'],
   ['notifications', 'Уведомления'],
   ['company', 'Компания'],
+  ['calendar', 'Производственный календарь'],
   ['backups', 'Резервные копии'],
 ] as const
 
@@ -68,6 +70,7 @@ export default function SettingsPage() {
             path="company"
             element={<CompanyTab key={JSON.stringify(settings.company)} saved={settings.company} />}
           />
+          <Route path="calendar" element={<CalendarTab />} />
           <Route path="backups" element={<BackupsTab />} />
           <Route path="*" element={<Navigate to="/settings/telegram" replace />} />
         </Routes>

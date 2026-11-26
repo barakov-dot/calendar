@@ -6,6 +6,7 @@
 import asyncio
 import sys
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -15,7 +16,9 @@ from app.core.config import get_config
 from app.core.db import get_engine, get_sessionmaker
 from app.models import Company, CompanyMember, Patent, Role, User
 from app.schemas.company import CompanyData
+from app.services.calendar.workdays import load_missing_years
 from app.services.inn import with_check_digits
+from app.services.tasks import regenerate_all
 
 # Отрицательные telegram_id не пересекаются с настоящими пользователями.
 DEV_USERS = (
@@ -38,8 +41,10 @@ DEV_COMPANIES = (
             "name": "ООО «Тест Общая»",
             "entity_type": "ooo",
             "main_regime": "osno",
+            "profit_advances_mode": "monthly_by_quarter",
             "has_employees": True,
             "has_property_tax": True,
+            "has_land_tax": True,
         },
     ),
     (
@@ -51,33 +56,58 @@ DEV_COMPANIES = (
             "entity_type": "ooo",
             "main_regime": "usn6",
             "has_employees": True,
+            "has_transport_tax": True,
+            "has_trade_fee": True,
         },
     ),
     (
         "0000000003",
         -2,
         [(-6, True)],
-        {"name": "ИП Тестов Патент", "entity_type": "ip", "main_regime": "usn15"},
+        {
+            "name": "ИП Тестов (УСН и патент)",
+            "entity_type": "ip",
+            "main_regime": "usn15",
+            "has_tourist_tax": True,
+        },
     ),
     (
         "0000000004",
         -3,
         [],
-        {"name": "ИП Тестова АУСН", "entity_type": "ip", "main_regime": "ausn_income"},
+        {
+            "name": "ИП Тестова АУСН",
+            "entity_type": "ip",
+            "main_regime": "ausn_income",
+            "has_employees": True,
+        },
     ),
     (
-        "000000005",
+        "0000000005",
         -3,
         [(-4, False)],
         {
-            "name": "ООО «Тест Расходы»",
-            "entity_type": "ooo",
-            "main_regime": "usn15",
-            "nds_payer": True,
+            "name": "ИП Тестин ОСНО",
+            "entity_type": "ip",
+            "main_regime": "osno",
+            "has_employees": True,
         },
     ),
 )
 PATENT_OWNER = "0000000003"
+
+
+def dev_company_data(base: str, fields: dict) -> CompanyData:
+    return CompanyData(inn=with_check_digits(base), short_name=fields["name"], **fields)
+
+
+def dev_patent(year: int) -> dict:
+    return {
+        "number": "TEST-1",
+        "date_start": date(year, 1, 1),
+        "date_end": date(year, 12, 31),
+        "cost_kopecks": 3_600_000,
+    }
 
 
 async def seed_companies(db: AsyncSession) -> None:
@@ -86,21 +116,12 @@ async def seed_companies(db: AsyncSession) -> None:
         inn = with_check_digits(base)
         if await db.scalar(select(Company.id).where(Company.inn == inn)):
             continue
-        data = CompanyData(inn=inn, short_name=fields["name"], **fields)
+        data = dev_company_data(base, fields)
         company = Company(**data.model_dump(), accountant_id=users[accountant])
         db.add(company)
         await db.flush()
         if base == PATENT_OWNER:
-            year = date.today().year
-            db.add(
-                Patent(
-                    company_id=company.id,
-                    number="TEST-1",
-                    date_start=date(year, 1, 1),
-                    date_end=date(year, 12, 31),
-                    cost_kopecks=3_600_000,
-                )
-            )
+            db.add(Patent(company_id=company.id, **dev_patent(date.today().year)))
         db.add_all(
             CompanyMember(
                 company_id=company.id,
@@ -127,6 +148,8 @@ async def seed(db: AsyncSession) -> None:
         )
     await seed_companies(db)
     await db.commit()
+    await load_missing_years(db, Path(get_config().data_path) / "calendar")
+    await regenerate_all(db)
 
 
 async def main() -> None:

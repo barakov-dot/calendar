@@ -4,6 +4,7 @@
 чтобы не раскрывать, что она существует.
 """
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -30,9 +31,11 @@ from app.schemas.company import (
     SuggestOut,
 )
 from app.services import audit, companies, invites
+from app.services import tasks as task_service
 from app.services.dadata.client import DadataError, cached_party, search
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 Staff = Annotated[User, Depends(require_role(Role.ADMIN, Role.ACCOUNTANT))]
 
@@ -48,6 +51,18 @@ async def staff_company(company_id: int, user: Staff, db: Database) -> Company:
 
 
 StaffCompany = Annotated[Company, Depends(staff_company)]
+
+
+async def _regenerate(db: Database, company: Company) -> None:
+    """Пересчитывает сроки после изменения компании. Её сохранение уже состоялось,
+    поэтому ошибка пересчёта не отменяет его: ночная генерация повторит попытку."""
+    company_id = company.id
+    try:
+        await task_service.regenerate_company(db, company_id)
+    except Exception:
+        logger.exception("Не удалось пересчитать задачи компании %s", company_id)
+        await db.rollback()
+    await db.refresh(company)
 
 
 def _rejected(error: companies.CompanyError) -> HTTPException:
@@ -100,6 +115,7 @@ async def create_company(body: CompanyCreate, user: Staff, db: Database) -> Comp
         )
     except companies.CompanyError as error:
         raise _rejected(error) from None
+    await _regenerate(db, company)
     return await companies.details(db, company)
 
 
@@ -123,6 +139,7 @@ async def edit_company(
         await companies.edit(db, user, company, body.company, body.is_archived)
     except companies.CompanyError as error:
         raise _rejected(error) from None
+    await _regenerate(db, company)
     return await companies.details(db, company)
 
 
@@ -189,6 +206,7 @@ async def add_patent(body: PatentIn, company: StaffCompany, user: Staff, db: Dat
     await db.flush()
     audit.record(db, user.id, "patent.create", "patent", patent.id, body.model_dump(mode="json"))
     await db.commit()
+    await _regenerate(db, company)
     return PatentOut.model_validate(patent)
 
 
@@ -201,6 +219,7 @@ async def edit_patent(
         setattr(patent, key, value)
     audit.record(db, user.id, "patent.update", "patent", patent.id, body.model_dump(mode="json"))
     await db.commit()
+    await _regenerate(db, company)
     return PatentOut.model_validate(patent)
 
 
@@ -214,6 +233,7 @@ async def delete_patent(
     await db.delete(patent)
     audit.record(db, user.id, "patent.delete", "patent", patent_id, {"company_id": company.id})
     await db.commit()
+    await _regenerate(db, company)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

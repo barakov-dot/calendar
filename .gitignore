@@ -5,6 +5,9 @@
 config/*
 !config/settings.example.json
 
+# выгрузки для проверки
+data/exports/
+
 # дампы и бэкапы
 backups/
 *.sql.gz

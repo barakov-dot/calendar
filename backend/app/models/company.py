@@ -58,6 +58,8 @@ class Company(Base):
     has_property_tax: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_transport_tax: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_land_tax: Mapped[bool] = mapped_column(default=False, server_default="false")
+    has_trade_fee: Mapped[bool] = mapped_column(default=False, server_default="false")
+    has_tourist_tax: Mapped[bool] = mapped_column(default=False, server_default="false")
 
     region_code: Mapped[str] = mapped_column(String(2), default="", server_default="")
     accountant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
