@@ -22,7 +22,7 @@ class AccountantPatch(BaseModel):
 
 
 class InviteIn(BaseModel):
-    # Клиентов приглашают из карточки компании (Фаза 3).
+    # Клиентов приглашают из карточки компании.
     kind: Literal["accountant"] = "accountant"
 
 
@@ -34,7 +34,7 @@ class InviteOut(BaseModel):
     expires_at: datetime
 
 
-def _link() -> str:
+def invite_link_base() -> str:
     link = bot_link(get_settings())
     if link is None:
         raise HTTPException(
@@ -44,7 +44,7 @@ def _link() -> str:
     return link
 
 
-def _out(invite: Invite, link: str) -> InviteOut:
+def invite_out(invite: Invite, link: str) -> InviteOut:
     return InviteOut(
         id=invite.id,
         kind=invite.kind,
@@ -78,18 +78,18 @@ async def update_accountant(
 
 @router.get("/invites")
 async def list_invites(_: AdminUser, db: Database) -> list[InviteOut]:
-    found = await invites.list_open(db)
+    found = await invites.list_open(db, InviteKind.ACCOUNTANT)
     if not found:
         return []
-    link = _link()
-    return [_out(invite, link) for invite in found]
+    link = invite_link_base()
+    return [invite_out(invite, link) for invite in found]
 
 
 @router.post("/invites", status_code=status.HTTP_201_CREATED)
 async def create_invite(body: InviteIn, admin: AdminUser, db: Database) -> InviteOut:
-    link = _link()  # до записи в базу: без ссылки приглашение бесполезно
+    link = invite_link_base()  # до записи в базу: без ссылки приглашение бесполезно
     invite = await invites.create(db, InviteKind(body.kind), admin)
-    return _out(invite, link)
+    return invite_out(invite, link)
 
 
 @router.delete("/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)

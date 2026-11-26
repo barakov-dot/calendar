@@ -51,7 +51,7 @@ async def test_invite_lifecycle(client, db, admin):
     assert actions == ["invite.create", "invite.revoke"]
 
 
-async def test_client_invite_is_not_available_yet(client, admin):
+async def test_client_invite_needs_company(client, admin):
     response = await client.post("/api/admin/invites", json={"kind": "client"}, headers=auth(admin))
 
     assert response.status_code == 422

@@ -15,10 +15,10 @@ from app.bot.handlers import (
 )
 from app.core.config import get_config
 from app.core.settings_store import get_store
-from app.models import AuditLog, Invite, InviteKind, Role, User
+from app.models import AuditLog, CompanyMember, Invite, InviteKind, Role, User
 from app.services import invites, login
 from app.services.telegram.factory import create_bot
-from tests.factories import make_user
+from tests.factories import make_company, make_user
 from tests.fakes import FakeTelegram
 
 USER_ID = 500
@@ -59,9 +59,9 @@ async def chat(secrets):
         await bot.session.close()
 
 
-async def new_invite(db, kind=InviteKind.ACCOUNTANT) -> Invite:
+async def new_invite(db) -> Invite:
     admin = await make_user(db, 1, Role.ADMIN)
-    return await invites.create(db, kind, admin)
+    return await invites.create(db, InviteKind.ACCOUNTANT, admin)
 
 
 async def users(db) -> dict[int, User]:
@@ -205,3 +205,17 @@ async def test_seeded_admin_consents_then_logs_in(chat, db):
 
     assert (await users(db))[USER_ID].pd_consent_at is not None
     assert await login.consume(db, nonce) == USER_ID
+
+
+async def test_client_invite_through_bot(chat, db):
+    accountant = await make_user(db, 2)
+    company = await make_company(db, accountant, short_name="Ромашка")
+    invite = await invites.create(db, InviteKind.CLIENT, accountant, company_id=company.id)
+
+    assert await chat.start(f"inv_{invite.token}") == CONSENT_TEXT
+    await chat.press(chat.button("Согласен"))
+
+    assert "Вы подключены к компании «Ромашка»" in chat.telegram.edited[-1]
+    members = (await db.scalars(select(CompanyMember.company_id))).all()
+    assert members == [company.id]
+    assert (await users(db))[USER_ID].role == "client"

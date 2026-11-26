@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Invite, InviteKind, Role, User
+from app.models import Company, CompanyMember, Invite, InviteKind, Role, User
 from app.services import audit
 from app.services.users import get_by_telegram_id
 
@@ -47,10 +47,49 @@ async def create(
     )
     db.add(invite)
     await db.flush()
-    audit.record(db, created_by.id, "invite.create", "invite", invite.id, {"kind": kind})
+    audit.record(
+        db,
+        created_by.id,
+        "invite.create",
+        "invite",
+        invite.id,
+        {"kind": kind} | _client_details(invite),
+    )
     await db.commit()
     await db.refresh(invite)
     return invite
+
+
+def _client_details(invite: Invite) -> dict:
+    if invite.kind != InviteKind.CLIENT:
+        return {}
+    return {"company_id": invite.company_id, "can_mark_paid": invite.can_mark_paid}
+
+
+async def _check_company(db: AsyncSession, invite: Invite, user: User | None) -> None:
+    if invite.kind != InviteKind.CLIENT:
+        return
+    company = await db.get(Company, invite.company_id) if invite.company_id else None
+    if company is None or company.is_archived:
+        raise InviteError(INVALID)
+    if user is not None and await db.get(CompanyMember, (company.id, user.id)):
+        raise InviteError("Вы уже подключены к этой компании.")
+
+
+async def _link_client(db: AsyncSession, invite: Invite, user: User) -> None:
+    # Блокировка компании: одновременные приглашения не создадут двух «основных» клиентов.
+    await db.get(Company, invite.company_id, with_for_update=True)
+    has_members = await db.scalar(
+        select(CompanyMember.user_id).where(CompanyMember.company_id == invite.company_id).limit(1)
+    )
+    db.add(
+        CompanyMember(
+            company_id=invite.company_id,
+            user_id=user.id,
+            is_primary=has_members is None,
+            can_mark_paid=invite.can_mark_paid,
+        )
+    )
 
 
 def _is_open(invite: Invite | None) -> bool:
@@ -82,11 +121,16 @@ async def check(db: AsyncSession, token: str, telegram_id: int) -> None:
     invite = await db.scalar(select(Invite).where(Invite.token == token))
     if not _is_open(invite):
         raise InviteError(INVALID)
-    _check_role(await get_by_telegram_id(db, telegram_id), invite)
+    user = await get_by_telegram_id(db, telegram_id)
+    _check_role(user, invite)
+    await _check_company(db, invite, user)
 
 
 async def accept(db: AsyncSession, token: str, profile: TelegramProfile) -> User:
-    """Принимает приглашение вместе с согласием на обработку ПДн."""
+    """Принимает приглашение вместе с согласием на обработку ПДн.
+
+    Приглашение клиента заодно привязывает его к компании.
+    """
     # FOR UPDATE: два одновременных нажатия не используют приглашение дважды.
     invite = await db.scalar(select(Invite).where(Invite.token == token).with_for_update())
     try:
@@ -94,6 +138,7 @@ async def accept(db: AsyncSession, token: str, profile: TelegramProfile) -> User
             raise InviteError(INVALID)
         user = await get_by_telegram_id(db, profile.telegram_id)
         _check_role(user, invite)
+        await _check_company(db, invite, user)
     except InviteError:
         await db.rollback()
         raise
@@ -106,17 +151,30 @@ async def accept(db: AsyncSession, token: str, profile: TelegramProfile) -> User
     user.username = profile.username
     user.pd_consent_at = user.pd_consent_at or now
     await db.flush()
+    if invite.kind == InviteKind.CLIENT:
+        await _link_client(db, invite, user)
     invite.used_by = user.id
     invite.used_at = now
-    audit.record(db, user.id, "invite.accept", "invite", invite.id, {"kind": invite.kind})
+    audit.record(
+        db,
+        user.id,
+        "invite.accept",
+        "invite",
+        invite.id,
+        {"kind": invite.kind} | _client_details(invite),
+    )
     await db.commit()
     return user
 
 
-async def list_open(db: AsyncSession) -> list[Invite]:
+async def list_open(
+    db: AsyncSession, kind: InviteKind, company_id: int | None = None
+) -> list[Invite]:
     result = await db.scalars(
         select(Invite)
         .where(
+            Invite.kind == kind,
+            Invite.company_id.is_(None) if company_id is None else Invite.company_id == company_id,
             Invite.used_at.is_(None),
             Invite.revoked_at.is_(None),
             Invite.expires_at > datetime.now(UTC),

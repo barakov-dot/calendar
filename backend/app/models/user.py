@@ -19,7 +19,7 @@ class InviteKind(StrEnum):
     CLIENT = "client"
 
 
-def _one_of(column: str, values: type[StrEnum]) -> str:
+def one_of(column: str, values: type[StrEnum]) -> str:
     return f"{column} IN ({', '.join(repr(str(value)) for value in values)})"
 
 
@@ -28,7 +28,7 @@ Timestamp = DateTime(timezone=True)
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint(_one_of("role", Role), name="role"),)
+    __table_args__ = (CheckConstraint(one_of("role", Role), name="role"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True)
@@ -44,13 +44,12 @@ class User(Base):
 
 class Invite(Base):
     __tablename__ = "invites"
-    __table_args__ = (CheckConstraint(_one_of("kind", InviteKind), name="kind"),)
+    __table_args__ = (CheckConstraint(one_of("kind", InviteKind), name="kind"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     token: Mapped[str] = mapped_column(String(64), unique=True)
     kind: Mapped[str] = mapped_column(String(16))
-    # Внешний ключ на companies появится вместе с таблицей в Фазе 3.
-    company_id: Mapped[int | None]
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), index=True)
     can_mark_paid: Mapped[bool] = mapped_column(default=False, server_default="false")
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())

@@ -9,11 +9,12 @@ from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from aiogram.types import User as TelegramUser
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_sessionmaker
 from app.core.settings_store import SettingsStore
-from app.models import Role, User
+from app.models import Company, Invite, InviteKind, Role, User
 from app.services import invites, login
 from app.services.users import can_sign_in, get_by_telegram_id
 
@@ -57,6 +58,15 @@ async def _known_user(db: AsyncSession, telegram: TelegramUser) -> User | None:
         user.username = profile.username
         await db.commit()
     return user
+
+
+async def _accepted_text(db: AsyncSession, token: str, user: User) -> str:
+    invite = await db.scalar(select(Invite).where(Invite.token == token))
+    if invite.kind != InviteKind.CLIENT:
+        return GREETINGS[Role(user.role)]
+    company = await db.get(Company, invite.company_id)
+    name = company.short_name or company.name
+    return f"Вы подключены к компании «{name}». Здесь будут напоминания о платежах."
 
 
 def build_router(store: SettingsStore) -> Router:
@@ -108,7 +118,7 @@ def build_router(store: SettingsStore) -> Router:
                 except invites.InviteError as error:
                     await message.answer(str(error))
                     return
-                await message.answer(GREETINGS[Role(user.role)])
+                await message.answer(await _accepted_text(db, token, user))
                 return
 
             user = await _known_user(db, telegram)
@@ -140,7 +150,7 @@ def build_router(store: SettingsStore) -> Router:
                 except invites.InviteError as error:
                     await finish(callback, str(error))
                     return
-                await finish(callback, GREETINGS[Role(user.role)])
+                await finish(callback, await _accepted_text(db, token, user))
                 return
 
             user = await _known_user(db, telegram)

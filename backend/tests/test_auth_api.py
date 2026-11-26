@@ -8,9 +8,10 @@ from app.core.config import get_config
 from app.core.security import create_token
 from app.core.settings_store import get_store
 from app.main import create_app, lifespan
-from app.models import LoginRequest, Role, User
-from app.seed_dev import DEV_USERS, seed
+from app.models import Company, CompanyMember, LoginRequest, Patent, Role, User
+from app.seed_dev import DEV_COMPANIES, DEV_USERS, seed
 from app.services import login
+from app.services.inn import is_valid_inn
 from app.services.users import ensure_admin
 from tests.conftest import JWT_SECRET
 from tests.factories import auth, make_user
@@ -148,6 +149,16 @@ async def test_dev_login(client, db):
 
     users = (await client.get("/api/auth/dev-users")).json()
     assert len(users) == len(DEV_USERS)
+    companies = (await db.scalars(select(Company))).all()
+    assert len(companies) == len(DEV_COMPANIES)
+    assert {(c.entity_type, c.main_regime) for c in companies} >= {
+        ("ooo", "osno"),
+        ("ooo", "usn6"),
+        ("ip", "ausn_income"),
+    }
+    assert all(is_valid_inn(c.inn) for c in companies)
+    assert len((await db.scalars(select(Patent))).all()) == 1
+    assert True in (await db.scalars(select(CompanyMember.can_mark_paid))).all()
     tokens = await client.post("/api/auth/dev-login", json={"user_id": users[0]["id"]})
     assert tokens.status_code == 200
 

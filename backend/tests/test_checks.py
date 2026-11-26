@@ -1,9 +1,12 @@
+import json
+
 import httpx
 import pytest
 
 from app.core.config import get_config
 from app.core.settings_store import parse_settings
-from app.services.dadata.client import DadataError, check_keys
+from app.services.dadata import client as dadata_client
+from app.services.dadata.client import DadataError, check_keys, parse_party, search
 from app.services.telegram import check
 from app.services.telegram.factory import resolve_proxy
 from app.services.telegram.status import BotStatus, read_status
@@ -129,3 +132,49 @@ def test_bot_status_states(tmp_path):
     assert "pa55" not in status.path.read_text()
     status.blocked("BOT_TOKEN не задан")
     assert state() == "problem"
+
+
+def party_response(request: httpx.Request):
+    data = {"inn": "500100732259", "type": "INDIVIDUAL", "kpp": "x", "management": {"name": "x"}}
+    return httpx.Response(200, json={"suggestions": [{"value": "ИП Тест", "data": data}]})
+
+
+@pytest.mark.parametrize(
+    ("query", "url", "branch"),
+    [
+        (" Ромашка  ", dadata_client.SUGGEST_URL, None),
+        ("7707083893", dadata_client.FIND_URL, "MAIN"),
+        ("500100732259", dadata_client.FIND_URL, "MAIN"),
+    ],
+)
+async def test_dadata_search(query, url, branch):
+    dadata_client.cache.clear()
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return party_response(request)
+
+    for _ in range(2):
+        [party] = await search(query, "key", 5, dadata(handler))
+
+    assert len(seen) == 1  # второй раз из кэша
+    assert str(seen[0].url) == url
+    assert json.loads(seen[0].content).get("branch_type") == branch
+    assert (party.entity_type, party.kpp, party.director_name) == ("ip", "", "")
+    assert party.region_code == "50"
+    assert dadata_client.cached_party("500100732259") == party
+    await search(query, "key", 5, dadata(handler), use_cache=False)
+    assert len(seen) == 2
+
+
+def test_dadata_skips_records_without_inn():
+    assert parse_party({"value": "x", "data": {}}) is None
+
+
+async def test_dadata_search_bad_answer():
+    dadata_client.cache.clear()
+    transport = dadata(lambda _: httpx.Response(200, json={"error": 1}))
+
+    with pytest.raises(DadataError, match="непонятный"):
+        await search("запрос", "key", 5, transport)
