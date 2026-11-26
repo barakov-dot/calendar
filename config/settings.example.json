@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "company": {
+    "name": "ООО «Ваша бухгалтерия»",
+    "support_contact": "@username",
+    "timezone": "Europe/Moscow"
+  },
+  "telegram": {
+    "bot_username": "my_buh_calendar_bot",
+    "mini_app_url": "https://calendar.example.ru/",
+    "proxy": {
+      "enabled": false,
+      "type": "socks5",
+      "host": "",
+      "port": 1080,
+      "username": "",
+      "password": "",
+      "rdns": true
+    }
+  },
+  "dadata": {
+    "enabled": true,
+    "api_key": "",
+    "secret_key": "",
+    "timeout_seconds": 10
+  },
+  "notifications": {
+    "digest_time": "09:00",
+    "digest_workdays_only": true,
+    "default_client_offsets_days": [7, 3, 1],
+    "remind_on_due_day": true,
+    "fill_amount_workdays_before": 5,
+    "overdue_notify": true
+  },
+  "tasks": {
+    "generation_horizon_months_ahead": 15,
+    "client_can_unmark_own_paid_hours": 24
+  }
+}
