@@ -102,6 +102,12 @@ export function parseRubles(text: string): number | null | undefined {
   return kopecks <= MAX_KOPECKS ? kopecks : undefined
 }
 
+/** 1234560 → «12345,60» для поля ввода. */
+export const toRublesText = (kopecks: number | null | undefined) =>
+  kopecks == null
+    ? ''
+    : `${Math.floor(kopecks / 100)},${String(kopecks % 100).padStart(2, '0')}`
+
 export function formatKopecks(kopecks: number): string {
   const rubles = Math.floor(kopecks / 100).toLocaleString('ru-RU')
   return `${rubles},${String(kopecks % 100).padStart(2, '0')} ₽`

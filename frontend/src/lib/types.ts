@@ -1,6 +1,6 @@
 import type { CompanyForm, EntityType, Regime } from './company'
 
-export type Role = 'admin' | 'accountant' | 'client'
+export type Role = 'admin' | 'accountant' | 'assistant' | 'client'
 
 export interface User {
   id: number
@@ -138,6 +138,7 @@ export interface CompanyListItem {
   patents_count: number
   members_count: number
   has_blocked_member: boolean
+  has_missing_amount: boolean
 }
 
 export interface Party {

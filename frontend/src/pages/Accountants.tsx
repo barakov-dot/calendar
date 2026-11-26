@@ -4,6 +4,7 @@ import InviteList from '../components/InviteList'
 import { Button, Card, ErrorText } from '../components/ui'
 import { api } from '../lib/api'
 import { fullName } from '../lib/format'
+import { ROLE_NAMES } from '../lib/roles'
 import type { Invite, User } from '../lib/types'
 
 export default function Accountants() {
@@ -19,8 +20,8 @@ export default function Accountants() {
   const reload = () => queryClient.invalidateQueries()
 
   const invite = useMutation({
-    mutationFn: () =>
-      api<Invite>('/admin/invites', { method: 'POST', body: { kind: 'accountant' } }),
+    mutationFn: (kind: 'accountant' | 'assistant') =>
+      api<Invite>('/admin/invites', { method: 'POST', body: { kind } }),
     onSuccess: reload,
   })
   const revoke = useMutation({
@@ -38,7 +39,7 @@ export default function Accountants() {
 
   return (
     <div className="space-y-4">
-      <Card title="Бухгалтеры">
+      <Card title="Команда">
         <ErrorText error={accountants.error ?? toggle.error} />
         {accountants.data?.length === 0 && <p className="text-sm">Пока никого нет.</p>}
         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -46,6 +47,10 @@ export default function Accountants() {
             <li key={user.id} className="flex items-center justify-between gap-2 py-2">
               <span>
                 {fullName(user)}
+                <span className="text-slate-500 dark:text-slate-400">
+                  {' '}
+                  · {ROLE_NAMES[user.role]}
+                </span>
                 {user.username && (
                   <span className="text-slate-500 dark:text-slate-400"> @{user.username}</span>
                 )}
@@ -69,9 +74,22 @@ export default function Accountants() {
 
       <Card title="Приглашения">
         <p className="text-sm">Ссылка одноразовая и действует 7 дней.</p>
-        <Button onClick={() => invite.mutate()} disabled={invite.isPending}>
-          Пригласить бухгалтера
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => invite.mutate('accountant')} disabled={invite.isPending}>
+            Пригласить бухгалтера
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => invite.mutate('assistant')}
+            disabled={invite.isPending}
+          >
+            Пригласить помощника
+          </Button>
+        </div>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Помощник видит все компании, суммы и комментарии, но ничего не меняет. Клиентов
+          приглашайте из карточки компании.
+        </p>
         <ErrorText error={invite.error ?? invites.error ?? revoke.error} />
         <InviteList invites={invites.data ?? []} onRevoke={(id) => revoke.mutate(id)} />
       </Card>

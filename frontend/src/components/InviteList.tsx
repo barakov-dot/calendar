@@ -2,6 +2,8 @@ import { formatDateTime } from '../lib/format'
 import type { Invite } from '../lib/types'
 import { Button } from './ui'
 
+const KINDS: Record<string, string> = { accountant: 'бухгалтер,', assistant: 'помощник,' }
+
 /** Действующие приглашения: ссылка, копирование и отзыв. */
 export default function InviteList({
   invites,
@@ -29,7 +31,7 @@ export default function InviteList({
               Отозвать
             </Button>
             <span className="text-slate-500 dark:text-slate-400">
-              до {formatDateTime(item.expires_at)}
+              {KINDS[item.kind] ?? ''} до {formatDateTime(item.expires_at)}
             </span>
           </div>
         </li>

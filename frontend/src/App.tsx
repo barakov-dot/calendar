@@ -10,6 +10,12 @@ import NewCompany from './pages/companies/NewCompany'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import SettingsPage from './pages/settings/SettingsPage'
+import Reminders from './pages/reminders/Reminders'
+import CalendarPage from './pages/tasks/CalendarPage'
+import NewTask from './pages/tasks/NewTask'
+import TaskPage from './pages/tasks/TaskPage'
+import Today from './pages/tasks/Today'
+import { canEdit } from './lib/roles'
 import { useAuth } from './useAuth'
 
 // Страница dev-логина не попадает в прод-сборку.
@@ -41,12 +47,23 @@ export default function App() {
         {DevLogin && <Route path="/dev-login" element={<DevLogin />} />}
         {user ? (
           <Route element={<Layout user={user} onLogout={logout} />}>
-            <Route index element={<Home user={user} />} />
+            <Route
+              index
+              element={user.role === 'client' ? <Home user={user} /> : <Today user={user} />}
+            />
             {user.role !== 'client' && (
               <>
+                <Route path="calendar" element={<CalendarPage user={user} />} />
+                <Route path="reminders" element={<Reminders user={user} />} />
+                <Route path="tasks/:id" element={<TaskPage user={user} />} />
                 <Route path="companies" element={<CompaniesList user={user} />} />
-                <Route path="companies/new" element={<NewCompany user={user} />} />
                 <Route path="companies/:id" element={<CompanyCard user={user} />} />
+                {canEdit(user.role) && (
+                  <>
+                    <Route path="tasks/new" element={<NewTask />} />
+                    <Route path="companies/new" element={<NewCompany user={user} />} />
+                  </>
+                )}
               </>
             )}
             {user.role === 'admin' && (

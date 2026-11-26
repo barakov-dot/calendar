@@ -1,13 +1,10 @@
 import { useState } from 'react'
 
 import { Alert, Button, Field } from '../../components/ui'
-import { parseRubles } from '../../lib/company'
+import { parseRubles, toRublesText } from '../../lib/company'
 import type { Patent } from '../../lib/types'
 
 export type PatentData = Omit<Patent, 'id'>
-
-const toText = (kopecks: number | null | undefined) =>
-  kopecks == null ? '' : (kopecks / 100).toFixed(2).replace('.', ',')
 
 export default function PatentForm({
   initial,
@@ -24,7 +21,7 @@ export default function PatentForm({
   const [region, setRegion] = useState(initial?.region ?? '')
   const [start, setStart] = useState(initial?.date_start ?? '')
   const [end, setEnd] = useState(initial?.date_end ?? '')
-  const [cost, setCost] = useState(toText(initial?.cost_kopecks))
+  const [cost, setCost] = useState(toRublesText(initial?.cost_kopecks))
   const kopecks = parseRubles(cost)
 
   return (

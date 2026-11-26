@@ -6,7 +6,10 @@ import { Alert, Button, Card, ErrorText, Select } from '../../components/ui'
 import { api } from '../../lib/api'
 import { toForm } from '../../lib/company'
 import { formatDateTime } from '../../lib/format'
+import { canEdit } from '../../lib/roles'
 import type { Company, User } from '../../lib/types'
+import { ReminderBlock } from '../reminders/Reminders'
+import CompanyTasks from './CompanyTasks'
 import ClientsBlock from './ClientsBlock'
 import { RequisiteFields, TaxFields } from './CompanyFields'
 import type { PatentData } from './PatentForm'
@@ -44,6 +47,7 @@ function useCompanyAction<T>(id: number, action: (input: T) => Promise<unknown>)
 }
 
 function Loaded({ company, user }: { company: Company; user: User }) {
+  const editable = canEdit(user.role)
   const base = `/companies/${company.id}`
   const refresh = useCompanyAction(company.id, () =>
     api(`${base}/refresh-dadata`, { method: 'POST' }),
@@ -57,8 +61,13 @@ function Loaded({ company, user }: { company: Company; user: User }) {
       <h1 className="text-xl font-semibold">{company.short_name || company.name}</h1>
       {company.is_archived && <Alert kind="warning">Компания в архиве.</Alert>}
       {/* key пересоздаёт форму, когда сохранённые поля изменились */}
-      <EditForm key={JSON.stringify(toForm(company))} company={company} />
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <CompanyTasks companyId={company.id} editable={editable && !company.is_archived} />
+      <ReminderBlock companyId={company.id} editable={editable && !company.is_archived} />
+      {/* помощник видит реквизиты и параметры, но не меняет их */}
+      <fieldset disabled={!editable} className="min-w-0 space-y-4">
+        <EditForm key={JSON.stringify(toForm(company))} company={company} editable={editable} />
+      </fieldset>
+      <div className={`flex flex-wrap items-center gap-2 text-sm ${editable ? '' : 'hidden'}`}>
         <Button variant="secondary" disabled={refresh.isPending} onClick={() => refresh.mutate(null)}>
           Обновить из DaData
         </Button>
@@ -69,12 +78,17 @@ function Loaded({ company, user }: { company: Company; user: User }) {
         )}
       </div>
       <ErrorText error={refresh.error} />
-      {company.entity_type === 'ip' && <Patents company={company} />}
-      <ClientsBlock company={company} />
+      {company.entity_type === 'ip' && (
+        <fieldset disabled={!editable} className="min-w-0">
+          <Patents company={company} />
+        </fieldset>
+      )}
+      <ClientsBlock company={company} user={user} />
       {user.role === 'admin' && (
         <Reassign key={company.accountant_id} company={company} />
       )}
       <ErrorText error={archive.error} />
+      {editable && (
       <Button
         variant={company.is_archived ? 'secondary' : 'danger'}
         disabled={archive.isPending}
@@ -86,11 +100,12 @@ function Loaded({ company, user }: { company: Company; user: User }) {
       >
         {company.is_archived ? 'Вернуть из архива' : 'В архив'}
       </Button>
+      )}
     </>
   )
 }
 
-function EditForm({ company }: { company: Company }) {
+function EditForm({ company, editable }: { company: Company; editable: boolean }) {
   const [form, setForm] = useState(() => toForm(company))
   const save = useCompanyAction(company.id, () =>
     api(`/companies/${company.id}`, { method: 'PATCH', body: { company: form } }),
@@ -106,9 +121,11 @@ function EditForm({ company }: { company: Company }) {
         <TaxFields form={form} onChange={setForm} />
       </Card>
       <ErrorText error={save.error} />
-      <Button disabled={!dirty || save.isPending} onClick={() => save.mutate(null)}>
-        Сохранить изменения
-      </Button>
+      {editable && (
+        <Button disabled={!dirty || save.isPending} onClick={() => save.mutate(null)}>
+          Сохранить изменения
+        </Button>
+      )}
     </>
   )
 }

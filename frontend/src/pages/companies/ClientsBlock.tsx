@@ -5,9 +5,13 @@ import InviteList from '../../components/InviteList'
 import { Badge, Button, Card, Checkbox, ErrorText } from '../../components/ui'
 import { api } from '../../lib/api'
 import { fullName } from '../../lib/format'
-import type { Company, Invite, Member } from '../../lib/types'
+import { canEdit } from '../../lib/roles'
+import type { Company, Invite, Member, User } from '../../lib/types'
 
-export default function ClientsBlock({ company }: { company: Company }) {
+export default function ClientsBlock({ company, user }: { company: Company; user: User }) {
+  const editable = canEdit(user.role)
+  // приглашает только администратор
+  const canInvite = user.role === 'admin'
   const base = `/companies/${company.id}`
   const queryClient = useQueryClient()
   const [paysSelf, setPaysSelf] = useState(false)
@@ -15,6 +19,7 @@ export default function ClientsBlock({ company }: { company: Company }) {
     queryKey: ['client-invites', company.id],
     queryFn: () => api<Invite[]>(`${base}/invites`),
     refetchOnMount: 'always',
+    enabled: canInvite,
   })
   const reload = () => {
     void queryClient.invalidateQueries({ queryKey: ['company', company.id] })
@@ -55,27 +60,29 @@ export default function ClientsBlock({ company }: { company: Company }) {
                 {fullName(member)}{' '}
                 {member.bot_blocked && <Badge kind="warning">заблокировал бота</Badge>}
               </span>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  if (window.confirm(`Отвязать клиента ${fullName(member)}?`)) {
-                    unlink.mutate(member.user_id)
-                  }
-                }}
-              >
-                Отвязать
-              </Button>
+              {editable && (
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    if (window.confirm(`Отвязать клиента ${fullName(member)}?`)) {
+                      unlink.mutate(member.user_id)
+                    }
+                  }}
+                >
+                  Отвязать
+                </Button>
+              )}
             </div>
             <Checkbox
               label="Клиент платит сам"
               checked={member.can_mark_paid}
-              disabled={update.isPending}
+              disabled={!editable || update.isPending}
               onChange={(can_mark_paid) => update.mutate({ member, patch: { can_mark_paid } })}
             />
             <Checkbox
               label="Получает напоминания"
               checked={member.receive_reminders}
-              disabled={update.isPending}
+              disabled={!editable || update.isPending}
               onChange={(receive_reminders) =>
                 update.mutate({ member, patch: { receive_reminders } })
               }
@@ -83,7 +90,12 @@ export default function ClientsBlock({ company }: { company: Company }) {
           </li>
         ))}
       </ul>
-      {!company.is_archived && (
+      {editable && !canInvite && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Приглашения клиентам выдаёт администратор.
+        </p>
+      )}
+      {canInvite && !company.is_archived && (
         <>
           <Checkbox
             label="Клиент платит сам (сможет отмечать оплату)"
