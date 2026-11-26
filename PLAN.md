@@ -507,7 +507,7 @@ GET/POST /api/admin/calendar/{year}
 - [x] Монорепо по структуре из CLAUDE.md, `.gitignore`, `.env.example`, `config/settings.example.json`
 - [ ] `docker-compose.yml` + `.dev.yml` + `.prod.yml`, `Makefile`
 - [x] `backend/Dockerfile` (python:3.12-slim), FastAPI с `/api/health`, подключение к БД, Alembic, ruff, pytest
-- [ ] Контейнеры `bot` и `worker` из того же образа (пока заглушки с логом «запущен»)
+- [x] Контейнеры `bot` и `worker` из того же образа (пока заглушки с логом «запущен»)
 - [ ] `frontend/Dockerfile` (multi-stage), Vite + React + TS + Tailwind, страница-заглушка, `node_modules` в volume
 - [ ] `deploy/Caddyfile` (prod), заготовка `deploy/DEPLOY.md`
 - [ ] `make check-amd64` проходит

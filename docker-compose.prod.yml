@@ -11,3 +11,9 @@ services:
 
   api:
     <<: *prod-backend
+
+  bot:
+    <<: *prod-backend
+
+  worker:
+    <<: *prod-backend

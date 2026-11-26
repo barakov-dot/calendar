@@ -56,5 +56,22 @@ services:
       retries: 5
       start_period: 20s
 
+  bot:
+    <<: *backend
+    command: ["python", "-m", "app.bot"]
+    # образ собирает сервис api
+    pull_policy: never
+    depends_on:
+      api:
+        condition: service_healthy
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+    pull_policy: never
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   pgdata:

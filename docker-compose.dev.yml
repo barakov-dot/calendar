@@ -27,3 +27,11 @@ services:
       target: dev
     ports:
       - "127.0.0.1:8000:8000"
+
+  bot:
+    <<: *dev-backend
+    command: ["watchfiles", "--filter", "python", "python -m app.bot", "/app/app"]
+
+  worker:
+    <<: *dev-backend
+    command: ["watchfiles", "--filter", "python", "python -m app.worker", "/app/app"]
