@@ -197,6 +197,15 @@ def _merge(base: dict[str, Any], patch: dict[str, Any], prefix: str = "") -> lis
     return changed
 
 
+def _diff(old: dict[str, Any], new: dict[str, Any], prefix: str, changed: list[str]) -> None:
+    """Пути полей, которыми new отличается от old."""
+    for key, value in new.items():
+        if isinstance(value, dict):
+            _diff(old[key], value, f"{prefix}{key}.", changed)
+        elif old[key] != value:
+            changed.append(f"{prefix}{key}")
+
+
 Listener = Callable[[AppSettings], None]
 ErrorListener = Callable[[str], None]
 
@@ -324,12 +333,20 @@ class SettingsStore:
         Пустое значение или маска в секретном поле означают «не менять»;
         чтобы удалить секрет, передайте его путь в clear.
         """
+        return self.update_with_changes(patch, user, clear)[0]
+
+    def update_with_changes(
+        self,
+        patch: dict[str, Any],
+        user: object = None,
+        clear: Iterable[str] = (),
+    ) -> tuple[AppSettings, list[str]]:
+        """То же, что update, и пути изменённых полей (без значений)."""
         clear = tuple(clear)
         if unknown := set(clear) - set(SECRET_PATHS):
             raise SettingsError(f"очищать можно только секретные поля, не: {sorted(unknown)}")
         with self._lock, self._file_lock():
-            self._signature = None
-            self.reload()  # свежая версия с диска: её мог изменить другой процесс
+            self._reload_forced()  # свежая версия с диска: её мог изменить другой процесс
             data = self._current.model_dump()
             changed = _merge(data, {k: v for k, v in patch.items() if k != "version"})
             for path in clear:
@@ -338,17 +355,41 @@ class SettingsStore:
                     section[key] = ""
                     changed.append(path)
             settings = parse_settings(data)
-            if not changed:
-                return settings
-            self._backup()
-            self._write(settings)
-            # Только имена полей: значения могут быть секретами.
-            logger.info("Пользователь %s изменил настройки: %s", user, ", ".join(sorted(changed)))
-            stat = self.path.stat()
-            self._signature = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
-            self._error = None
-            self._apply(settings)
-        return settings.model_copy(deep=True)
+            if changed:
+                self._save(settings)
+                # Только имена полей: значения могут быть секретами.
+                logger.info(
+                    "Пользователь %s изменил настройки: %s", user, ", ".join(sorted(changed))
+                )
+        return settings.model_copy(deep=True), sorted(changed)
+
+    def restore(self, name: str, user: object = None) -> tuple[AppSettings, list[str]]:
+        """Возвращает настройки из резервной копии. Текущая версия тоже сохраняется в копию."""
+        with self._lock, self._file_lock():
+            # Имя сверяется со списком: путь из запроса не используется.
+            backup = next((path for path in self.list_backups() if path.name == name), None)
+            if backup is None:
+                raise FileNotFoundError(name)
+            settings = parse_settings_text(backup.read_bytes())
+            self._reload_forced()
+            changed: list[str] = []
+            _diff(self._current.model_dump(), settings.model_dump(), "", changed)
+            if changed or self._error:
+                self._save(settings)
+                logger.info("Пользователь %s восстановил настройки из %s", user, name)
+        return settings.model_copy(deep=True), sorted(changed)
+
+    def _reload_forced(self) -> None:
+        self._signature = None
+        self.reload()
+
+    def _save(self, settings: AppSettings) -> None:
+        self._backup()
+        self._write(settings)
+        stat = self.path.stat()
+        self._signature = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+        self._error = None
+        self._apply(settings)
 
     @contextlib.contextmanager
     def _file_lock(self) -> Iterator[None]:

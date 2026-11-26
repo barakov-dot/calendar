@@ -1,5 +1,6 @@
 """Статус бота для страницы настроек: bot пишет файл в общем каталоге config, api читает."""
 
+import asyncio
 import json
 import logging
 import time
@@ -18,6 +19,8 @@ UNAVAILABLE_AFTER_SECONDS = 300
 HEARTBEAT_SECONDS = 5
 # Без отметок дольше этого срока считаем, что процесс бота не работает.
 STALE_AFTER_SECONDS = 60
+# Long polling отвечает не реже раза в 10 секунд.
+SILENCE_SECONDS = 90
 
 
 def status_path(settings_path: str | Path) -> Path:
@@ -60,6 +63,17 @@ class BotStatus:
 
         return track
 
+    def blocked(self, problem: str) -> None:
+        """Подключение невозможно, пока не исправят настройки."""
+        self.problem = problem
+        self.save()
+
+    async def heartbeat(self) -> None:
+        """Периодически сохраняет статус, пока задачу не отменят."""
+        while True:
+            self.save()
+            await asyncio.sleep(HEARTBEAT_SECONDS)
+
     def save(self) -> None:
         data = {
             "username": self.username,
@@ -76,6 +90,11 @@ class BotStatus:
             logger.warning("Не удалось записать статус бота: %s", error)
 
 
+def _silent(data: dict[str, Any], updated: float) -> bool:
+    last = data.get("last_success_at")
+    return bool(last) and updated - last > SILENCE_SECONDS
+
+
 def read_status(path: Path, now: float | None = None) -> dict[str, Any]:
     """Состояние: unknown, stopped, problem, connecting, connected, error, unavailable."""
     now = time.time() if now is None else now
@@ -88,6 +107,8 @@ def read_status(path: Path, now: float | None = None) -> dict[str, Any]:
         state = "stopped"
     elif data.get("problem"):
         state = "problem"
+    elif not data.get("failing_since") and _silent(data, updated):
+        state = "error"  # запрос завис: ни успеха, ни ошибки
     elif data.get("failing_since"):
         long = now - data["failing_since"] >= UNAVAILABLE_AFTER_SECONDS
         state = "unavailable" if long else "error"

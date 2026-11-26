@@ -14,6 +14,7 @@ from app.core.settings_store import SettingsStore
 from app.services.telegram.client import TelegramClient
 from app.services.telegram.connect import REQUEST_TIMEOUT, RETRY_DELAYS, with_retries
 from app.services.telegram.factory import Proxy, ProxyConfigError
+from app.services.telegram.status import BotStatus, status_path
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class BotRunner:
         dispatcher: Dispatcher,
         retry_delays: Sequence[float] = RETRY_DELAYS,
         polling_timeout: int = 10,
+        status: BotStatus | None = None,
     ) -> None:
         self._store = store
         self._config = config
@@ -36,14 +38,23 @@ class BotRunner:
         self._dispatcher = dispatcher
         self._retry_delays = retry_delays
         self._polling_timeout = polling_timeout
+        self._status = status or BotStatus(status_path(config.settings_path))
         self._changed = asyncio.Event()
         self._settings_error = asyncio.Event()
 
     async def run(self, stop: asyncio.Event) -> None:
+        heartbeat = asyncio.create_task(self._status.heartbeat())
+        try:
+            await self._run(stop)
+        finally:
+            await cancel(heartbeat)
+
+    async def _run(self, stop: asyncio.Event) -> None:
         if self._config.bot_token is None:
             logger.error(
                 "BOT_TOKEN не задан: бот не подключается. Добавьте его в .env и перезапустите"
             )
+            self._status.blocked("BOT_TOKEN не задан в .env")
             await stop.wait()
             return
 
@@ -70,13 +81,20 @@ class BotRunner:
             bot = await self._client.get_bot()
         except ProxyConfigError as error:
             logger.error("%s", error)
+            self._status.blocked(str(error))
             await wait_any(stop, self._changed)
             return
         except TokenValidationError:
             logger.error("BOT_TOKEN имеет неверный формат. Проверьте его в .env")
+            self._status.blocked("BOT_TOKEN в .env имеет неверный формат")
             await stop.wait()
             return
 
+        self._status.proxy = str(proxy) if proxy else None
+        self._status.problem = None
+        self._status.failing_since = None
+        self._status.last_success_at = None
+        bot.session.middleware(self._status.middleware())
         session = asyncio.create_task(self._serve(bot))
         reconfigured = asyncio.create_task(self._proxy_changed(proxy))
         stopped = asyncio.create_task(stop.wait())
@@ -112,6 +130,8 @@ class BotRunner:
 
         me = await with_retries(connect, self._retry_delays)
         logger.info("Бот @%s подключён", me.username)
+        self._status.username = me.username
+        self._status.save()
         alerts = asyncio.create_task(self._send_alerts(bot))
         try:
             await self._dispatcher.start_polling(

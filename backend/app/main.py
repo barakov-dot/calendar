@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import admin_users, auth, dev, health
+from app.api import admin_settings, admin_users, auth, dev, health
 from app.core.config import Config, get_config
 from app.core.db import get_sessionmaker
 from app.core.logging import setup_logging
@@ -46,6 +46,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
     app.include_router(admin_users.router, prefix="/api")
+    app.include_router(admin_settings.router, prefix="/api")
     if config.is_dev:
         app.include_router(dev.router, prefix="/api")
     return app

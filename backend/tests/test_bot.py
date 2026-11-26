@@ -11,6 +11,7 @@ from app.core.config import Config
 from app.core.settings_store import SettingsStore
 from app.models import Role
 from app.services.telegram.client import TelegramClient
+from app.services.telegram.status import read_status, status_path
 from app.worker import run_worker
 from tests.factories import make_user
 from tests.fakes import PROXIED_HOST, TOKEN, FakeSocks5, FakeTelegram, eventually
@@ -179,3 +180,16 @@ async def test_worker_uses_factory_and_follows_proxy_change(store, config, caplo
 
     assert first.targets == second.targets == [PROXIED_HOST]
     assert "getUpdates" not in telegram.calls
+
+
+async def test_bot_writes_status(store, config):
+    path = status_path(config.settings_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    async with FakeTelegram() as telegram, FakeSocks5() as socks:
+        use_proxy(store, socks.port)
+        async with bot_service(store, config, telegram):
+            await eventually(lambda: read_status(path).get("username") == "test_bot")
+
+    status = read_status(path)
+    assert status["state"] == "connected"
+    assert f"127.0.0.1:{socks.port}" in status["proxy"]
