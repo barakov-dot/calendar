@@ -28,3 +28,11 @@ def test_api_docs_only_in_dev(monkeypatch):
     prod = create_app(make_config(monkeypatch, APP_ENV="prod"))
     assert prod.docs_url is None
     assert prod.openapi_url is None
+
+
+async def test_api_start_creates_settings_file():
+    from app.core.settings_store import get_store
+    from app.main import app, lifespan
+
+    async with lifespan(app):
+        assert get_store().path.exists()
