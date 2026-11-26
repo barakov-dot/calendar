@@ -20,9 +20,11 @@ down: env ## Остановить контейнеры (данные базы с
 migrate: env ## alembic upgrade head в контейнере api
 	$(DEV) exec api alembic upgrade head
 
-test: env ## pytest в контейнере api
+test: env ## pytest (backend) и vitest (frontend)
 	$(DEV) build api
 	$(DEV) run --rm api pytest
+	$(DEV) build frontend
+	$(DEV) run --rm --no-deps frontend npm test
 
 lint: env ## ruff + eslint (и проверка типов)
 	$(DEV) build api

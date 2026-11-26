@@ -1,8 +1,56 @@
+import { lazy, Suspense } from 'react'
+import { Navigate, Route, Routes } from 'react-router'
+
+import { Alert, Button } from './components/ui'
+import Layout from './components/Layout'
+import Accountants from './pages/Accountants'
+import Home from './pages/Home'
+import Login from './pages/Login'
+import SettingsPage from './pages/settings/SettingsPage'
+import { useAuth } from './useAuth'
+
+// Страница dev-логина не попадает в прод-сборку.
+const DevLogin = import.meta.env.DEV ? lazy(() => import('./pages/DevLogin')) : null
+
 export default function App() {
+  const { signedIn, user, error, logout } = useAuth()
+
+  if (signedIn && !user) {
+    return (
+      <main className="mx-auto max-w-md space-y-3 p-6">
+        {error ? (
+          <>
+            <Alert kind="error">{error.message}</Alert>
+            <Button variant="secondary" onClick={logout}>
+              Выйти
+            </Button>
+          </>
+        ) : (
+          <p>Загрузка…</p>
+        )}
+      </main>
+    )
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-white p-6 text-center text-slate-900 dark:bg-slate-900 dark:text-slate-100">
-      <h1 className="text-2xl font-semibold">Платёжный календарь</h1>
-      <p className="text-slate-500 dark:text-slate-400">Сервис в разработке.</p>
-    </main>
+    <Suspense fallback={null}>
+      <Routes>
+        {DevLogin && <Route path="/dev-login" element={<DevLogin />} />}
+        {user ? (
+          <Route element={<Layout user={user} onLogout={logout} />}>
+            <Route index element={<Home user={user} />} />
+            {user.role === 'admin' && (
+              <>
+                <Route path="accountants" element={<Accountants />} />
+                <Route path="settings/*" element={<SettingsPage />} />
+              </>
+            )}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        ) : (
+          <Route path="*" element={<Login />} />
+        )}
+      </Routes>
+    </Suspense>
   )
 }
