@@ -1,4 +1,5 @@
-# Продакшен (Ubuntu): без монтирования кода, наружу смотрит только Caddy.
+# Продакшен (Ubuntu): без монтирования кода. Наружу смотрит только web — по HTTP,
+# за вашим обратным прокси nginx, который отвечает за домен и HTTPS.
 
 x-logging: &logging
   driver: json-file
@@ -24,28 +25,21 @@ services:
   worker:
     <<: *prod-backend
 
-  caddy:
+  web:
     image: buh-calendar-web:prod
     build:
       context: ./frontend
       target: prod
     restart: unless-stopped
-    environment:
-      APP_DOMAIN: ${APP_DOMAIN:?задайте в .env}
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      # сертификаты должны переживать пересборку
-      - caddy_data:/data
-      - caddy_config:/config
+      # по умолчанию доступен только с самого сервера
+      - "${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:80"
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     logging: *logging
-
-volumes:
-  caddy_data:
-  caddy_config:

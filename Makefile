@@ -54,6 +54,4 @@ check-amd64: ## Проверить, что образы собираются п�
 	docker buildx build --platform linux/amd64 --target prod --output type=cacheonly frontend
 
 prod: env ## На сервере: собрать и запустить прод
-	$(PROD) up -d --build
-	# Caddyfile примонтирован файлом: без пересоздания изменения после git pull не применятся
-	$(PROD) up -d --force-recreate --no-deps caddy
+	$(PROD) up -d --build --remove-orphans

@@ -19,5 +19,6 @@ FROM deps AS build
 COPY --chown=node:node . .
 RUN npm run build
 
-FROM caddy:2 AS prod
-COPY --from=build /app/dist /srv
+FROM nginx:1-alpine AS prod
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html

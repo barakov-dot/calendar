@@ -12,7 +12,7 @@
 - **Разработка:** macOS на Apple Silicon (M5, arm64), Docker Desktop. Всё запускается **только в Docker** — на Mac не ставим Python/Node/Postgres.
 - **Продакшен:** Ubuntu на **x86_64 (amd64)**, Docker + docker compose.
 - Поэтому:
-  - использовать только официальные мультиархитектурные образы (`python:3.12-slim`, `postgres:16`, `node:22-slim`, `caddy:2`);
+  - использовать только официальные мультиархитектурные образы (`python:3.12-slim`, `postgres:16`, `node:22-slim`, `nginx:1-alpine`);
   - не фиксировать `platform:` в compose и не тянуть бинарники под одну архитектуру;
   - образы для прода **собираются на сервере** (`docker compose build`), а не переносятся с Mac;
   - `node_modules` фронтенда живут в именованном docker-volume, а не монтируются с Mac;
@@ -35,10 +35,10 @@
 - Бот: aiogram 3, **long polling** (не webhook), отдельный контейнер `bot`; поддержка SOCKS5 через `aiohttp-socks`
 - Рассылки: отдельный контейнер `worker` с APScheduler
 - Frontend: React + Vite + TypeScript, Tailwind, @telegram-apps/sdk-react, TanStack Query
-- Прод-веб-сервер: Caddy (автоматический HTTPS), раздаёт собранный фронтенд и проксирует `/api`
+- Прод: контейнер `web` (nginx) раздаёт собранный фронтенд и проксирует `/api` по HTTP; домен и HTTPS — на обратном прокси nginx владельца (вне проекта). Caddy не используется.
 
 ## Настройки приложения
-- **Инфраструктурные секреты** — в `.env` (нужны до старта приложения): `DATABASE_URL`, `POSTGRES_*`, `BOT_TOKEN`, `JWT_SECRET`, `ADMIN_TELEGRAM_ID`, `APP_ENV` (dev|prod), `APP_DOMAIN`, `SETTINGS_PATH`, `APP_UID`/`APP_GID` (пользователь в backend-контейнерах). Опционально `TELEGRAM_PROXY_URL` — запасной прокси для первого запуска.
+- **Инфраструктурные секреты** — в `.env` (нужны до старта приложения): `DATABASE_URL`, `POSTGRES_*`, `BOT_TOKEN`, `JWT_SECRET`, `ADMIN_TELEGRAM_ID`, `APP_ENV` (dev|prod), `HTTP_BIND`/`HTTP_PORT` (прод), `SETTINGS_PATH`, `APP_UID`/`APP_GID` (пользователь в backend-контейнерах). Опционально `TELEGRAM_PROXY_URL` — запасной прокси для первого запуска.
 - **Все остальные настройки** — в JSON-файле `settings.json` (путь из `SETTINGS_PATH`, по умолчанию `/app/config/settings.json`), лежит в общем volume `./config`, который монтируется в `api`, `bot`, `worker`. В git не коммитится, в репозитории есть `config/settings.example.json`.
 - Настройки редактируются **через веб** (страница «Настройки», только admin) и вручную в файле.
 - Доступ — только через модуль `app/core/settings_store.py`:
@@ -68,14 +68,14 @@ backend/
   tests/
   Dockerfile
 frontend/
-  Dockerfile      # multi-stage: dev (vite) и build (статика для Caddy)
+  Dockerfile      # multi-stage: dev (vite) и build (nginx со статикой)
 rules/            # налоговые правила в YAML (по году)
 data/calendar/    # производственный календарь по годам (JSON)
 config/           # settings.json (gitignore), settings.example.json, backups/
-deploy/           # Caddyfile, инструкция по развёртыванию на Ubuntu, скрипт бэкапа
+deploy/           # пример конфигурации nginx, инструкция по развёртыванию на Ubuntu, скрипт бэкапа
 docker-compose.yml        # общая часть
 docker-compose.dev.yml    # Mac: hot reload, порты наружу, dev-логин
-docker-compose.prod.yml   # Ubuntu: Caddy + HTTPS, restart: unless-stopped
+docker-compose.prod.yml   # Ubuntu: web (nginx) за обратным прокси, restart: unless-stopped
 Makefile                  # короткие команды
 ```
 

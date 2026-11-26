@@ -13,7 +13,6 @@ class Config(BaseSettings):
     database_url: SecretStr
     # По умолчанию prod: забытая переменная не должна включить dev-возможности.
     app_env: Literal["dev", "prod"] = "prod"
-    app_domain: str = ""
     settings_path: str = "/app/config/settings.json"
     rules_path: str = "/app/rules"
     data_path: str = "/app/data"

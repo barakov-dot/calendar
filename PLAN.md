@@ -34,7 +34,7 @@
 | Машина | macOS, Apple Silicon M5 (arm64), Docker Desktop | Ubuntu, x86_64 (amd64), Docker Engine + compose plugin |
 | Запуск | `make dev` | `make prod` |
 | Бот | long polling (через SOCKS5, если включён) | long polling (через SOCKS5, если включён) |
-| Веб | `http://localhost:5173` (Vite), API `http://localhost:8000` | `https://<домен>` через Caddy |
+| Веб | `http://localhost:5173` (Vite), API `http://localhost:8000` | `https://<домен>` через ваш nginx → контейнер `web` |
 | Вход | dev-логин (выбор пользователя) + вход через бота | только Telegram (Mini App / вход через бота) |
 | Mini App в Telegram | опционально через туннель (cloudflared/ngrok) | по HTTPS-домену |
 
@@ -44,18 +44,18 @@ db        postgres:16, volume pgdata, healthcheck pg_isready
 api       FastAPI (uvicorn), зависит от db (healthy); миграции при старте (alembic upgrade head)
 bot       aiogram long polling (тот же образ backend, другая команда)
 worker    APScheduler-рассылки (тот же образ backend, другая команда)
-frontend  dev: vite dev server | prod: собирается в статику и копируется в Caddy
-caddy     только prod: HTTPS (Let's Encrypt), статика фронта, reverse proxy /api -> api:8000
+frontend  dev: vite dev server | prod: заменяется сервисом web
+web       только prod: nginx со статикой фронта и проксированием /api -> api:8000 (HTTP, за обратным прокси)
 ```
 Общие volume: `pgdata`, `./config` (settings.json → в api, bot, worker), `./data` (производственный календарь), `./rules`.
 
 ### 2.3. Файлы
 - `docker-compose.yml` — общая часть: `db`, `api`, `bot`, `worker`, сети, volume, `env_file: .env`.
 - `docker-compose.dev.yml` — монтирует `./backend` в контейнеры, `uvicorn --reload`, `watchfiles` для bot/worker, `frontend` с Vite (`node_modules` в именованном volume `frontend_node_modules`), порты `5432`, `8000`, `5173` наружу, `APP_ENV=dev`.
-- `docker-compose.prod.yml` — `restart: unless-stopped`, без монтирования кода, наружу только `80/443` у Caddy, `APP_ENV=prod`, лимиты логов (`json-file`, `max-size: 10m`).
+- `docker-compose.prod.yml` — `restart: unless-stopped`, без монтирования кода, наружу только HTTP-порт `web` (`HTTP_BIND:HTTP_PORT`), `APP_ENV=prod`, лимиты логов (`json-file`, `max-size: 10m`).
 - `backend/Dockerfile` — `python:3.12-slim`, зависимости через `uv` или `pip` из `requirements.txt` / `pyproject.toml`, непривилегированный пользователь.
-- `frontend/Dockerfile` — multi-stage: `node:22-slim` (dev и build) → артефакт `dist/` для Caddy.
-- `deploy/Caddyfile`, `deploy/DEPLOY.md` (пошаговая инструкция для Ubuntu), `deploy/backup.sh`.
+- `frontend/Dockerfile` — multi-stage: `node:22-slim` (dev и build) → `dist/` в образе `nginx:1-alpine`.
+- `deploy/nginx.example.conf`, `deploy/DEPLOY.md` (пошаговая инструкция для Ubuntu), `deploy/backup.sh`.
 
 ### 2.4. Совместимость arm64 → amd64
 - Только мультиархитектурные официальные образы; никаких `platform:` в compose.
@@ -66,7 +66,7 @@ caddy     только prod: HTTPS (Let's Encrypt), статика фронта,
 ### 2.5. Деплой на Ubuntu (кратко, подробно — в `deploy/DEPLOY.md`)
 1. Установить Docker Engine + compose plugin, открыть порты 80/443.
 2. `git clone` репозитория, создать `.env` из `.env.example`, `config/settings.json` из примера (или настроить через веб после первого входа).
-3. DNS домена → IP сервера; домен прописать в `.env` (`APP_DOMAIN`) — Caddy сам получит сертификат.
+3. DNS домена → ваш обратный прокси nginx; настроить в нём HTTPS и проксирование на `HTTP_BIND:HTTP_PORT` (пример — `deploy/nginx.example.conf`).
 4. `make prod`, затем `make migrate` (если не автоматом), проверить `https://<домен>/api/health`.
 5. В BotFather: `/setmenubutton` или `/newapp` → URL Mini App `https://<домен>/`.
 6. Cron: `deploy/backup.sh` раз в сутки.
@@ -77,7 +77,7 @@ caddy     только prod: HTTPS (Let's Encrypt), статика фронта,
 ## 3. Настройки приложения (JSON + веб)
 
 ### 3.1. Что где хранится
-- `.env` — только то, что нужно до старта приложения: `POSTGRES_USER/PASSWORD/DB`, `DATABASE_URL`, `BOT_TOKEN`, `JWT_SECRET`, `ADMIN_TELEGRAM_ID`, `APP_ENV`, `APP_DOMAIN`, `SETTINGS_PATH`, опционально `TELEGRAM_PROXY_URL` (запасной прокси на первый запуск, когда веб ещё недоступен).
+- `.env` — только то, что нужно до старта приложения: `POSTGRES_USER/PASSWORD/DB`, `DATABASE_URL`, `BOT_TOKEN`, `JWT_SECRET`, `ADMIN_TELEGRAM_ID`, `APP_ENV`, `HTTP_BIND`, `HTTP_PORT`, `SETTINGS_PATH`, опционально `TELEGRAM_PROXY_URL` (запасной прокси на первый запуск, когда веб ещё недоступен).
 - `config/settings.json` — всё остальное, редактируется через веб (admin) и руками.
 
 ### 3.2. Схема `settings.json` (Pydantic-модель `AppSettings`)
@@ -525,7 +525,7 @@ GET/POST /api/admin/calendar/{year}
 - [x] `backend/Dockerfile` (python:3.12-slim), FastAPI с `/api/health`, подключение к БД, Alembic, ruff, pytest
 - [x] Контейнеры `bot` и `worker` из того же образа (пока заглушки с логом «запущен»)
 - [x] `frontend/Dockerfile` (multi-stage), Vite + React + TS + Tailwind, страница-заглушка, `node_modules` в volume
-- [x] `deploy/Caddyfile` (prod), заготовка `deploy/DEPLOY.md`
+- [x] Прод-веб-сервер (в Фазе 6 Caddy заменён на nginx за обратным прокси), заготовка `deploy/DEPLOY.md`
 - [x] `make check-amd64` проходит
 - [x] **Готово, когда:** `make dev` на Mac поднимает db, api, bot, worker, frontend; `localhost:5173` открывается, `localhost:8000/api/health` → ok; `make test` зелёный
 
@@ -588,7 +588,7 @@ GET/POST /api/admin/calendar/{year}
 
 ### Фаза 7 — Запуск на Ubuntu (1–2 дня)
 - [ ] `deploy/DEPLOY.md` — полная инструкция (раздел 2.5), проверить на чистом сервере
-- [ ] `make prod`: Caddy + HTTPS, домен, Mini App URL в BotFather
+- [ ] `make prod`, обратный прокси nginx с HTTPS, домен, Mini App URL в BotFather
 - [ ] `deploy/backup.sh`: `pg_dump` + `config/` ежедневно, хранение 30 дней, копия вне сервера; инструкция восстановления
 - [ ] Мониторинг: healthcheck контейнеров, алерт админу в Telegram при падении бота/воркера, ошибках прокси, ошибках рассылки
 - [ ] Политика обработки ПДн, текст согласия; уведомление Роскомнадзора об обработке ПДн (делает компания-оператор)

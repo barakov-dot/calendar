@@ -9,7 +9,7 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
-    // В проде /api проксирует Caddy, в разработке — Vite.
+    // В проде /api проксирует nginx контейнера web, в разработке — Vite.
     proxy: { '/api': 'http://api:8000' },
   },
 })
