@@ -13,6 +13,11 @@ export default function Layout({ user, onLogout }: { user: User; onLogout: () =>
           <NavLink to="/" end className={navClass}>
             Главная
           </NavLink>
+          {user.role !== 'client' && (
+            <NavLink to="/companies" className={navClass}>
+              Компании
+            </NavLink>
+          )}
           {user.role === 'admin' && (
             <>
               <NavLink to="/accountants" className={navClass}>

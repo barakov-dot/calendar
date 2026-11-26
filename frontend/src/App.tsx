@@ -4,6 +4,9 @@ import { Navigate, Route, Routes } from 'react-router'
 import { Alert, Button } from './components/ui'
 import Layout from './components/Layout'
 import Accountants from './pages/Accountants'
+import CompaniesList from './pages/companies/CompaniesList'
+import CompanyCard from './pages/companies/CompanyCard'
+import NewCompany from './pages/companies/NewCompany'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import SettingsPage from './pages/settings/SettingsPage'
@@ -39,6 +42,13 @@ export default function App() {
         {user ? (
           <Route element={<Layout user={user} onLogout={logout} />}>
             <Route index element={<Home user={user} />} />
+            {user.role !== 'client' && (
+              <>
+                <Route path="companies" element={<CompaniesList user={user} />} />
+                <Route path="companies/new" element={<NewCompany user={user} />} />
+                <Route path="companies/:id" element={<CompanyCard user={user} />} />
+              </>
+            )}
             {user.role === 'admin' && (
               <>
                 <Route path="accountants" element={<Accountants />} />

@@ -1,4 +1,9 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+} from 'react'
 
 const buttonStyles = {
   primary: 'bg-blue-600 text-white hover:bg-blue-700',
@@ -38,14 +43,48 @@ export function Field({
   )
 }
 
+export function Select({
+  label,
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block font-medium">{label}</span>
+      <select
+        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+        {...props}
+      >
+        {children}
+      </select>
+    </label>
+  )
+}
+
+export function Badge({
+  kind = 'info',
+  children,
+}: {
+  kind?: 'info' | 'warning'
+  children: ReactNode
+}) {
+  const style =
+    kind === 'warning'
+      ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
+      : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+  return <span className={`rounded-full px-2 py-0.5 text-xs ${style}`}>{children}</span>
+}
+
 export function Checkbox({
   label,
   checked,
   onChange,
+  disabled,
 }: {
   label: string
   checked: boolean
   onChange: (checked: boolean) => void
+  disabled?: boolean
 }) {
   return (
     <label className="flex items-center gap-2 text-sm">
@@ -53,6 +92,7 @@ export function Checkbox({
         type="checkbox"
         className="size-4"
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
       />
       {label}

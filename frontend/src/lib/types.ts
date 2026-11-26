@@ -1,3 +1,5 @@
+import type { CompanyForm, EntityType, Regime } from './company'
+
 export type Role = 'admin' | 'accountant' | 'client'
 
 export interface User {
@@ -86,4 +88,70 @@ export interface BotStatus {
   problem?: string | null
   last_error?: string | null
   last_success_at?: number | null
+}
+
+export interface Patent {
+  id: number
+  number: string
+  region: string
+  date_start: string
+  date_end: string
+  cost_kopecks: number | null
+}
+
+export interface Member {
+  user_id: number
+  first_name: string
+  last_name: string
+  username: string
+  is_primary: boolean
+  can_mark_paid: boolean
+  receive_reminders: boolean
+  bot_blocked: boolean
+}
+
+export interface Company extends CompanyForm {
+  id: number
+  is_archived: boolean
+  accountant_id: number | null
+  accountant_name: string
+  dadata_updated_at: string | null
+  patents: Patent[]
+  members: Member[]
+}
+
+export interface CompanyListItem {
+  id: number
+  inn: string
+  name: string
+  short_name: string
+  entity_type: EntityType
+  main_regime: Regime
+  nds_payer: boolean
+  has_employees: boolean
+  is_archived: boolean
+  accountant_id: number | null
+  accountant_name: string
+  patents_count: number
+  members_count: number
+  has_blocked_member: boolean
+}
+
+export interface Party {
+  inn: string
+  kpp: string
+  ogrn: string
+  name: string
+  short_name: string
+  address: string
+  okved: string
+  director_name: string
+  entity_type: EntityType
+  region_code: string
+  status: string
+}
+
+export interface StaffMember {
+  id: number
+  name: string
 }

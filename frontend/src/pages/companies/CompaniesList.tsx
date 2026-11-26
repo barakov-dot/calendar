@@ -1,0 +1,69 @@
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { Link } from 'react-router'
+
+import { Badge, Card, Checkbox, ErrorText, Field } from '../../components/ui'
+import { api } from '../../lib/api'
+import { ENTITY_NAMES, REGIME_NAMES } from '../../lib/company'
+import type { CompanyListItem, User } from '../../lib/types'
+
+export default function CompaniesList({ user }: { user: User }) {
+  const [search, setSearch] = useState('')
+  const [archived, setArchived] = useState(false)
+  const companies = useQuery({
+    queryKey: ['companies', archived, search],
+    queryFn: () =>
+      api<CompanyListItem[]>(
+        `/companies?${new URLSearchParams({ archived: String(archived), q: search })}`,
+      ),
+    placeholderData: keepPreviousData,
+    refetchOnMount: 'always',
+  })
+
+  return (
+    <Card title="Компании">
+      <Link
+        to="/companies/new"
+        className="inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+      >
+        Добавить компанию
+      </Link>
+      <Field
+        label="Поиск по названию или ИНН"
+        type="search"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+      <Checkbox label="Показать архив" checked={archived} onChange={setArchived} />
+      <ErrorText error={companies.error} />
+      {companies.data?.length === 0 && <p className="text-sm">Ничего не найдено.</p>}
+      <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+        {companies.data?.map((company) => (
+          <li key={company.id}>
+            <Link
+              to={`/companies/${company.id}`}
+              className="block space-y-1 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              <div className="font-medium">{company.short_name || company.name}</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                ИНН {company.inn}
+                {user.role === 'admin' && ` · ${company.accountant_name || 'без бухгалтера'}`}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <Badge>{ENTITY_NAMES[company.entity_type]}</Badge>
+                <Badge>{REGIME_NAMES[company.main_regime]}</Badge>
+                {company.nds_payer && <Badge>НДС</Badge>}
+                {company.has_employees && <Badge>сотрудники</Badge>}
+                {company.patents_count > 0 && <Badge>патентов: {company.patents_count}</Badge>}
+                {company.members_count === 0 && <Badge kind="warning">нет клиента в боте</Badge>}
+                {company.has_blocked_member && (
+                  <Badge kind="warning">клиент заблокировал бота</Badge>
+                )}
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  )
+}
