@@ -136,7 +136,7 @@ async def _grouped(
     title = "Заполните сумму" if kind == NotificationType.FILL_AMOUNT else "Просрочено"
     path = f"tasks/{found[0][0].id}" if len(found) == 1 else ""
     return Message(
-        messages.clip(messages.section(title, found)),
+        messages.clip(messages.section(title, found, current)),
         messages.keyboard(messages.calendar_button(settings, path=path)),
         actual,
     )
@@ -154,7 +154,13 @@ async def _single(
             return None
         payer = await db.get(User, task.status_changed_by)
         name = f"{payer.first_name} {payer.last_name}".strip() or "Клиент"
-        text = f"{name} отметил(а) оплату\n{messages.task_line(task, company)}"
+        # оплата уже отмечена, поэтому без цветного кружка срочности
+        line = (
+            f"{messages.company_name(company)}: {task.title} (до {messages.short(task.due_date)})"
+        )
+        if task.amount_kopecks is not None:
+            line += f" — {messages.money(task.amount_kopecks)}"
+        text = f"{name} отметил(а) оплату\n{line}"
         buttons = messages.keyboard(
             messages.calendar_button(settings, "Открыть", f"tasks/{task.id}"),
             messages.unpaid_button(task.id),

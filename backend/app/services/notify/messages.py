@@ -25,18 +25,28 @@ def short(day: date) -> str:
     return f"{day:%d.%m}"
 
 
-def task_line(task: Task, company: Company | None, with_date: bool = True) -> str:
-    parts = [f"{company_name(company)}: {task.title}"]
-    if with_date:
-        parts[0] += f" (до {short(task.due_date)})"
+def marker(due: date, current: date) -> str:
+    """Цветной кружок по числу дней до срока: 7 и больше — зелёный, 2–6 — жёлтый,
+    1, день срока и просрочка — красный."""
+    left = (due - current).days
+    if left >= 7:
+        return "🟢"
+    return "🟡" if left >= 2 else "🔴"
+
+
+def task_line(task: Task, company: Company | None, current: date) -> str:
+    parts = [
+        f"{marker(task.due_date, current)} {company_name(company)}: {task.title} "
+        f"(до {short(task.due_date)})"
+    ]
     if task.amount_kopecks is not None:
         parts.append(money(task.amount_kopecks))
     return " — ".join(parts)
 
 
-def section(title: str, rows: Iterable[tuple[Task, Company | None]]) -> str:
+def section(title: str, rows: Iterable[tuple[Task, Company | None]], current: date) -> str:
     rows = list(rows)
-    lines = [f"• {task_line(task, company)}" for task, company in rows[:LINES_PER_SECTION]]
+    lines = [task_line(task, company, current) for task, company in rows[:LINES_PER_SECTION]]
     if len(rows) > LINES_PER_SECTION:
         lines.append(f"…и ещё {len(rows) - LINES_PER_SECTION}")
     return f"{title}: {len(rows)}\n" + "\n".join(lines)
@@ -53,7 +63,7 @@ def overview(header: str, rows: list[tuple[Task, Company | None]], current: date
         ("Сегодня", [row for row in rows if row[0].due_date == current]),
         ("Ближайшие 7 дней", [row for row in rows if row[0].due_date > current]),
     )
-    parts = [section(title, items) for title, items in groups if items]
+    parts = [section(title, items, current) for title, items in groups if items]
     return clip("\n\n".join([header, *parts])) if parts else None
 
 
@@ -64,7 +74,7 @@ def client_reminder(task: Task, company: Company, current: date) -> str:
         start = f"сегодня, {short(task.due_date)}, срок оплаты"
     else:
         start = f"до {short(task.due_date)} оплатить"
-    text = f"{company_name(company)}: {start} — {task.title}"
+    text = f"{marker(task.due_date, current)} {company_name(company)}: {start} — {task.title}"
     if task.amount_kopecks is not None:
         text += f" — {money(task.amount_kopecks)}"
     if task.client_note:

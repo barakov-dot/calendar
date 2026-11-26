@@ -7,6 +7,7 @@ from app.core.config import get_config
 from app.core.settings_store import get_store
 from app.models import CompanyMember, Notification, NotificationSettings, Role, Task
 from app.services.calendar.workdays import load_missing_years
+from app.services.notify.messages import marker
 from app.services.notify.planner import plan, workdays_until
 from app.services.notify.queue import enqueue
 from app.services.notify.sender import deliver
@@ -197,7 +198,7 @@ async def test_messages_and_buttons(db, world, bot, telegram):
         chat: (text, kb) for (chat, text), kb in zip(telegram.sent, telegram.keyboards, strict=True)
     }
     text, buttons = sent[200]
-    assert text.startswith("ООО «Ромашка»: до 03.12 оплатить — Налог — 33 333,34 ₽")
+    assert text.startswith("🟢 ООО «Ромашка»: до 03.12 оплатить — Налог — 33 333,34 ₽")
     assert "Реквизиты у бухгалтера" in text
     assert [b["text"] for b in buttons] == ["Оплатил", "Открыть календарь"]
     assert buttons[1]["web_app"]["url"] == "https://cal.example/"
@@ -327,3 +328,44 @@ async def test_unlinked_client_gets_nothing(db, world, bot, telegram):
 
     assert telegram.sent == []
     assert await statuses(db) == ["skipped"]
+
+
+@pytest.mark.parametrize(
+    ("left", "circle"),
+    [(30, "🟢"), (7, "🟢"), (6, "🟡"), (2, "🟡"), (1, "🔴"), (0, "🔴"), (-1, "🔴")],
+)
+def test_colour_of_circle(left, circle):
+    assert marker(day(left), TODAY) == circle
+
+
+async def test_circles_in_every_list(db, world, bot, telegram):
+    for offset in (-1, 3, 7):
+        await add_task(db, world["company"], day(offset), title=f"Через {offset}")
+    await run_plan(db)
+
+    await send(db, bot)
+
+    digest = next(text for chat, text in telegram.sent if text.startswith("Доброе утро"))
+    lines = {line.split(" ")[0] for line in digest.splitlines() if "Через" in line}
+    assert lines == {"🔴", "🟡", "🟢"}
+    reminders = [text for chat, text in telegram.sent if chat == 200]
+    assert {text[0] for text in reminders} == {"🔴", "🟡", "🟢"}
+
+
+@pytest.mark.parametrize("rule", ["salary_advance", "salary_payment"])
+async def test_salary_reminder_only_on_payday(db, world, rule):
+    company, payer = world["company"], world["payer"]
+    tasks_ = {
+        offset: await add_task(
+            db, company, day(offset), source="rule", rule_code=rule, period_key=str(offset)
+        )
+        for offset in (-1, 0, 1, 3, 7)
+    }
+    # и тому, кто отключил напоминание в день срока для налогов
+    db.add(NotificationSettings(user_id=payer.id, on_due_day=False))
+    await db.commit()
+
+    found = await run_plan(db)
+
+    mine = {(kind, task_id) for user, kind, task_id in found if user == payer.id}
+    assert mine == {("reminder", tasks_[0].id)}

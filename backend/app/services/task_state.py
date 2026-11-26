@@ -1,5 +1,8 @@
 from app.models import Task, TaskStatus
 
+# Аванс и зарплата: клиенту о них напоминают только в день выплаты.
+PAYDAY_RULES = ("salary_advance", "salary_payment")
+
 
 def is_untouched(task: Task) -> bool:
     """Задачу никто не менял: автоматика вправе её удалить."""

@@ -6,7 +6,7 @@
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import client_task_condition
@@ -24,6 +24,7 @@ from app.models import (
 )
 from app.services.calendar.workdays import WorkCalendar, load_calendar
 from app.services.notify.queue import enqueue
+from app.services.task_state import PAYDAY_RULES
 
 # Просрочку сообщаем по свежим срокам: старый долг не должен сыпаться пачкой.
 OVERDUE_WINDOW_DAYS = 3
@@ -133,7 +134,11 @@ async def _reminders(db: AsyncSession, settings: AppSettings, current: date) -> 
             else defaults.remind_on_due_day
         )
         left = (task.due_date - current).days
-        if (left == 0 and on_day) or left in offsets:
+        if task.rule_code in PAYDAY_RULES:
+            wanted = left == 0
+        else:
+            wanted = (left == 0 and on_day) or left in offsets
+        if wanted:
             await enqueue(db, member.user_id, NotificationType.REMINDER, current, task.id)
 
 
@@ -151,7 +156,11 @@ async def _overdue(db: AsyncSession, settings: AppSettings, current: date) -> No
         await enqueue(db, company.accountant_id, NotificationType.OVERDUE, task.due_date, task.id)
     # клиенту — только если он платит сам
     rows = await db.execute(
-        _client_tasks(settings).where(window, CompanyMember.can_mark_paid.is_(True))
+        _client_tasks(settings).where(
+            window,
+            CompanyMember.can_mark_paid.is_(True),
+            or_(Task.rule_code.is_(None), Task.rule_code.not_in(PAYDAY_RULES)),
+        )
     )
     for task, member, _ in rows.all():
         await enqueue(db, member.user_id, NotificationType.OVERDUE, task.due_date, task.id)
