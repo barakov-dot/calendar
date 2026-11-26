@@ -280,7 +280,7 @@ async def unlink_member(user_id: int, company: StaffCompany, user: Staff, db: Da
 
 
 @router.get("/companies/{company_id}/invites")
-async def list_client_invites(company: StaffCompany, db: Database) -> list[InviteOut]:
+async def list_client_invites(_: AdminUser, company: StaffCompany, db: Database) -> list[InviteOut]:
     found = await invites.list_open(db, InviteKind.CLIENT, company.id)
     if not found:
         return []
@@ -290,7 +290,7 @@ async def list_client_invites(company: StaffCompany, db: Database) -> list[Invit
 
 @router.post("/companies/{company_id}/invites", status_code=status.HTTP_201_CREATED)
 async def invite_client(
-    body: ClientInviteIn, company: StaffCompany, user: Staff, db: Database
+    body: ClientInviteIn, user: AdminUser, company: StaffCompany, db: Database
 ) -> InviteOut:
     if company.is_archived:
         raise HTTPException(status.HTTP_409_CONFLICT, "Компания в архиве")
@@ -305,7 +305,7 @@ async def invite_client(
     "/companies/{company_id}/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def revoke_client_invite(
-    invite_id: int, company: StaffCompany, user: Staff, db: Database
+    invite_id: int, user: AdminUser, company: StaffCompany, db: Database
 ) -> Response:
     ids = [invite.id for invite in await invites.list_open(db, InviteKind.CLIENT, company.id)]
     if invite_id not in ids or not await invites.revoke(db, invite_id, user):

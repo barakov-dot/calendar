@@ -112,8 +112,8 @@ def _check_role(user: User | None, invite: Invite) -> None:
             "Вы уже зарегистрированы с другой ролью, приглашение не использовано. "
             "Обратитесь к администратору."
         )
-    if user.role == Role.ACCOUNTANT and user.pd_consent_at is not None:
-        raise InviteError("Вы уже подключены как бухгалтер.")
+    if user.role in (Role.ACCOUNTANT, Role.ASSISTANT) and user.pd_consent_at is not None:
+        raise InviteError("Вы уже подключены.")
 
 
 async def check(db: AsyncSession, token: str, telegram_id: int) -> None:

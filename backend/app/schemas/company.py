@@ -158,6 +158,8 @@ class CompanyListItem(BaseModel):
     patents_count: int
     members_count: int
     has_blocked_member: bool
+    # есть платежи без суммы со сроком в ближайшие 30 дней
+    has_missing_amount: bool
 
 
 class CompanyOut(BaseModel):

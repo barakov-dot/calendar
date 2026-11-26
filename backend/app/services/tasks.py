@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_config
 from app.core.settings_store import get_settings
 from app.models import ChangedBy, Company, Patent, Task, TaskSource, TaskStatus, User
-from app.services import audit
+from app.services import audit, reminders
 from app.services.calendar.workdays import WorkCalendar, load_calendar
 from app.services.rules.engine import (
     Occurrence,
@@ -27,6 +27,7 @@ from app.services.rules.engine import (
     occurrences,
     split_in_three,
 )
+from app.services.task_state import is_untouched
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,8 @@ async def generate_tasks(
             continue
         changed = False
         for name in ("due_date", "original_due_date", "title", "source_ref"):
+            if name == "due_date" and task.due_overridden:
+                continue  # срок изменён вручную
             if getattr(task, name) != getattr(item, name):
                 setattr(task, name, getattr(item, name))
                 changed = True
@@ -161,13 +164,7 @@ async def generate_tasks(
     for key, task in existing.items():
         if key in wanted or task.due_date < current or task.status != TaskStatus.PLANNED:
             continue
-        untouched = (
-            task.amount_kopecks is None
-            and not task.comment
-            and not task.client_note
-            and task.status_changed_at is None
-        )
-        if untouched:
+        if is_untouched(task):
             await db.delete(task)
             result.deleted += 1
         else:
@@ -185,9 +182,9 @@ async def generate_tasks(
 async def regenerate_company(db: AsyncSession, company_id: int) -> Result:
     current = today()
     date_from, date_to = horizon(current)
-    result = await generate_tasks(
-        db, company_id, date_from, date_to, await load_calendar(db), current
-    )
+    work_calendar = await load_calendar(db)
+    result = await generate_tasks(db, company_id, date_from, date_to, work_calendar, current)
+    result.created += await reminders.expand_where(db, work_calendar, current, company_id)
     await db.commit()
     return result
 
@@ -198,6 +195,9 @@ async def regenerate_all(db: AsyncSession) -> Result:
     ids = list(await db.scalars(select(Company.id).where(Company.is_archived.is_(False))))
     for company_id in ids:
         total.add(await regenerate_company(db, company_id))
+    # личные напоминания не относятся ни к одной компании
+    total.created += await reminders.expand_where(db, await load_calendar(db), today())
+    await db.commit()
     if total.missing_calendar_years:
         logger.warning(
             "Нет производственного календаря на %s: рабочими считаются пн–пт",

@@ -19,6 +19,7 @@ pytestmark = pytest.mark.usefixtures("secrets")
 async def world(db):
     get_store().update({"telegram": {"bot_username": "some_bot"}})
     admin = await make_user(db, 1, Role.ADMIN)
+    helper = await make_user(db, 6, Role.ASSISTANT)
     first = await make_user(db, 2)
     second = await make_user(db, 3)
     client_a = await make_user(db, 4, Role.CLIENT)
@@ -39,6 +40,7 @@ async def test_accessible_company_ids(db, world):
     own, other, archived = world["own"], world["other"], world["archived"]
     expected = {
         "admin": {own.id, other.id, archived.id},
+        "helper": {own.id, other.id, archived.id},
         "first": {own.id, archived.id},
         "second": {other.id},
         "client_a": {own.id},  # архивная клиенту не видна
@@ -115,6 +117,9 @@ async def test_foreign_company_is_not_available(client, db, world, method, path,
         # клиент своей компании только смотрит
         response = await client.request(method, url, json=body, headers=own_client)
         assert response.status_code == 403
+        # помощник тоже только читает
+        response = await client.request(method, url, json=body, headers=auth(world["helper"]))
+        assert response.status_code == 403
 
     assert await snapshot(db) == before
 
@@ -125,7 +130,7 @@ async def test_foreign_company_is_not_available(client, db, world, method, path,
 )
 async def test_nested_object_of_foreign_company_via_own(client, db, world, path):
     invite = await client.post(
-        f"/api/companies/{world['other'].id}/invites", json={}, headers=auth(world["second"])
+        f"/api/companies/{world['other'].id}/invites", json={}, headers=auth(world["admin"])
     )
     url = f"/api/companies/{world['own'].id}" + path.format(
         patent_id=world["patent"].id, user_id=world["client_b"].id, invite_id=invite.json()["id"]
@@ -134,13 +139,19 @@ async def test_nested_object_of_foreign_company_via_own(client, db, world, path)
 
     response = await client.delete(url, headers=auth(world["first"]))
 
-    assert response.status_code == 404
+    # приглашениями управляет только администратор
+    assert response.status_code == (403 if "invites" in path else 404)
     assert await snapshot(db) == before
 
 
 @pytest.mark.parametrize(
     ("user", "visible"),
-    [("admin", {"own", "other"}), ("first", {"own"}), ("second", {"other"})],
+    [
+        ("admin", {"own", "other"}),
+        ("helper", {"own", "other"}),
+        ("first", {"own"}),
+        ("second", {"other"}),
+    ],
 )
 async def test_list_is_limited(client, world, user, visible):
     response = await client.get("/api/companies", headers=auth(world[user]))
@@ -184,7 +195,7 @@ async def test_client_cannot_create(client, world, method, url, body):
     assert response.status_code == 403
 
 
-@pytest.mark.parametrize("user", ["first", "client_a"])
+@pytest.mark.parametrize("user", ["first", "client_a", "helper"])
 async def test_reassign_and_staff_are_admin_only(client, world, user):
     headers = auth(world[user])
     url = f"/api/admin/companies/{world['own'].id}/reassign"

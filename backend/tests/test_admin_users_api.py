@@ -3,6 +3,7 @@ from sqlalchemy import select
 
 from app.core.settings_store import get_store
 from app.models import AuditLog, Role
+from app.services import invites
 from tests.factories import auth, make_user
 
 pytestmark = pytest.mark.usefixtures("secrets")
@@ -75,3 +76,23 @@ async def test_deactivate_accountant(client, db, admin):
             f"/api/admin/accountants/{user.id}", json={"is_active": False}, headers=headers
         )
         assert response.status_code == 404
+
+
+async def test_invite_and_manage_assistant(client, db, admin):
+    headers = auth(admin)
+    invite = await client.post("/api/admin/invites", json={"kind": "assistant"}, headers=headers)
+    assert invite.json()["kind"] == "assistant"
+    token = invite.json()["link"].split("start=inv_")[1]
+
+    user = await invites.accept(db, token, invites.TelegramProfile(50, "Помощник"))
+
+    assert user.role == "assistant"
+    team = (await client.get("/api/admin/accountants", headers=headers)).json()
+    assert [(item["id"], item["role"]) for item in team] == [(user.id, "assistant")]
+    url = f"/api/admin/accountants/{user.id}"
+    response = await client.patch(url, json={"is_active": False}, headers=headers)
+    assert response.json()["is_active"] is False
+    # помощник не управляет командой и настройками
+    await client.patch(url, json={"is_active": True}, headers=headers)
+    for path in ("/api/admin/accountants", "/api/admin/invites", "/api/admin/settings"):
+        assert (await client.get(path, headers=auth(user))).status_code == 403

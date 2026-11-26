@@ -11,11 +11,13 @@ from app.models.base import Base
 class Role(StrEnum):
     ADMIN = "admin"
     ACCOUNTANT = "accountant"
+    ASSISTANT = "assistant"  # помощник бухгалтера: видит всё, ничего не меняет
     CLIENT = "client"
 
 
 class InviteKind(StrEnum):
     ACCOUNTANT = "accountant"
+    ASSISTANT = "assistant"
     CLIENT = "client"
 
 

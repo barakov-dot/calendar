@@ -15,6 +15,7 @@ from app.services import audit, invites
 from app.services.telegram.link import bot_link
 
 router = APIRouter(prefix="/admin")
+TEAM = (Role.ACCOUNTANT, Role.ASSISTANT)
 
 
 class AccountantPatch(BaseModel):
@@ -23,7 +24,7 @@ class AccountantPatch(BaseModel):
 
 class InviteIn(BaseModel):
     # Клиентов приглашают из карточки компании.
-    kind: Literal["accountant"] = "accountant"
+    kind: Literal["accountant", "assistant"] = "accountant"
 
 
 class InviteOut(BaseModel):
@@ -56,7 +57,8 @@ def invite_out(invite: Invite, link: str) -> InviteOut:
 
 @router.get("/accountants")
 async def accountants(_: AdminUser, db: Database) -> list[UserOut]:
-    users = await db.scalars(select(User).where(User.role == Role.ACCOUNTANT).order_by(User.id))
+    """Сотрудники: бухгалтеры и помощники."""
+    users = await db.scalars(select(User).where(User.role.in_(TEAM)).order_by(User.id))
     return [UserOut.model_validate(user) for user in users]
 
 
@@ -65,8 +67,8 @@ async def update_accountant(
     user_id: int, body: AccountantPatch, admin: AdminUser, db: Database
 ) -> UserOut:
     user = await db.get(User, user_id)
-    if user is None or user.role != Role.ACCOUNTANT:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Бухгалтер не найден")
+    if user is None or user.role not in TEAM:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Сотрудник не найден")
     if user.is_active != body.is_active:
         user.is_active = body.is_active
         audit.record(
@@ -78,7 +80,12 @@ async def update_accountant(
 
 @router.get("/invites")
 async def list_invites(_: AdminUser, db: Database) -> list[InviteOut]:
-    found = await invites.list_open(db, InviteKind.ACCOUNTANT)
+    found = [
+        invite
+        for kind in (InviteKind.ACCOUNTANT, InviteKind.ASSISTANT)
+        for invite in await invites.list_open(db, kind)
+    ]
+    found.sort(key=lambda invite: invite.id, reverse=True)
     if not found:
         return []
     link = invite_link_base()

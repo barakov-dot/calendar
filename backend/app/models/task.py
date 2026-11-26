@@ -11,6 +11,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,12 +58,29 @@ class Task(Base):
         CheckConstraint(one_of("status_changed_by_role", ChangedBy), name="changed_by_role"),
         CheckConstraint("part BETWEEN 1 AND 3", name="part"),
         CheckConstraint("amount_kopecks >= 0", name="amount"),
+        # у задачи есть компания или, у личного напоминания, владелец
+        CheckConstraint("(company_id IS NULL) <> (owner_id IS NULL)", name="company_or_owner"),
+        # повторное разворачивание напоминания не создаёт дублей
+        Index(
+            "uq_tasks_reminder_occurrence",
+            "recurring_reminder_id",
+            "period_key",
+            "company_id",
+            "owner_id",
+            unique=True,
+            postgresql_where=text("recurring_reminder_id IS NOT NULL"),
+            postgresql_nulls_not_distinct=True,
+        ),
         Index("ix_tasks_company_due", "company_id", "due_date"),
         Index("ix_tasks_status_due", "status", "due_date"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    recurring_reminder_id: Mapped[int | None] = mapped_column(
+        ForeignKey("recurring_reminders.id", ondelete="SET NULL")
+    )
     source: Mapped[str] = mapped_column(String(16))
     rule_code: Mapped[str | None] = mapped_column(String(64))
     period_key: Mapped[str | None] = mapped_column(String(32))
@@ -73,6 +91,8 @@ class Task(Base):
     source_ref: Mapped[str] = mapped_column(String(500), default="", server_default="")
     due_date: Mapped[date]
     original_due_date: Mapped[date]
+    # срок изменён вручную: генерация его не трогает
+    due_overridden: Mapped[bool] = mapped_column(default=False, server_default="false")
     amount_kopecks: Mapped[int | None] = mapped_column(BigInteger)
     amount_overridden: Mapped[bool] = mapped_column(default=False, server_default="false")
     needs_amount: Mapped[bool] = mapped_column(default=False, server_default="false")
@@ -83,6 +103,44 @@ class Task(Base):
     status_changed_by_role: Mapped[str | None] = mapped_column(String(16))
     comment: Mapped[str] = mapped_column(Text, default="", server_default="")  # клиент не видит
     client_note: Mapped[str] = mapped_column(Text, default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
+
+
+class ShiftRule(StrEnum):
+    NONE = "none"
+    NEXT_WORKDAY = "next_workday"
+    PREV_WORKDAY = "prev_workday"
+
+
+class Audience(StrEnum):
+    ACCOUNTANT = "accountant"
+    CLIENT = "client"
+    BOTH = "both"
+
+
+class RecurringReminder(Base):
+    """Свои повторяющиеся задачи. company_id пуст — личное напоминание сотрудника."""
+
+    __tablename__ = "recurring_reminders"
+    __table_args__ = (
+        CheckConstraint(one_of("kind", TaskKind), name="kind"),
+        CheckConstraint(one_of("shift_rule", ShiftRule), name="shift_rule"),
+        CheckConstraint(one_of("audience", Audience), name="audience"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(300))
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    kind: Mapped[str] = mapped_column(String(16))
+    rrule: Mapped[str] = mapped_column(String(200))
+    dtstart: Mapped[date]
+    until: Mapped[date | None]
+    shift_rule: Mapped[str] = mapped_column(String(16))
+    audience: Mapped[str] = mapped_column(String(16))
+    client_visible: Mapped[bool] = mapped_column(default=False, server_default="false")
+    is_active: Mapped[bool] = mapped_column(default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
 
 

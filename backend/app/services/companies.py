@@ -1,6 +1,7 @@
 """Операции с компаниями. Права проверяет вызывающий через core.permissions."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
 from sqlalchemy import func, or_, select, update
@@ -8,7 +9,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import accessible_company_ids_query
-from app.models import Company, CompanyMember, Invite, Patent, Role, User
+from app.core.settings_store import get_settings
+from app.models import Company, CompanyMember, Invite, Patent, Role, Task, TaskStatus, User
 from app.schemas.company import (
     CompanyData,
     CompanyListItem,
@@ -24,6 +26,7 @@ from app.services.dadata.client import Party
 DADATA_FIELDS = ("kpp", "ogrn", "name", "short_name", "address", "okved", "director_name")
 # Значения этих полей в журнал не пишутся: там могут быть персональные данные.
 NOT_JOURNALED = {"notes", "director_name", "address"}
+MISSING_AMOUNT_AHEAD = timedelta(days=30)
 
 
 class CompanyError(Exception):
@@ -196,8 +199,21 @@ async def list_for(
         .correlate(Company)
         .exists()
     )
+    current = datetime.now(ZoneInfo(get_settings().company.timezone)).date()
+    missing = (
+        select(Task.id)
+        .where(
+            Task.company_id == Company.id,
+            Task.status == TaskStatus.PLANNED,
+            Task.needs_amount.is_(True),
+            Task.amount_kopecks.is_(None),
+            Task.due_date.between(current, current + MISSING_AMOUNT_AHEAD),
+        )
+        .correlate(Company)
+        .exists()
+    )
     query = (
-        select(Company, User, patents, members, blocked)
+        select(Company, User, patents, members, blocked, missing)
         .outerjoin(User, User.id == Company.accountant_id)
         .where(
             Company.id.in_(accessible_company_ids_query(user)),
@@ -225,8 +241,9 @@ async def list_for(
             patents_count=patent_count,
             members_count=member_count,
             has_blocked_member=has_blocked,
+            has_missing_amount=has_missing,
         )
-        for company, accountant, patent_count, member_count, has_blocked in rows
+        for company, accountant, patent_count, member_count, has_blocked, has_missing in rows
     ]
 
 

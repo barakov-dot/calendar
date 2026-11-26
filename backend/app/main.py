@@ -13,6 +13,7 @@ from app.api import (
     companies,
     dev,
     health,
+    reminders,
     tasks,
 )
 from app.core.config import Config, get_config
@@ -67,6 +68,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.include_router(admin_settings.router, prefix="/api")
     app.include_router(companies.router, prefix="/api")
     app.include_router(tasks.router, prefix="/api")
+    app.include_router(reminders.router, prefix="/api")
     app.include_router(admin_calendar.router, prefix="/api")
     if config.is_dev:
         app.include_router(dev.router, prefix="/api")

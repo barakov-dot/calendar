@@ -246,7 +246,7 @@ async def test_reassign_revokes_open_invites(client, db, staff):
     admin, accountant = staff
     second = await make_user(db, 3)
     company = await make_company(db, accountant)
-    await client.post(f"/api/companies/{company.id}/invites", json={}, headers=auth(accountant))
+    await client.post(f"/api/companies/{company.id}/invites", json={}, headers=auth(admin))
 
     response = await client.post(
         f"/api/admin/companies/{company.id}/reassign",
@@ -257,7 +257,7 @@ async def test_reassign_revokes_open_invites(client, db, staff):
     assert response.json()["accountant_id"] == second.id
     url = f"/api/companies/{company.id}"
     assert (await client.get(url, headers=auth(accountant))).status_code == 404
-    assert (await client.get(f"{url}/invites", headers=auth(second))).json() == []
+    assert (await client.get(f"{url}/invites", headers=auth(admin))).json() == []
 
 
 async def test_client_invite_binds_company(client, db, staff):
@@ -265,10 +265,14 @@ async def test_client_invite_binds_company(client, db, staff):
     company = await make_company(db, accountant)
     headers = auth(accountant)
     url = f"/api/companies/{company.id}/invites"
+    admin = auth(staff[0])
+    # приглашает только администратор
+    assert (await client.post(url, json={}, headers=headers)).status_code == 403
+    assert (await client.get(url, headers=headers)).status_code == 403
 
-    first = (await client.post(url, json={"can_mark_paid": True}, headers=headers)).json()
-    second = (await client.post(url, json={}, headers=headers)).json()
-    assert len((await client.get(url, headers=headers)).json()) == 2
+    first = (await client.post(url, json={"can_mark_paid": True}, headers=admin)).json()
+    second = (await client.post(url, json={}, headers=admin)).json()
+    assert len((await client.get(url, headers=admin)).json()) == 2
     # приглашения клиентов не смешиваются с приглашениями бухгалтеров
     assert (await client.get("/api/admin/invites", headers=auth(staff[0]))).json() == []
 
@@ -300,7 +304,7 @@ async def test_client_in_several_companies(db, staff):
 async def test_invite_to_archived_company(client, db, staff):
     company = await make_company(db, staff[1], is_archived=True)
     response = await client.post(
-        f"/api/companies/{company.id}/invites", json={}, headers=auth(staff[1])
+        f"/api/companies/{company.id}/invites", json={}, headers=auth(staff[0])
     )
     assert response.status_code == 409
     invite = await invites.create(db, InviteKind.CLIENT, staff[1], company_id=company.id)
