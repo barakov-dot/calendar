@@ -203,6 +203,11 @@ async def regenerate_all(db: AsyncSession) -> Result:
     # личные напоминания не относятся ни к одной компании
     total.created += await reminders.expand_where(db, await load_calendar(db), today())
     await db.commit()
+    # прошедшие годы нужны только для переноса выплат на границе года
+    current_year = today().year
+    total.missing_calendar_years = {
+        year for year in total.missing_calendar_years if year >= current_year
+    }
     if total.missing_calendar_years:
         logger.warning(
             "Нет производственного календаря на %s: рабочими считаются пн–пт",

@@ -177,7 +177,9 @@ companies
   id, inn (unique), kpp, ogrn, name, short_name, address, okved, director_name,
   dadata_raw jsonb, dadata_updated_at,
   entity_type, main_regime, nds_payer, has_employees,
-  profit_advances_mode, has_property_tax, has_transport_tax, has_land_tax,
+  profit_advances_mode, has_property_avg, has_property_cadastral, has_property_advances,
+  has_transport_tax, has_land_tax, has_trade_fee, has_tourist_tax, has_dsv, ausn_ndfl_tasks,
+  advance_day, salary_day,
   region_code, accountant_id -> users, is_archived, notes, created_at
 
 patents
@@ -226,8 +228,9 @@ notification_settings      -- персональные, поверх дефол�
 
 notifications_log
   id, user_id, task_id (nullable), type: digest | reminder | overdue | client_marked_paid | fill_amount | system,
-  scheduled_for date, status: pending | sent | failed, attempts, sent_at, telegram_message_id, error,
-  UNIQUE(user_id, task_id, type, scheduled_for)
+  scheduled_for date, status: pending | sent | failed | skipped, attempts, next_attempt_at,
+  sent_at, telegram_message_id, error,
+  UNIQUE NULLS NOT DISTINCT (user_id, task_id, type, scheduled_for)
 
 work_calendar
   date (PK), is_workday, note
@@ -368,6 +371,8 @@ get_accessible_company_ids(user):
 - АУСН с сотрудниками: НДФЛ и взнос на травматизм; уведомлений, 6-НДФЛ, РСВ, ЕФС-1 раздела 2 нет;
 - файл `rules/<год>.yaml` действует на налоговые периоды этого года; пока файла нет, задачи за год не создаются.
 
+**Аванс и зарплата.** В карточке компании с сотрудниками задаются числа выплат (одно в 1–15, другое в 16–31; зарплата 1–15 числа — за прошлый месяц). С выходного выплата переносится **на предыдущий** рабочий день (ч. 6 и 8 ст. 136 ТК РФ). Задачи — платежи без суммы, видны клиенту; прошедшие выплаты задним числом не создаются.
+
 ### 5.4. Генерация задач
 - `generate_tasks(company, date_from, date_to)`, горизонт — с 1 января текущего года на `generation_horizon_months_ahead` месяцев вперёд.
 - Запуск: при создании компании, при изменении её параметров, раз в сутки воркером, при загрузке нового производственного календаря.
@@ -501,6 +506,7 @@ GET  /api/tasks/{id}
 DELETE /api/tasks/{id}                          (только свои задачи)
 CRUD /api/reminders                             (company_id пуст — личное напоминание)
 GET/PUT /api/me/notification-settings
+GET  /api/me/contacts                          (поддержка и бухгалтеры клиента)
 
 # admin
 CRUD /api/admin/accountants, POST /api/admin/invites
@@ -578,12 +584,13 @@ GET/POST /api/admin/calendar/{year}
 - [ ] **Готово, когда:** бухгалтер неделю работает в сервисе вместо своей таблицы
 
 ### Фаза 6 — Клиентский интерфейс и уведомления (2–3 дня)
-- [ ] Экраны клиента: «Мои платежи» со статусами, календарь платежей и отчётов, история
-- [ ] «Оплатил» в приложении и в напоминании — только при `can_mark_paid`; уведомление бухгалтеру с «Отменить отметку»
-- [ ] Воркер: дайджест, «заполните сумму», напоминания клиенту по платежам, просрочки, «клиент отметил оплату»; очередь `pending` с ретраями при недоступности Telegram/прокси
-- [ ] Персональные настройки уведомлений, обработка блокировки бота
-- [ ] Команды `/today`, `/week`, кнопка меню Mini App
-- [ ] Проверка Mini App внутри Telegram через временный HTTPS-туннель (опционально)
+- [x] Экраны клиента: «Мои платежи» со статусами, календарь платежей и отчётов, история
+- [x] «Оплатил» в приложении и в напоминании — только при `can_mark_paid`; уведомление бухгалтеру с «Отменить отметку»
+- [x] Воркер: дайджест, «заполните сумму», напоминания клиенту по платежам, просрочки, «клиент отметил оплату»; очередь `pending` с ретраями при недоступности Telegram/прокси
+- [x] Персональные настройки уведомлений, обработка блокировки бота
+- [x] Команды `/today`, `/week`, кнопка меню Mini App
+- [ ] Проверка Mini App внутри Telegram через временный HTTPS-туннель (опционально; туннелировать только прод-сборку — в dev доступен вход без пароля)
+- [x] Дополнительно: дни выплаты аванса и зарплаты по компаниям, задачи по ним; Caddy заменён на nginx за обратным прокси
 - [ ] **Готово, когда:** пилот на 3–5 клиентах в течение одного налогового периода
 
 ### Фаза 7 — Запуск на Ubuntu (1–2 дня)

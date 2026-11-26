@@ -5,11 +5,19 @@ import ClientTasks from './ClientTasks'
 import CompanySwitcher from './CompanySwitcher'
 import { useCompanyChoice } from './useCompanyChoice'
 
+const OVERDUE_SHOWN_DAYS = 30
+
 export default function ClientPayments() {
   const today = todayIso()
   const choice = useCompanyChoice()
   const filters = { company_id: choice.companyId, kind: 'payment' }
-  const open = useTasks({ ...filters, status: 'planned', to: addDays(today, 60) })
+  // Старые незакрытые платежи клиенту не показываем: бухгалтер мог просто не отметить их.
+  const open = useTasks({
+    ...filters,
+    status: 'planned',
+    from: addDays(today, -OVERDUE_SHOWN_DAYS),
+    to: addDays(today, 60),
+  })
   const paid = useTasks({ ...filters, status: 'paid', from: addDays(today, -30) })
   const items = open.data?.items ?? []
   const overdue = items.filter((task) => task.due_date < today)
