@@ -38,7 +38,7 @@ export default function Accountants() {
   })
 
   return (
-    <div className="space-y-4">
+    <div className="grid items-start gap-4 lg:grid-cols-2">
       <Card title="Команда">
         <ErrorText error={accountants.error ?? toggle.error} />
         {accountants.data?.length === 0 && <p className="text-sm">Пока никого нет.</p>}

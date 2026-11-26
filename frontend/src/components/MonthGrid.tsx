@@ -25,7 +25,7 @@ export default function MonthGrid({
 }) {
   return (
     <>
-      <table className="w-full table-fixed border-collapse text-center text-sm">
+      <table className="w-full table-fixed border-collapse bg-white text-center text-sm dark:bg-slate-900">
         <thead>
           <tr>
             {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((name) => (
@@ -43,7 +43,7 @@ export default function MonthGrid({
                 return (
                   <td
                     key={date ?? column}
-                    className="h-16 border border-slate-200 p-0 align-top dark:border-slate-700"
+                    className="h-16 border border-slate-200 p-0 align-top lg:h-24 dark:border-slate-800"
                   >
                     {date && (
                       <button

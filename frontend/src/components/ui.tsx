@@ -126,10 +126,45 @@ export function Alert({
 
 export function Card({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <section className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-      {title && <h2 className="text-lg font-semibold">{title}</h2>}
+    <section className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+      {title && <h2 className="text-base font-semibold">{title}</h2>}
       {children}
     </section>
+  )
+}
+
+/** Вкладки внутри страницы. */
+export function Tabs<T extends string>({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: [T, string][]
+  active: T
+  onChange: (tab: T) => void
+}) {
+  return (
+    <div
+      role="tablist"
+      className="flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-800"
+    >
+      {tabs.map(([key, title]) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={key === active}
+          onClick={() => onChange(key)}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap ${
+            key === active
+              ? 'border-blue-600 font-medium text-blue-700 dark:text-blue-300'
+              : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+          }`}
+        >
+          {title}
+        </button>
+      ))}
+    </div>
   )
 }
 

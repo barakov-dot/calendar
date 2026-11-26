@@ -141,12 +141,14 @@ function Details({
         ← К поиску
       </Button>
       {warning && <Alert kind="warning">{warning}</Alert>}
-      <Card title="Реквизиты">
-        <RequisiteFields form={form} onChange={setForm} />
-      </Card>
-      <Card title="Налоги">
-        <TaxFields form={form} onChange={setForm} />
-      </Card>
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <Card title="Реквизиты">
+          <RequisiteFields form={form} onChange={setForm} />
+        </Card>
+        <Card title="Налоги и выплаты">
+          <TaxFields form={form} onChange={setForm} />
+        </Card>
+      </div>
       {form.entity_type === 'ip' && (
         <Card title="Патенты">
           <PatentList

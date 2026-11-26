@@ -31,7 +31,7 @@ export default function SettingsPage() {
   const settings = query.data?.settings
 
   return (
-    <div className="space-y-4">
+    <div className="max-w-3xl space-y-4">
       <nav className="flex gap-1 overflow-x-auto">
         {TABS.map(([path, title]) => (
           <NavLink key={path} to={`/settings/${path}`} className={navClass}>

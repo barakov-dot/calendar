@@ -54,25 +54,31 @@ export default function CalendarPage({ user }: { user: User }) {
           <TaskTable tasks={items} today={today} editable={editable} />
         </Card>
       ) : (
-        <>
-          <MonthGrid
-            month={month}
-            tasks={items}
-            today={today}
-            selected={selected}
-            onSelect={setDay}
-          />
-          {selected && (
-            <Card title={formatDate(selected)}>
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <div className="space-y-2">
+            <MonthGrid
+              month={month}
+              tasks={items}
+              today={today}
+              selected={selected}
+              onSelect={setDay}
+            />
+          </div>
+          <Card title={selected ? formatDate(selected) : 'Выберите день'}>
+            {selected ? (
               <TaskTable
                 key={selected}
                 tasks={items.filter((task) => task.due_date === selected)}
                 today={today}
                 editable={editable}
               />
-            </Card>
-          )}
-        </>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Нажмите на день в календаре, чтобы увидеть задачи.
+              </p>
+            )}
+          </Card>
+        </div>
       )}
     </div>
   )

@@ -29,7 +29,7 @@ export default function PreferencesPage({ user }: { user: User }) {
   })
   const client = user.role === 'client'
   return (
-    <div className="space-y-4">
+    <div className="max-w-2xl space-y-4">
       <ErrorText error={preferences.error} />
       {preferences.data && (
         <Form key={JSON.stringify(preferences.data)} saved={preferences.data} client={client} />

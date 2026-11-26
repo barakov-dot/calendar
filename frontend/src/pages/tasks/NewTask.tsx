@@ -48,6 +48,7 @@ export default function NewTask() {
   })
 
   return (
+    <div className="max-w-2xl">
     <Card title="Новая задача">
       <Select label="Компания" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
         <option value="">Личная задача</option>
@@ -85,5 +86,6 @@ export default function NewTask() {
         Создать задачу
       </Button>
     </Card>
+    </div>
   )
 }

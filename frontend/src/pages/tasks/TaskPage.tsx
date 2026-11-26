@@ -63,7 +63,8 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
   const deletable = task.source === 'custom' && !task.recurring_reminder_id
 
   return (
-    <>
+    <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="min-w-0 space-y-4">
       <Card title={task.title}>
         <p className="text-sm">
           {task.company_id ? (
@@ -119,7 +120,15 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
       </Card>
 
       {task.nds_parts.length > 0 && <NdsBlock task={task} editable={editable} />}
+      {task.source === 'rule' && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Основание: {task.source_ref}. Сроки сформированы автоматически, итоговое решение — за
+          бухгалтером.
+        </p>
+      )}
+      </div>
 
+      <div className="min-w-0 space-y-4">
       {editable ? (
         <EditForm key={JSON.stringify(editableFields(task))} task={task} />
       ) : (
@@ -145,13 +154,8 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
           Удалить задачу
         </Button>
       )}
-      {task.source === 'rule' && (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Основание: {task.source_ref}. Сроки сформированы автоматически, итоговое решение — за
-          бухгалтером.
-        </p>
-      )}
-    </>
+      </div>
+    </div>
   )
 }
 

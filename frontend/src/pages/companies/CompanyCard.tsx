@@ -2,9 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 
-import { Alert, Button, Card, ErrorText, Select } from '../../components/ui'
+import { Alert, Button, Card, ErrorText, Select, Tabs } from '../../components/ui'
 import { api } from '../../lib/api'
-import { toForm } from '../../lib/company'
+import { ENTITY_NAMES, REGIME_NAMES, toForm } from '../../lib/company'
 import { formatDateTime } from '../../lib/format'
 import { canEdit } from '../../lib/roles'
 import type { Company, User } from '../../lib/types'
@@ -35,6 +35,8 @@ export default function CompanyCard({ user }: { user: User }) {
   )
 }
 
+type Tab = 'tasks' | 'params' | 'clients' | 'reminders'
+
 function useCompanyAction<T>(id: number, action: (input: T) => Promise<unknown>) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -56,51 +58,72 @@ function Loaded({ company, user }: { company: Company; user: User }) {
     api(base, { method: 'PATCH', body: { is_archived } }),
   )
 
+  const [tab, setTab] = useState<Tab>('tasks')
+  const active = editable && !company.is_archived
+  const tabs: [Tab, string][] = [
+    ['tasks', 'Задачи'],
+    ['params', 'Реквизиты и налоги'],
+    ['clients', `Клиенты · ${company.members.length}`],
+    ['reminders', 'Напоминания'],
+  ]
+
   return (
     <>
-      <h1 className="text-xl font-semibold">{company.short_name || company.name}</h1>
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <h1 className="text-xl font-semibold">{company.short_name || company.name}</h1>
+        <span className="text-sm text-slate-500 dark:text-slate-400">
+          ИНН {company.inn} · {ENTITY_NAMES[company.entity_type]} ·{' '}
+          {REGIME_NAMES[company.main_regime]}
+        </span>
+      </div>
       {company.is_archived && <Alert kind="warning">Компания в архиве.</Alert>}
-      {/* key пересоздаёт форму, когда сохранённые поля изменились */}
-      <CompanyTasks companyId={company.id} editable={editable && !company.is_archived} />
-      <ReminderBlock companyId={company.id} editable={editable && !company.is_archived} />
-      {/* помощник видит реквизиты и параметры, но не меняет их */}
-      <fieldset disabled={!editable} className="min-w-0 space-y-4">
-        <EditForm key={JSON.stringify(toForm(company))} company={company} editable={editable} />
-      </fieldset>
-      <div className={`flex flex-wrap items-center gap-2 text-sm ${editable ? '' : 'hidden'}`}>
-        <Button variant="secondary" disabled={refresh.isPending} onClick={() => refresh.mutate(null)}>
-          Обновить из DaData
-        </Button>
-        {company.dadata_updated_at && (
-          <span className="text-slate-500 dark:text-slate-400">
-            обновлено {formatDateTime(company.dadata_updated_at)}
-          </span>
+      <Tabs tabs={tabs} active={tab} onChange={setTab} />
+      {tab === 'tasks' && <CompanyTasks companyId={company.id} editable={active} />}
+      {tab === 'reminders' && <ReminderBlock companyId={company.id} editable={active} />}
+      {tab === 'clients' && <ClientsBlock company={company} user={user} />}
+      {/* вкладка скрывается, а не удаляется: несохранённые правки не теряются */}
+      <div className={tab === 'params' ? 'space-y-4' : 'hidden'}>
+        <div className={`flex flex-wrap items-center gap-2 text-sm ${editable ? '' : 'hidden'}`}>
+          <Button
+            variant="secondary"
+            disabled={refresh.isPending}
+            onClick={() => refresh.mutate(null)}
+          >
+            Обновить из DaData
+          </Button>
+          {company.dadata_updated_at && (
+            <span className="text-slate-500 dark:text-slate-400">
+              обновлено {formatDateTime(company.dadata_updated_at)}
+            </span>
+          )}
+        </div>
+        <ErrorText error={refresh.error} />
+        {/* помощник видит реквизиты и параметры, но не меняет их */}
+        <fieldset disabled={!editable} className="min-w-0 space-y-4">
+          {/* key пересоздаёт форму, когда сохранённые поля изменились */}
+          <EditForm key={JSON.stringify(toForm(company))} company={company} editable={editable} />
+        </fieldset>
+        {company.entity_type === 'ip' && (
+          <fieldset disabled={!editable} className="min-w-0">
+            <Patents company={company} />
+          </fieldset>
+        )}
+        {user.role === 'admin' && <Reassign key={company.accountant_id} company={company} />}
+        <ErrorText error={archive.error} />
+        {editable && (
+          <Button
+            variant={company.is_archived ? 'secondary' : 'danger'}
+            disabled={archive.isPending}
+            onClick={() => {
+              if (company.is_archived || window.confirm('Перенести компанию в архив?')) {
+                archive.mutate(!company.is_archived)
+              }
+            }}
+          >
+            {company.is_archived ? 'Вернуть из архива' : 'В архив'}
+          </Button>
         )}
       </div>
-      <ErrorText error={refresh.error} />
-      {company.entity_type === 'ip' && (
-        <fieldset disabled={!editable} className="min-w-0">
-          <Patents company={company} />
-        </fieldset>
-      )}
-      <ClientsBlock company={company} user={user} />
-      {user.role === 'admin' && (
-        <Reassign key={company.accountant_id} company={company} />
-      )}
-      <ErrorText error={archive.error} />
-      {editable && (
-      <Button
-        variant={company.is_archived ? 'secondary' : 'danger'}
-        disabled={archive.isPending}
-        onClick={() => {
-          if (company.is_archived || window.confirm('Перенести компанию в архив?')) {
-            archive.mutate(!company.is_archived)
-          }
-        }}
-      >
-        {company.is_archived ? 'Вернуть из архива' : 'В архив'}
-      </Button>
-      )}
     </>
   )
 }
@@ -114,12 +137,14 @@ function EditForm({ company, editable }: { company: Company; editable: boolean }
 
   return (
     <>
-      <Card title="Реквизиты">
-        <RequisiteFields form={form} onChange={setForm} />
-      </Card>
-      <Card title="Налоги">
-        <TaxFields form={form} onChange={setForm} />
-      </Card>
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <Card title="Реквизиты">
+          <RequisiteFields form={form} onChange={setForm} />
+        </Card>
+        <Card title="Налоги и выплаты">
+          <TaxFields form={form} onChange={setForm} />
+        </Card>
+      </div>
       <ErrorText error={save.error} />
       {editable && (
         <Button disabled={!dirty || save.isPending} onClick={() => save.mutate(null)}>

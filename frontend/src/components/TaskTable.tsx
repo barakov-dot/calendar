@@ -14,6 +14,14 @@ const BULK: [TaskStatus, string][] = [
   ['planned', 'Вернуть в план'],
 ]
 
+function Amount({ task }: { task: Task }) {
+  if (task.amount_kopecks != null) return <>{formatKopecks(task.amount_kopecks)}</>
+  if (task.needs_amount && task.status === 'planned') {
+    return <span className="text-xs text-amber-700 dark:text-amber-300">нет суммы</span>
+  }
+  return null
+}
+
 /** Список задач. С editable — выбор и массовая смена статуса. */
 export default function TaskTable({
   tasks,
@@ -80,38 +88,49 @@ export default function TaskTable({
           {bulk.data.skipped > 0 && ` Пропущено (статус не подходит): ${bulk.data.skipped}.`}
         </Alert>
       )}
-      <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+      <ul className="divide-y divide-slate-100 dark:divide-slate-800">
         {tasks.map((task) => (
-          <li key={task.id} className="flex items-start gap-3 py-2">
+          <li
+            key={task.id}
+            className="flex items-start gap-3 rounded-md py-2 hover:bg-slate-50 md:items-center dark:hover:bg-slate-800/50"
+          >
             {editable && (
               <input
                 type="checkbox"
-                className="mt-1 size-4"
+                className="mt-1 size-4 md:mt-0"
                 aria-label={`Выбрать: ${task.title}, ${task.company_name}`}
                 checked={selected.has(task.id)}
                 onChange={() => toggle(task.id)}
               />
             )}
-            <Link to={`/tasks/${task.id}`} className="min-w-0 flex-1">
-              <span className="block text-sm font-medium break-words">{task.title}</span>
-              <span className="block text-sm text-slate-500 dark:text-slate-400">
+            <Link
+              to={`/tasks/${task.id}`}
+              className="min-w-0 flex-1 md:grid md:grid-cols-[5.5rem_minmax(0,1fr)_auto] md:items-center md:gap-3"
+            >
+              <span className="hidden text-sm tabular-nums md:block">
                 {formatDate(task.due_date)}
-                {showCompany && ` · ${task.company_name}`}
-                {` · ${KIND_NAMES[task.kind]}`}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium break-words">{task.title}</span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                  <span className="md:hidden">{formatDate(task.due_date)} · </span>
+                  {showCompany && `${task.company_name} · `}
+                  {KIND_NAMES[task.kind]}
+                </span>
+              </span>
+              <span className="hidden text-right text-sm tabular-nums md:block">
+                <Amount task={task} />
               </span>
             </Link>
-            <span className="flex flex-col items-end gap-1 text-sm whitespace-nowrap">
-              <span className={`rounded-full px-2 py-0.5 text-xs ${TONE_STYLES[toneOf(task, today)]}`}>
+            <span className="flex flex-col items-end gap-1 text-sm whitespace-nowrap md:w-32">
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs ${TONE_STYLES[toneOf(task, today)]}`}
+              >
                 {toneOf(task, today) === 'overdue' ? 'Просрочено' : STATUS_NAMES[task.status]}
               </span>
-              {task.amount_kopecks != null ? (
-                <span>{formatKopecks(task.amount_kopecks)}</span>
-              ) : (
-                task.needs_amount &&
-                task.status === 'planned' && (
-                  <span className="text-xs text-amber-700 dark:text-amber-300">нет суммы</span>
-                )
-              )}
+              <span className="md:hidden">
+                <Amount task={task} />
+              </span>
             </span>
           </li>
         ))}

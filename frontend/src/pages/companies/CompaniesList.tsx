@@ -40,12 +40,12 @@ export default function CompaniesList({ user }: { user: User }) {
       <Checkbox label="Показать архив" checked={archived} onChange={setArchived} />
       <ErrorText error={companies.error} />
       {companies.data?.length === 0 && <p className="text-sm">Ничего не найдено.</p>}
-      <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+      <ul className="grid gap-3 lg:grid-cols-2">
         {companies.data?.map((company) => (
           <li key={company.id}>
             <Link
               to={`/companies/${company.id}`}
-              className="block space-y-1 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="block h-full space-y-1 rounded-lg border border-slate-200 p-3 hover:border-blue-400 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-blue-700 dark:hover:bg-slate-800/50"
             >
               <div className="font-medium">{company.short_name || company.name}</div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
