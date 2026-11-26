@@ -48,7 +48,8 @@ export default function TaskTable({
   if (tasks.length === 0) return <p className="text-sm">Задач нет.</p>
 
   return (
-    <div className="space-y-2">
+    // раскладка строк зависит от ширины самого списка, а не экрана
+    <div className="@container space-y-2">
       {editable && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <label className="flex items-center gap-2">
@@ -92,12 +93,12 @@ export default function TaskTable({
         {tasks.map((task) => (
           <li
             key={task.id}
-            className="flex items-start gap-3 rounded-md py-2 hover:bg-slate-50 md:items-center dark:hover:bg-slate-800/50"
+            className="flex items-start gap-3 rounded-md py-2 hover:bg-slate-50 @xl:items-center dark:hover:bg-slate-800/50"
           >
             {editable && (
               <input
                 type="checkbox"
-                className="mt-1 size-4 md:mt-0"
+                className="mt-1 size-4 @xl:mt-0"
                 aria-label={`Выбрать: ${task.title}, ${task.company_name}`}
                 checked={selected.has(task.id)}
                 onChange={() => toggle(task.id)}
@@ -105,30 +106,30 @@ export default function TaskTable({
             )}
             <Link
               to={`/tasks/${task.id}`}
-              className="min-w-0 flex-1 md:grid md:grid-cols-[5.5rem_minmax(0,1fr)_auto] md:items-center md:gap-3"
+              className="min-w-0 flex-1 @xl:grid @xl:grid-cols-[5.5rem_minmax(0,1fr)_auto] @xl:items-center @xl:gap-3"
             >
-              <span className="hidden text-sm tabular-nums md:block">
+              <span className="hidden text-sm tabular-nums @xl:block">
                 {formatDate(task.due_date)}
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-medium break-words">{task.title}</span>
                 <span className="block text-xs text-slate-500 dark:text-slate-400">
-                  <span className="md:hidden">{formatDate(task.due_date)} · </span>
+                  <span className="@xl:hidden">{formatDate(task.due_date)} · </span>
                   {showCompany && `${task.company_name} · `}
                   {KIND_NAMES[task.kind]}
                 </span>
               </span>
-              <span className="hidden text-right text-sm tabular-nums md:block">
+              <span className="hidden text-right text-sm tabular-nums @xl:block">
                 <Amount task={task} />
               </span>
             </Link>
-            <span className="flex flex-col items-end gap-1 text-sm whitespace-nowrap md:w-32">
+            <span className="flex flex-col items-end gap-1 text-sm whitespace-nowrap @xl:w-32">
               <span
                 className={`rounded-full px-2 py-0.5 text-xs ${TONE_STYLES[toneOf(task, today)]}`}
               >
                 {toneOf(task, today) === 'overdue' ? 'Просрочено' : STATUS_NAMES[task.status]}
               </span>
-              <span className="md:hidden">
+              <span className="@xl:hidden">
                 <Amount task={task} />
               </span>
             </span>

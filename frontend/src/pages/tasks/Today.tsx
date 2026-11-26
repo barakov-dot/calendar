@@ -54,7 +54,7 @@ export default function Today({ user }: { user: User }) {
         </details>
       )}
       {week.data && (
-        <div className="grid items-start gap-4 xl:grid-cols-2">
+        <div className="space-y-4">
           {sections.map(([title, tasks]) => (
             <Card key={title} title={`${title} · ${tasks.length}`}>
               <TaskTable tasks={tasks} today={today} editable={editable} />
