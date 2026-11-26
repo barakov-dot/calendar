@@ -247,6 +247,9 @@ def occurrences(
                 # сначала грубый отсев, чтобы не требовать календарь прошлых лет
                 if draft.due > date_to or draft.due < date_from - timedelta(days=31):
                     continue
+                # Прошлогодний срок без календаря того года уже прошёл: не запрашиваем его.
+                if draft.due < date_from and draft.due.year not in work_calendar.years:
+                    continue
                 due = work_calendar.shift_to_workday(draft.due)
                 if due < date_from:
                     continue

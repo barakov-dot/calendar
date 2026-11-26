@@ -4,7 +4,8 @@ from datetime import date
 
 import pytest
 
-from tests.rules_helpers import company, dues, patent, schedule
+from app.services.rules.engine import occurrences
+from tests.rules_helpers import book, company, dues, patent, schedule, work_calendar
 
 
 def d(day: int, month: int, year: int = 2026) -> date:
@@ -233,3 +234,11 @@ def test_every_occurrence_key_is_unique_and_has_source():
     assert len(keys) == len(set(keys))
     assert all(item.source_ref for item in items)
     assert all(item.due_date >= item.original_due_date for item in items)
+
+
+def test_loaded_calendars_are_enough_for_current_year():
+    calendar = work_calendar()
+
+    occurrences(book, OOO_OSNO, [], calendar, d(1, 1), d(31, 3, 2027))
+
+    assert calendar.missing_years == set()
