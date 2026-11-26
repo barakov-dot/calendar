@@ -98,6 +98,7 @@ make test         # pytest в контейнере api
 make lint         # ruff + eslint
 make gen          # перегенерировать задачи по всем компаниям
 make logs s=bot   # логи сервиса
+make seed-dev     # тестовые пользователи (только dev, стек запущен)
 make check-amd64  # docker buildx build --platform linux/amd64 для backend и frontend
 # на сервере:
 make prod         # docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build

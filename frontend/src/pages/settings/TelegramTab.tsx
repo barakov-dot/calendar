@@ -86,6 +86,12 @@ export default function TelegramTab({ saved }: { saved: AppSettings['telegram'] 
           checked={proxy.rdns}
           onChange={(rdns) => change({ rdns })}
         />
+        {!proxy.enabled && proxy.host && (
+          <Alert kind="warning">
+            Прокси выключен: проверка пойдёт без него. Поставьте галочку, чтобы проверить этот
+            прокси.
+          </Alert>
+        )}
         <Button variant="secondary" disabled={check.isPending} onClick={() => check.mutate(proxy)}>
           {check.isPending ? 'Проверяем…' : 'Проверить подключение'}
         </Button>
