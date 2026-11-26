@@ -24,9 +24,11 @@ test: env ## pytest в контейнере api
 	$(DEV) build api
 	$(DEV) run --rm api pytest
 
-lint: env ## ruff (и eslint для фронтенда)
+lint: env ## ruff + eslint (и проверка типов)
 	$(DEV) build api
 	$(DEV) run --rm --no-deps api sh -c "ruff check . && ruff format --check ."
+	$(DEV) build frontend
+	$(DEV) run --rm --no-deps frontend sh -c "npm run lint && npm run typecheck"
 
 logs: env ## Логи сервиса: make logs s=bot
 	$(DEV) logs -f $(s)

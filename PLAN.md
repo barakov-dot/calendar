@@ -508,7 +508,7 @@ GET/POST /api/admin/calendar/{year}
 - [ ] `docker-compose.yml` + `.dev.yml` + `.prod.yml`, `Makefile`
 - [x] `backend/Dockerfile` (python:3.12-slim), FastAPI с `/api/health`, подключение к БД, Alembic, ruff, pytest
 - [x] Контейнеры `bot` и `worker` из того же образа (пока заглушки с логом «запущен»)
-- [ ] `frontend/Dockerfile` (multi-stage), Vite + React + TS + Tailwind, страница-заглушка, `node_modules` в volume
+- [x] `frontend/Dockerfile` (multi-stage), Vite + React + TS + Tailwind, страница-заглушка, `node_modules` в volume
 - [ ] `deploy/Caddyfile` (prod), заготовка `deploy/DEPLOY.md`
 - [ ] `make check-amd64` проходит
 - [ ] **Готово, когда:** `make dev` на Mac поднимает db, api, bot, worker, frontend; `localhost:5173` открывается, `localhost:8000/api/health` → ok; `make test` зелёный
