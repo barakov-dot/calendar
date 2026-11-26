@@ -1,8 +1,23 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.core.config import get_config
 from app.core.db import get_engine, get_sessionmaker
+from app.core.settings_store import get_store
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def isolated_environment(monkeypatch, tmp_path):
+    """Тесты не видят настоящий токен, прокси и settings.json из .env разработчика."""
+    for name in ("BOT_TOKEN", "TELEGRAM_PROXY_URL", "ADMIN_TELEGRAM_ID"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("SETTINGS_PATH", str(tmp_path / "config" / "settings.json"))
+    get_config.cache_clear()
+    get_store.cache_clear()
+    yield
+    get_config.cache_clear()
+    get_store.cache_clear()
 
 
 @pytest.fixture

@@ -3,6 +3,8 @@ name = "buh-calendar-backend"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "aiogram>=3,<4",
+    "aiohttp-socks",
     "alembic",
     "asyncpg",
     "fastapi",
