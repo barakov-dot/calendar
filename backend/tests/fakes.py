@@ -42,6 +42,8 @@ class FakeTelegram:
     def __init__(self) -> None:
         self.calls: list[str] = []
         self.sent: list[tuple[int, str]] = []
+        self.keyboards: list[list[dict]] = []  # кнопки каждого отправленного сообщения
+        self.edited: list[str] = []
         self.updates: list[dict] = []
         self.port = 0
         self._runner: web.AppRunner | None = None
@@ -78,6 +80,26 @@ class FakeTelegram:
             }
         )
 
+    def send_callback(self, update_id: int, user_id: int, data: str) -> dict:
+        user = {"id": user_id, "is_bot": False, "first_name": "Тест"}
+        update = {
+            "update_id": update_id,
+            "callback_query": {
+                "id": str(update_id),
+                "from": user,
+                "chat_instance": "1",
+                "data": data,
+                "message": {
+                    "message_id": update_id,
+                    "date": 1_700_000_000,
+                    "chat": {"id": user_id, "type": "private"},
+                    "text": "?",
+                },
+            },
+        }
+        self.updates.append(update)
+        return update
+
     async def _handle(self, request: web.Request) -> web.Response:
         method = request.match_info["method"]
         data = await request.post()
@@ -99,7 +121,11 @@ class FakeTelegram:
             if not pending:
                 await asyncio.sleep(0.02)
             result = pending
+        elif method == "editMessageText":
+            self.edited.append(data["text"])
         elif method == "sendMessage":
+            markup = json.loads(data.get("reply_markup") or "{}")
+            self.keyboards.append(sum(markup.get("inline_keyboard", []), []))
             self.sent.append((int(data["chat_id"]), data["text"]))
             result = {
                 "message_id": len(self.sent),

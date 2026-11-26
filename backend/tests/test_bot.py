@@ -5,12 +5,14 @@ import logging
 import pytest
 
 from app.bot.dispatcher import build_dispatcher
-from app.bot.handlers import ACCESS_BY_INVITE, ADMIN_GREETING
+from app.bot.handlers import ACCESS_BY_INVITE, GREETINGS
 from app.bot.runner import BotRunner
 from app.core.config import Config
 from app.core.settings_store import SettingsStore
+from app.models import Role
 from app.services.telegram.client import TelegramClient
 from app.worker import run_worker
+from tests.factories import make_user
 from tests.fakes import PROXIED_HOST, TOKEN, FakeSocks5, FakeTelegram, eventually
 
 ADMIN_ID = 111
@@ -55,12 +57,13 @@ async def running(coroutine_factory, store):
 def bot_service(store, config, telegram):
     client = TelegramClient(store, config, telegram.api())
     runner = BotRunner(
-        store, config, client, build_dispatcher(config), FAST_RETRIES, polling_timeout=0
+        store, config, client, build_dispatcher(store), FAST_RETRIES, polling_timeout=0
     )
     return running(runner.run, store)
 
 
-async def test_start_replies(store, config):
+async def test_start_replies(store, config, db):
+    await make_user(db, ADMIN_ID, Role.ADMIN)
     async with FakeTelegram() as telegram, FakeSocks5() as socks:
         use_proxy(store, socks.port)
         async with bot_service(store, config, telegram):
@@ -68,7 +71,10 @@ async def test_start_replies(store, config):
             telegram.send_start(2, ADMIN_ID)
             await eventually(lambda: len(telegram.sent) == 2)
 
-    assert sorted(telegram.sent) == [(ADMIN_ID, ADMIN_GREETING), (STRANGER_ID, ACCESS_BY_INVITE)]
+    assert sorted(telegram.sent) == [
+        (ADMIN_ID, GREETINGS[Role.ADMIN]),
+        (STRANGER_ID, ACCESS_BY_INVITE),
+    ]
     assert telegram.calls.index("deleteWebhook") < telegram.calls.index("getUpdates")
     assert set(socks.targets) == {PROXIED_HOST}
 

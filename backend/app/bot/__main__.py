@@ -13,7 +13,7 @@ from app.services.telegram.client import TelegramClient
 async def main(stop: asyncio.Event) -> None:
     config = get_config()
     store = get_store()
-    runner = BotRunner(store, config, TelegramClient(store, config), build_dispatcher(config))
+    runner = BotRunner(store, config, TelegramClient(store, config), build_dispatcher(store))
     watcher = asyncio.create_task(store.watch())
     try:
         await runner.run(stop)

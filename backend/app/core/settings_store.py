@@ -46,6 +46,14 @@ class CompanySettings(Section):
     name: str = "ООО «Ваша бухгалтерия»"
     support_contact: str = ""
     timezone: str = "Europe/Moscow"
+    privacy_policy_url: str = ""
+
+    @field_validator("privacy_policy_url")
+    @classmethod
+    def web_address(cls, value: str) -> str:
+        if value and not value.startswith(("https://", "http://")):
+            raise ValueError("ссылка должна начинаться с https://")
+        return value
 
     @field_validator("timezone")
     @classmethod

@@ -1,23 +1,173 @@
-from aiogram import F, Router
-from aiogram.filters import CommandStart
-from aiogram.types import Message
+"""/start: приглашения, согласие на обработку ПДн, подтверждение входа на сайт.
 
-from app.core.config import Config
+До согласия о пользователе ничего не сохраняется.
+"""
+
+from datetime import UTC, datetime
+
+from aiogram import Bot, F, Router
+from aiogram.filters import CommandObject, CommandStart
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import User as TelegramUser
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.db import get_sessionmaker
+from app.core.settings_store import SettingsStore
+from app.models import Role, User
+from app.services import invites, login
+from app.services.users import can_sign_in, get_by_telegram_id
 
 ACCESS_BY_INVITE = "Доступ по приглашению"
-ADMIN_GREETING = "Бот платёжного календаря работает. Вы указаны администратором."
+LOGIN_EXPIRED = "Запрос на вход устарел. Нажмите «Войти» на сайте ещё раз."
+LOGIN_CONFIRMED = "Вход подтверждён. Вернитесь на сайт."
+LOGIN_CANCELLED = "Вход отменён."
+CONSENT_TEXT = (
+    "Чтобы пользоваться сервисом, нужно согласие на обработку персональных данных: "
+    "имени, имени пользователя и идентификатора Telegram."
+)
+GREETINGS = {
+    Role.ADMIN: "Бот платёжного календаря работает. Вы указаны администратором.",
+    Role.ACCOUNTANT: "Вы подключены как бухгалтер. Календарь доступен на сайте.",
+    Role.CLIENT: "Вы подключены. Здесь будут напоминания о платежах.",
+}
 
 
-def build_router(config: Config) -> Router:
+def _button(text: str, **kwargs) -> list[InlineKeyboardButton]:
+    return [InlineKeyboardButton(text=text, **kwargs)]
+
+
+def _profile(user: TelegramUser) -> invites.TelegramProfile:
+    return invites.TelegramProfile(
+        telegram_id=user.id,
+        first_name=user.first_name,
+        last_name=user.last_name or "",
+        username=user.username or "",
+    )
+
+
+async def _known_user(db: AsyncSession, telegram: TelegramUser) -> User | None:
+    """Активный пользователь сервиса. Заодно обновляет имя, если согласие уже есть."""
+    user = await get_by_telegram_id(db, telegram.id)
+    if user is None or not user.is_active:
+        return None
+    if user.pd_consent_at is not None:
+        profile = _profile(telegram)
+        user.first_name = profile.first_name
+        user.last_name = profile.last_name
+        user.username = profile.username
+        await db.commit()
+    return user
+
+
+def build_router(store: SettingsStore) -> Router:
     router = Router()
     router.message.filter(F.chat.type == "private")
+    router.callback_query.filter(F.message.chat.type == "private")
+
+    async def ask_consent(bot: Bot, chat_id: int, payload: str) -> None:
+        rows = [_button("Согласен", callback_data=f"agree:{payload}")]
+        if url := store.get().company.privacy_policy_url:
+            rows.insert(0, _button("Политика обработки данных", url=url))
+        await bot.send_message(
+            chat_id, CONSENT_TEXT, reply_markup=InlineKeyboardMarkup(inline_keyboard=rows)
+        )
+
+    async def ask_login(bot: Bot, db: AsyncSession, chat_id: int, nonce: str) -> None:
+        if await login.find_active(db, nonce) is None:
+            await bot.send_message(chat_id, LOGIN_EXPIRED)
+            return
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                _button("Войти на сайт", callback_data=f"login:{nonce}"),
+                _button("Это не я", callback_data="login-cancel"),
+            ]
+        )
+        await bot.send_message(
+            chat_id,
+            f"Вход на сайт. Код: {login.comparison_code(nonce)}\n\n"
+            "Подтверждайте, только если вы сами сейчас нажали «Войти» "
+            "и видите на сайте этот же код.",
+            reply_markup=keyboard,
+        )
 
     @router.message(CommandStart())
-    async def start(message: Message) -> None:
-        # Пользователи и приглашения появятся в Фазе 2.
-        is_admin = (
-            message.from_user is not None and message.from_user.id == config.admin_telegram_id
-        )
-        await message.answer(ADMIN_GREETING if is_admin else ACCESS_BY_INVITE)
+    async def start(message: Message, command: CommandObject, bot: Bot) -> None:
+        telegram = message.from_user
+        if telegram is None:
+            return
+        payload = command.args or ""
+        async with get_sessionmaker()() as db:
+            if payload.startswith(invites.DEEPLINK_PREFIX):
+                token = payload.removeprefix(invites.DEEPLINK_PREFIX)
+                try:
+                    await invites.check(db, token, telegram.id)
+                    if not can_sign_in(await _known_user(db, telegram)):
+                        await ask_consent(bot, message.chat.id, payload)
+                        return
+                    user = await invites.accept(db, token, _profile(telegram))
+                except invites.InviteError as error:
+                    await message.answer(str(error))
+                    return
+                await message.answer(GREETINGS[Role(user.role)])
+                return
+
+            user = await _known_user(db, telegram)
+            if user is None:
+                await message.answer(ACCESS_BY_INVITE)
+            elif user.pd_consent_at is None:
+                await ask_consent(bot, message.chat.id, payload[:50])
+            elif payload.startswith(login.DEEPLINK_PREFIX):
+                nonce = payload.removeprefix(login.DEEPLINK_PREFIX)
+                await ask_login(bot, db, message.chat.id, nonce)
+            else:
+                await message.answer(GREETINGS[Role(user.role)])
+
+    async def finish(callback: CallbackQuery, text: str) -> None:
+        """Заменяет сообщение с кнопками итогом, чтобы их нельзя было нажать повторно."""
+        await callback.answer()
+        if isinstance(callback.message, Message):
+            await callback.message.edit_text(text)
+
+    @router.callback_query(F.data.startswith("agree:"))
+    async def agree(callback: CallbackQuery, bot: Bot) -> None:
+        telegram = callback.from_user
+        payload = callback.data.removeprefix("agree:")
+        async with get_sessionmaker()() as db:
+            if payload.startswith(invites.DEEPLINK_PREFIX):
+                token = payload.removeprefix(invites.DEEPLINK_PREFIX)
+                try:
+                    user = await invites.accept(db, token, _profile(telegram))
+                except invites.InviteError as error:
+                    await finish(callback, str(error))
+                    return
+                await finish(callback, GREETINGS[Role(user.role)])
+                return
+
+            user = await _known_user(db, telegram)
+            if user is None:
+                await finish(callback, ACCESS_BY_INVITE)
+                return
+            if user.pd_consent_at is None:
+                user.pd_consent_at = datetime.now(UTC)
+                await db.commit()
+                await _known_user(db, telegram)
+            await finish(callback, GREETINGS[Role(user.role)])
+            if payload.startswith(login.DEEPLINK_PREFIX):
+                nonce = payload.removeprefix(login.DEEPLINK_PREFIX)
+                await ask_login(bot, db, telegram.id, nonce)
+
+    @router.callback_query(F.data.startswith("login:"))
+    async def confirm_login(callback: CallbackQuery) -> None:
+        async with get_sessionmaker()() as db:
+            if not can_sign_in(await _known_user(db, callback.from_user)):
+                await finish(callback, ACCESS_BY_INVITE)
+                return
+            nonce = callback.data.removeprefix("login:")
+            confirmed = await login.confirm(db, nonce, callback.from_user.id)
+        await finish(callback, LOGIN_CONFIRMED if confirmed else LOGIN_EXPIRED)
+
+    @router.callback_query(F.data == "login-cancel")
+    async def cancel_login(callback: CallbackQuery) -> None:
+        await finish(callback, LOGIN_CANCELLED)
 
     return router

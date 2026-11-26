@@ -87,7 +87,8 @@ caddy     только prod: HTTPS (Let's Encrypt), статика фронта,
   "company": {
     "name": "ООО «Ваша бухгалтерия»",
     "support_contact": "@username",
-    "timezone": "Europe/Moscow"
+    "timezone": "Europe/Moscow",
+    "privacy_policy_url": ""
   },
   "telegram": {
     "bot_username": "my_buh_calendar_bot",

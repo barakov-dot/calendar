@@ -4,7 +4,7 @@ from aiogram import Dispatcher
 from aiogram.types import Update
 
 from app.bot.handlers import build_router
-from app.core.config import Config
+from app.core.settings_store import SettingsStore
 
 REMEMBERED_UPDATES = 1000
 
@@ -26,8 +26,8 @@ class SkipRepeatedUpdates:
         return await handler(event, data)
 
 
-def build_dispatcher(config: Config) -> Dispatcher:
+def build_dispatcher(store: SettingsStore) -> Dispatcher:
     dispatcher = Dispatcher()
     dispatcher.update.outer_middleware(SkipRepeatedUpdates())
-    dispatcher.include_router(build_router(config))
+    dispatcher.include_router(build_router(store))
     return dispatcher
