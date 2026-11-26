@@ -28,6 +28,8 @@ export interface Task {
   source_ref: string
   source: 'rule' | 'custom'
   needs_amount: boolean
+  can_mark_paid: boolean
+  can_unmark_paid: boolean
 }
 
 export interface NdsPart {
@@ -60,6 +62,14 @@ export interface TaskListResponse {
   items: Task[]
   total: number
   today: string
+}
+
+/** Как статус называется для клиента. */
+export function clientStatus(task: Pick<Task, 'kind' | 'status'>): string {
+  if (task.status === 'paid') return 'Оплачено ✓'
+  if (task.status === 'done') return task.kind === 'report' ? 'Сдано ✓' : 'Выполнено ✓'
+  if (task.status === 'not_required') return 'Не требуется'
+  return task.kind === 'payment' ? 'К оплате' : 'Готовится'
 }
 
 /** Статусы, применимые к задаче такого типа (так же проверяет сервер). */

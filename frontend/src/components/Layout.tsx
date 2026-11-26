@@ -6,13 +6,22 @@ import type { User } from '../lib/types'
 import { Button } from './ui'
 
 function links(user: User): [string, string][] {
-  if (user.role === 'client') return [['/', 'Главная']]
+  if (user.role === 'client') {
+    return [
+      ['/', 'Платежи'],
+      ['/calendar', 'Календарь'],
+      ['/history', 'История'],
+      ['/preferences', 'Настройки'],
+    ]
+  }
   const staff: [string, string][] = [
     ['/', 'Сегодня'],
     ['/calendar', 'Календарь'],
     ['/companies', 'Компании'],
     ['/reminders', 'Напоминания'],
   ]
+  if (user.role === 'assistant') return staff
+  staff.push(['/preferences', 'Уведомления'])
   if (user.role !== 'admin') return staff
   return [...staff, ['/accountants', 'Команда'], ['/settings', 'Настройки']]
 }

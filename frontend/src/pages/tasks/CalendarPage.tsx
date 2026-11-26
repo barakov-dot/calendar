@@ -1,29 +1,14 @@
 import { useState } from 'react'
 
+import MonthGrid from '../../components/MonthGrid'
 import TaskFilterBar, { type Filters } from '../../components/TaskFilterBar'
 import TaskTable from '../../components/TaskTable'
 import { Alert, Button, Card, ErrorText } from '../../components/ui'
 import { formatDate } from '../../lib/company'
 import { canEdit } from '../../lib/roles'
-import {
-  addMonths,
-  monthEnd,
-  monthGrid,
-  monthTitle,
-  todayIso,
-  type Tone,
-  toneOf,
-} from '../../lib/tasks'
-import { TONE_STYLES } from '../../lib/toneStyles'
+import { addMonths, monthEnd, monthTitle, todayIso } from '../../lib/tasks'
 import type { User } from '../../lib/types'
 import { useTasks } from '../../lib/useTasks'
-
-const TONES: [Tone, string][] = [
-  ['overdue', 'просрочено'],
-  ['planned', 'запланировано'],
-  ['closed', 'выполнено'],
-  ['skipped', 'не требуется'],
-]
 
 export default function CalendarPage({ user }: { user: User }) {
   const today = todayIso()
@@ -70,66 +55,13 @@ export default function CalendarPage({ user }: { user: User }) {
         </Card>
       ) : (
         <>
-          <table className="w-full table-fixed border-collapse text-center text-sm">
-            <thead>
-              <tr>
-                {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((name) => (
-                  <th key={name} className="py-1 font-medium">
-                    {name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {monthGrid(month).map((week, index) => (
-                <tr key={index}>
-                  {week.map((date, column) => {
-                    const due = items.filter((task) => task.due_date === date)
-                    return (
-                      <td
-                        key={date ?? column}
-                        className="h-16 border border-slate-200 p-0 align-top dark:border-slate-700"
-                      >
-                        {date && (
-                          <button
-                            type="button"
-                            aria-label={`${formatDate(date)}: задач ${due.length}`}
-                            aria-pressed={date === selected}
-                            onClick={() => setDay(date)}
-                            className={`flex h-full w-full flex-col items-center gap-0.5 p-1 hover:bg-slate-100 dark:hover:bg-slate-800 ${date === selected ? 'ring-2 ring-blue-600 ring-inset' : ''}`}
-                          >
-                            <span className={date === today ? 'font-bold text-blue-600' : ''}>
-                              {Number(date.slice(8))}
-                            </span>
-                            <span className="flex flex-wrap justify-center gap-0.5">
-                              {TONES.map(([tone]) => {
-                                const count = due.filter((t) => toneOf(t, today) === tone).length
-                                return count ? (
-                                  <span
-                                    key={tone}
-                                    className={`rounded px-1 text-xs ${TONE_STYLES[tone]}`}
-                                  >
-                                    {count}
-                                  </span>
-                                ) : null
-                              })}
-                            </span>
-                          </button>
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="flex flex-wrap gap-2 text-xs">
-            {TONES.map(([tone, title]) => (
-              <span key={tone} className={`rounded px-2 py-0.5 ${TONE_STYLES[tone]}`}>
-                {title}
-              </span>
-            ))}
-          </div>
+          <MonthGrid
+            month={month}
+            tasks={items}
+            today={today}
+            selected={selected}
+            onSelect={setDay}
+          />
           {selected && (
             <Card title={formatDate(selected)}>
               <TaskTable

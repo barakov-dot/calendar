@@ -4,10 +4,14 @@ import { Navigate, Route, Routes } from 'react-router'
 import { Alert, Button } from './components/ui'
 import Layout from './components/Layout'
 import Accountants from './pages/Accountants'
+import ClientCalendar from './pages/client/ClientCalendar'
+import ClientHistory from './pages/client/ClientHistory'
+import ClientPayments from './pages/client/ClientPayments'
+import ClientTaskPage from './pages/client/ClientTaskPage'
+import Preferences from './pages/Preferences'
 import CompaniesList from './pages/companies/CompaniesList'
 import CompanyCard from './pages/companies/CompanyCard'
 import NewCompany from './pages/companies/NewCompany'
-import Home from './pages/Home'
 import Login from './pages/Login'
 import SettingsPage from './pages/settings/SettingsPage'
 import Reminders from './pages/reminders/Reminders'
@@ -49,8 +53,18 @@ export default function App() {
           <Route element={<Layout user={user} onLogout={logout} />}>
             <Route
               index
-              element={user.role === 'client' ? <Home user={user} /> : <Today user={user} />}
+              element={user.role === 'client' ? <ClientPayments /> : <Today user={user} />}
             />
+            {user.role !== 'assistant' && (
+              <Route path="preferences" element={<Preferences user={user} />} />
+            )}
+            {user.role === 'client' && (
+              <>
+                <Route path="calendar" element={<ClientCalendar />} />
+                <Route path="history" element={<ClientHistory />} />
+                <Route path="tasks/:id" element={<ClientTaskPage />} />
+              </>
+            )}
             {user.role !== 'client' && (
               <>
                 <Route path="calendar" element={<CalendarPage user={user} />} />

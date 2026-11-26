@@ -23,6 +23,8 @@ const task: TaskDetail = {
   source: 'rule',
   source_ref: 'п. 1 ст. 174 НК РФ',
   needs_amount: true,
+  can_mark_paid: false,
+  can_unmark_paid: false,
   rule_code: 'nds_payment',
   period_key: '2026-Q2',
   part: 1,
