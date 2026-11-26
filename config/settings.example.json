@@ -35,6 +35,7 @@
   },
   "tasks": {
     "generation_horizon_months_ahead": 15,
-    "client_can_unmark_own_paid_hours": 24
+    "client_can_unmark_own_paid_hours": 24,
+    "show_notices_to_clients": true
   }
 }

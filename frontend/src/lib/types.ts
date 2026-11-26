@@ -48,6 +48,9 @@ export interface AppSettings {
     has_secret_key: boolean
     timeout_seconds: number
   }
+  tasks: {
+    show_notices_to_clients: boolean
+  }
   notifications: {
     digest_time: string
     digest_workdays_only: boolean

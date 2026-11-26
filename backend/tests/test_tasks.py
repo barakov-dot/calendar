@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from app import worker
+from app.core.permissions import client_task_condition
 from app.models import AuditLog, Patent, Role, Task
 from app.services import tasks
 from app.services.calendar.workdays import load_calendar, load_missing_years
@@ -163,12 +164,13 @@ async def test_new_calendar_moves_due_dates(db, accountant):
 async def test_years_without_rules_are_reported(db, calendar, accountant):
     company = await make_company(db, accountant)
 
-    result = await generate(db, company, interval=(date(2026, 1, 1), date(2027, 3, 31)))
+    result = await generate(db, company, interval=(date(2027, 1, 1), date(2028, 3, 31)))
 
-    assert result.missing_rule_years == {2027}
+    assert result.missing_rule_years == {2028}
     # напоминаем незадолго до начала года, а не весь год
-    assert warning_text(result, TODAY) is None
-    assert "правил на 2027" in warning_text(result, date(2026, 11, 26))
+    # и про календарь 2028 года тоже: он ещё не опубликован
+    assert warning_text(result, date(2027, 6, 15)) is None
+    assert "правил на 2028" in warning_text(result, date(2027, 11, 26))
 
 
 async def test_patent_amount_fills_only_empty(db, calendar, accountant):
@@ -313,3 +315,20 @@ def test_same_warning_is_not_repeated_daily(monkeypatch):
     assert should_send("другой", now)
     assert not should_send("текст", now + timedelta(days=6))
     assert should_send("текст", now + timedelta(days=7))
+
+
+@pytest.mark.parametrize(
+    ("show", "kinds"),
+    [(True, {"payment", "notice", "report"}), (False, {"payment", "report"})],
+)
+async def test_client_visibility_of_notices(db, calendar, accountant, show, kinds):
+    company = await make_company(db, accountant)
+    await generate(db, company)
+    hidden = (await all_tasks(db))[("usn_advance", "2026-Q1", 1)]
+    hidden.client_visible = False
+    await db.commit()
+
+    found = (await db.scalars(select(Task).where(client_task_condition(show)))).all()
+
+    assert {task.kind for task in found} == kinds
+    assert hidden.id not in {task.id for task in found}

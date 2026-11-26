@@ -60,7 +60,7 @@ async def test_accountant_creates_company_for_self(client, db, staff):
     assert (body["accountant_id"], body["accountant_name"]) == (accountant.id, "Борис")
     # значения по умолчанию для ООО на ОСНО
     assert body["nds_payer"] is True
-    assert body["profit_advances_mode"] == "quarterly"
+    assert body["profit_advances_mode"] == "monthly_by_quarter"
     assert body["region_code"] == "00"
     assert await actions(db) == ["company.create"]
 
@@ -108,7 +108,10 @@ async def test_incompatible_flags_are_reset(client, staff):
     ip = IP | {
         "main_regime": "ausn_income",
         "nds_payer": True,
-        "has_property_tax": True,
+        "has_property_avg": True,
+        "has_property_advances": True,
+        "ausn_ndfl_tasks": False,
+        "has_transport_tax": True,
         "kpp": "770701001",
         "profit_advances_mode": "monthly_actual",
     }
@@ -116,7 +119,10 @@ async def test_incompatible_flags_are_reset(client, staff):
     body = (await client.post("/api/companies", json={"company": ip}, headers=headers)).json()
 
     assert body["nds_payer"] is False
-    assert body["has_property_tax"] is False
+    assert body["has_property_avg"] is False
+    assert body["has_property_advances"] is False
+    assert body["has_transport_tax"] is True  # транспорт бывает и у ИП
+    assert body["ausn_ndfl_tasks"] is False
     assert (body["kpp"], body["profit_advances_mode"]) == ("", None)
 
 

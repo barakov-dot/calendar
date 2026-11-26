@@ -116,7 +116,6 @@ class _Draft:
     part: int = 1
     names: tuple[tuple[str, str], ...] = ()
     amount: int | None = None
-    note: str = ""
 
 
 def _monthly(schedule: Monthly, year: int) -> Iterator[_Draft]:
@@ -176,20 +175,15 @@ def _patent_payments(patents: Iterable[PatentLike], year: int) -> Iterator[_Draf
         period = f"{number}{patent.date_start:%d.%m.%Y}–{patent.date_end:%d.%m.%Y}"
         names = (("period_name", period),)
         key = f"{year}-P{patent.id}"
+        # Ровно 6 месяцев считаются как «от шести месяцев»: 1/3 и 2/3.
         if last_day < six_months:
             yield _Draft(key, end, names=names, amount=patent.cost_kopecks)
             continue
-        note = ""
-        if last_day == six_months:
-            note = (
-                "Патент ровно на 6 месяцев: п. 2 ст. 346.51 НК РФ допускает два прочтения. "
-                "Показан более ранний порядок (1/3 и 2/3) — проверьте."
-            )
         first = None if patent.cost_kopecks is None else patent.cost_kopecks // 3
         rest = None if first is None else patent.cost_kopecks - first
         ninety = patent.date_start + timedelta(days=90)
-        yield _Draft(key, min(ninety, end), 1, names, first, note)
-        yield _Draft(key, end, 2, names, rest, note)
+        yield _Draft(key, min(ninety, end), 1, names, first)
+        yield _Draft(key, end, 2, names, rest)
 
 
 def _ndfl_december(year: int, work_calendar: WorkCalendar) -> Iterator[_Draft]:
@@ -261,7 +255,7 @@ def occurrences(
                         part=draft.part,
                         kind=rule.kind,
                         title=_title(rule, draft),
-                        description=" ".join(filter(None, (rule.description, draft.note))),
+                        description=rule.description,
                         source_ref=rule.source,
                         original_due_date=draft.due,
                         due_date=due,

@@ -60,11 +60,15 @@ class CompanyData(Input):
     nds_payer: bool | None = None
     has_employees: bool = False
     profit_advances_mode: ProfitAdvances | None = None
-    has_property_tax: bool = False
+    has_property_avg: bool = False
+    has_property_cadastral: bool = False
+    has_property_advances: bool = False
     has_transport_tax: bool = False
     has_land_tax: bool = False
     has_trade_fee: bool = False
     has_tourist_tax: bool = False
+    has_dsv: bool = False
+    ausn_ndfl_tasks: bool = True
     notes: str = Field("", max_length=10000)
 
     @field_validator("inn")
@@ -85,13 +89,19 @@ class CompanyData(Input):
         elif self.nds_payer is None:
             self.nds_payer = self.main_regime == Regime.OSNO
         if is_ooo and self.main_regime == Regime.OSNO:
-            self.profit_advances_mode = self.profit_advances_mode or ProfitAdvances.QUARTERLY
+            self.profit_advances_mode = (
+                self.profit_advances_mode or ProfitAdvances.MONTHLY_BY_QUARTER
+            )
         else:
             self.profit_advances_mode = None
         if not is_ooo:
             self.kpp = ""
             self.director_name = ""
-            self.has_property_tax = self.has_transport_tax = self.has_land_tax = False
+            # транспорт и земля бывают и у ИП (по налоговому уведомлению)
+            self.has_property_avg = self.has_property_cadastral = False
+            self.has_property_advances = False
+        if not ausn:
+            self.ausn_ndfl_tasks = True
         self.region_code = self.region_code or self.inn[:2]
         return self
 
@@ -168,11 +178,15 @@ class CompanyOut(BaseModel):
     nds_payer: bool
     has_employees: bool
     profit_advances_mode: str | None
-    has_property_tax: bool
+    has_property_avg: bool
+    has_property_cadastral: bool
+    has_property_advances: bool
     has_transport_tax: bool
     has_land_tax: bool
     has_trade_fee: bool
     has_tourist_tax: bool
+    has_dsv: bool
+    ausn_ndfl_tasks: bool
     notes: str
     is_archived: bool
     accountant_id: int | None

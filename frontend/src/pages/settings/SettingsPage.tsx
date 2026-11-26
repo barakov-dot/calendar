@@ -61,8 +61,9 @@ export default function SettingsPage() {
             path="notifications"
             element={
               <NotificationsTab
-                key={JSON.stringify(settings.notifications)}
+                key={JSON.stringify([settings.notifications, settings.tasks])}
                 saved={settings.notifications}
+                tasks={settings.tasks}
               />
             }
           />

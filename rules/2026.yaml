@@ -5,7 +5,7 @@
 # Новый год: скопируйте файл в rules/<год>.yaml, поменяйте year, сверьте с изменениями
 # законодательства и прогоните тесты. Пока файла нет, задачи за этот год не создаются.
 year: 2026
-checked: "2026-11-26: НК РФ (ред. от 04.08.2026), 17-ФЗ и 125-ФЗ по тексту на consultant.ru"
+checked: "2026-11-26: НК РФ (ред. от 04.08.2026), 17-ФЗ, 27-ФЗ, 125-ФЗ, 402-ФЗ по тексту на consultant.ru"
 
 rules:
   # --- УСН ---
@@ -149,75 +149,98 @@ rules:
     source: "п. 1 ст. 287 НК РФ"
 
 
-  # --- Имущественные налоги и сборы ---
-  - code: property_notice
-    title: "Налог на имущество: уведомление об авансе за {period_name}"
+  # --- Имущество организаций ---
+  - code: property_avg_notice
+    title: "Имущество (среднегодовая стоимость): уведомление об авансе за {period_name}"
     kind: notice
-    applies: { entity_type: [ooo], has_property_tax: true }
+    applies: { entity_type: [ooo], has_property_avg: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 25, month_offset: 1 }
     needs_amount: false
     client_visible: true
     source: "п. 9 ст. 58 НК РФ"
-    description: "Регион вправе не устанавливать отчётные периоды (п. 3 ст. 379 НК РФ): тогда авансов нет."
 
-  - code: property_advance
-    title: "Налог на имущество: аванс за {period_name}"
+  - code: property_avg_advance
+    title: "Имущество (среднегодовая стоимость): аванс за {period_name}"
     kind: payment
-    applies: { entity_type: [ooo], has_property_tax: true }
+    applies: { entity_type: [ooo], has_property_avg: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 1 }
     needs_amount: true
     client_visible: true
     source: "п. 1 ст. 383 НК РФ"
-    description: "Регион вправе не устанавливать отчётные периоды (п. 3 ст. 379 НК РФ): тогда авансов нет."
 
   - code: property_declaration
     title: "Налог на имущество: декларация за {period_name}"
     kind: report
-    applies: { entity_type: [ooo], has_property_tax: true }
+    applies: { entity_type: [ooo], has_property_avg: true }
     schedule: { type: yearly, day: 25, month: 2 }
     needs_amount: false
     client_visible: true
     source: "п. 3 ст. 386 НК РФ"
-    description: "Если есть объекты, по которым подаётся декларация (налог по среднегодовой стоимости)."
 
-  - code: property_year_notice
-    title: "Налог на имущество: уведомление за {period_name}"
-    kind: notice
-    applies: { entity_type: [ooo], has_property_tax: true }
-    schedule: { type: yearly, day: 25, month: 2 }
-    needs_amount: false
-    client_visible: true
-    source: "п. 9 ст. 58 НК РФ"
-    description: "Для объектов, по которым декларация не подаётся (налог по кадастровой стоимости)."
-
-  - code: property_year
-    title: "Налог на имущество: налог за {period_name}"
+  - code: property_avg_year
+    title: "Имущество (среднегодовая стоимость): налог за {period_name}"
     kind: payment
-    applies: { entity_type: [ooo], has_property_tax: true }
+    applies: { entity_type: [ooo], has_property_avg: true }
     schedule: { type: yearly, day: 28, month: 2 }
     needs_amount: true
     client_visible: true
     source: "п. 1 ст. 383 НК РФ"
 
-  - code: transport_notice
-    title: "Транспортный налог: уведомление об авансе за {period_name}"
+  - code: property_cad_notice
+    title: "Имущество (кадастровая стоимость): уведомление об авансе за {period_name}"
     kind: notice
-    applies: { entity_type: [ooo], has_transport_tax: true }
+    applies: { entity_type: [ooo], has_property_cadastral: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 25, month_offset: 1 }
     needs_amount: false
     client_visible: true
     source: "п. 9 ст. 58 НК РФ"
-    description: "Отчётные периоды могут быть отменены на месте (п. 3 ст. 360 НК РФ): тогда авансов нет."
+
+  - code: property_cad_advance
+    title: "Имущество (кадастровая стоимость): аванс за {period_name}"
+    kind: payment
+    applies: { entity_type: [ooo], has_property_cadastral: true, has_property_advances: true }
+    schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 1 }
+    needs_amount: true
+    client_visible: true
+    source: "п. 1 ст. 383 НК РФ"
+
+  - code: property_cad_year_notice
+    title: "Имущество (кадастровая стоимость): уведомление за {period_name}"
+    kind: notice
+    applies: { entity_type: [ooo], has_property_cadastral: true }
+    schedule: { type: yearly, day: 25, month: 2 }
+    needs_amount: false
+    client_visible: true
+    source: "п. 9 ст. 58 НК РФ"
+
+  - code: property_cad_year
+    title: "Имущество (кадастровая стоимость): налог за {period_name}"
+    kind: payment
+    applies: { entity_type: [ooo], has_property_cadastral: true }
+    schedule: { type: yearly, day: 28, month: 2 }
+    needs_amount: true
+    client_visible: true
+    source: "п. 1 ст. 383 НК РФ"
+
+
+  # --- Транспортный и земельный налог ---
+  - code: transport_notice
+    title: "Транспортный налог: уведомление об авансе за {period_name}"
+    kind: notice
+    applies: { entity_type: [ooo], has_transport_tax: true, has_property_advances: true }
+    schedule: { type: quarterly, quarters: [1, 2, 3], day: 25, month_offset: 1 }
+    needs_amount: false
+    client_visible: true
+    source: "п. 9 ст. 58 НК РФ"
 
   - code: transport_advance
     title: "Транспортный налог: аванс за {period_name}"
     kind: payment
-    applies: { entity_type: [ooo], has_transport_tax: true }
+    applies: { entity_type: [ooo], has_transport_tax: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 1 }
     needs_amount: true
     client_visible: true
     source: "п. 1 ст. 363 НК РФ"
-    description: "Отчётные периоды могут быть отменены на месте (п. 3 ст. 360 НК РФ): тогда авансов нет."
 
   - code: transport_year_notice
     title: "Транспортный налог: уведомление за {period_name}"
@@ -237,25 +260,33 @@ rules:
     client_visible: true
     source: "п. 1 ст. 363 НК РФ"
 
+  - code: ip_transport_tax
+    title: "Транспортный налог ИП за {period_name} (по налоговому уведомлению)"
+    kind: payment
+    applies: { entity_type: [ip], has_transport_tax: true }
+    schedule: { type: yearly, day: 1, month: 12 }
+    needs_amount: true
+    client_visible: true
+    source: "п. 1 ст. 363 НК РФ"
+    description: "Сумму сообщает налоговый орган в налоговом уведомлении."
+
   - code: land_notice
     title: "Земельный налог: уведомление об авансе за {period_name}"
     kind: notice
-    applies: { entity_type: [ooo], has_land_tax: true }
+    applies: { entity_type: [ooo], has_land_tax: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 25, month_offset: 1 }
     needs_amount: false
     client_visible: true
     source: "п. 9 ст. 58 НК РФ"
-    description: "Отчётные периоды могут быть отменены на месте (п. 3 ст. 393 НК РФ): тогда авансов нет."
 
   - code: land_advance
     title: "Земельный налог: аванс за {period_name}"
     kind: payment
-    applies: { entity_type: [ooo], has_land_tax: true }
+    applies: { entity_type: [ooo], has_land_tax: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 1 }
     needs_amount: true
     client_visible: true
     source: "п. 1 ст. 397 НК РФ"
-    description: "Отчётные периоды могут быть отменены на месте (п. 3 ст. 393 НК РФ): тогда авансов нет."
 
   - code: land_year_notice
     title: "Земельный налог: уведомление за {period_name}"
@@ -274,6 +305,27 @@ rules:
     needs_amount: true
     client_visible: true
     source: "п. 1 ст. 397 НК РФ"
+
+  - code: ip_land_tax
+    title: "Земельный налог ИП за {period_name} (по налоговому уведомлению)"
+    kind: payment
+    applies: { entity_type: [ip], has_land_tax: true }
+    schedule: { type: yearly, day: 1, month: 12 }
+    needs_amount: true
+    client_visible: true
+    source: "п. 1 ст. 397 НК РФ"
+    description: "Сумму сообщает налоговый орган в налоговом уведомлении."
+
+
+  # --- Торговый сбор и туристический налог ---
+  - code: trade_fee_notice
+    title: "Торговый сбор: уведомление за {period_name}"
+    kind: notice
+    applies: { has_trade_fee: true }
+    schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 25, month_offset: 1 }
+    needs_amount: false
+    client_visible: true
+    source: "п. 9 ст. 58 НК РФ"
 
   - code: trade_fee
     title: "Торговый сбор за {period_name}"
@@ -395,7 +447,7 @@ rules:
   - code: ndfl_payment
     title: "НДФЛ за 1–22 {month_genitive}"
     kind: payment
-    applies: { has_employees: true }
+    applies: { has_employees: true, ausn_ndfl_tasks: true }
     schedule: { type: monthly, day: 28, month_offset: 0 }
     needs_amount: true
     client_visible: true
@@ -413,7 +465,7 @@ rules:
   - code: ndfl_end_payment
     title: "НДФЛ с 23-го до конца месяца ({period_name})"
     kind: payment
-    applies: { has_employees: true }
+    applies: { has_employees: true, ausn_ndfl_tasks: true }
     schedule: { type: monthly, day: 5, month_offset: 1, months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }
     needs_amount: true
     client_visible: true
@@ -431,7 +483,7 @@ rules:
   - code: ndfl_december
     title: "НДФЛ за {period_name}"
     kind: payment
-    applies: { has_employees: true }
+    applies: { has_employees: true, ausn_ndfl_tasks: true }
     schedule: { type: handler, name: ndfl_december }
     needs_amount: true
     client_visible: true
@@ -511,6 +563,36 @@ rules:
     needs_amount: true
     client_visible: true
     source: "п. 4 ст. 22 Федерального закона № 125-ФЗ"
+
+  - code: efs1_stazh
+    title: "ЕФС-1, сведения о стаже за {period_name}"
+    kind: report
+    applies: { has_employees: true }
+    schedule: { type: yearly, day: 25, month: 1 }
+    needs_amount: false
+    client_visible: true
+    source: "пп. 3 п. 2 и п. 3 ст. 11 Федерального закона № 27-ФЗ"
+    description: "Подаётся только по сотрудникам из перечня п. 3 ст. 11 (отпуск по уходу, без сохранения зарплаты, вахта, льготный стаж и др.)."
+
+  - code: efs1_dsv
+    title: "ЕФС-1, дополнительные взносы на накопительную пенсию за {period_name}"
+    kind: report
+    applies: { has_employees: true, has_dsv: true }
+    schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 25, month_offset: 1, naming: cumulative }
+    needs_amount: false
+    client_visible: true
+    source: "пп. 6 п. 2 и п. 7 ст. 11 Федерального закона № 27-ФЗ"
+
+
+  # --- Бухгалтерская отчётность ---
+  - code: accounting_report
+    title: "Бухгалтерская отчётность за {period_name}"
+    kind: report
+    applies: { entity_type: [ooo] }
+    schedule: { type: yearly, day: 31, month: 3 }
+    needs_amount: false
+    client_visible: true
+    source: "пп. 1 ч. 5 ст. 18 Федерального закона № 402-ФЗ"
 
 
   # --- Патент ---

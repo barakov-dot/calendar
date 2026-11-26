@@ -34,11 +34,14 @@ PROFIT = {
 FLAGS = {
     "nds_payer": "плательщик НДС",
     "has_employees": "есть сотрудники",
-    "has_property_tax": "налог на имущество",
+    "has_property_avg": "имущество по среднегодовой стоимости",
+    "has_property_cadastral": "имущество по кадастровой стоимости",
+    "has_property_advances": "есть авансы по имущественным налогам",
     "has_transport_tax": "транспортный налог",
     "has_land_tax": "земельный налог",
     "has_trade_fee": "торговый сбор",
     "has_tourist_tax": "туристический налог",
+    "has_dsv": "дополнительные взносы на накопительную пенсию",
 }
 HEADER_FILL = PatternFill("solid", fgColor="DDEBF7")
 SHIFT_FILL = PatternFill("solid", fgColor="FFF2CC")

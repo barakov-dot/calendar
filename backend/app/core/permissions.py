@@ -1,9 +1,9 @@
 """Права доступа к компаниям. Каждый эндпоинт проверяет их через этот модуль."""
 
-from sqlalchemy import Select, select
+from sqlalchemy import ColumnElement, Select, and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, CompanyMember, Role, User
+from app.models import Company, CompanyMember, Role, Task, TaskKind, User
 
 
 def accessible_company_ids_query(user: User) -> Select[tuple[int]]:
@@ -36,3 +36,13 @@ async def get_accessible_company(db: AsyncSession, user: User, company_id: int) 
             Company.id == company_id, Company.id.in_(accessible_company_ids_query(user))
         )
     )
+
+
+def client_task_condition(show_notices: bool) -> ColumnElement[bool]:
+    """Какие задачи доступных компаний видит клиент. Все клиентские выборки задач
+    обязаны применять это условие вместе с проверкой компании.
+
+    show_notices — настройка tasks.show_notices_to_clients (уведомления в ФНС).
+    """
+    visible = Task.client_visible.is_(True)
+    return visible if show_notices else and_(visible, Task.kind != TaskKind.NOTICE)

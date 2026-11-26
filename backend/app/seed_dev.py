@@ -43,7 +43,8 @@ DEV_COMPANIES = (
             "main_regime": "osno",
             "profit_advances_mode": "monthly_by_quarter",
             "has_employees": True,
-            "has_property_tax": True,
+            "has_property_avg": True,
+            "has_property_cadastral": True,
             "has_land_tax": True,
         },
     ),
@@ -88,6 +89,8 @@ DEV_COMPANIES = (
         [(-4, False)],
         {
             "name": "ИП Тестин ОСНО",
+            "has_transport_tax": True,
+            "has_land_tax": True,
             "entity_type": "ip",
             "main_regime": "osno",
             "has_employees": True,

@@ -70,11 +70,15 @@ class Applies(Strict):
     profit_advances_mode: list[ProfitAdvances] | None = None
     nds_payer: bool | None = None
     has_employees: bool | None = None
-    has_property_tax: bool | None = None
+    has_property_avg: bool | None = None
+    has_property_cadastral: bool | None = None
+    has_property_advances: bool | None = None
     has_transport_tax: bool | None = None
     has_land_tax: bool | None = None
     has_trade_fee: bool | None = None
     has_tourist_tax: bool | None = None
+    has_dsv: bool | None = None
+    ausn_ndfl_tasks: bool | None = None
 
     def matches(self, company: object) -> bool:
         for name, expected in self:

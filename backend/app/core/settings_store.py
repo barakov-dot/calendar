@@ -115,6 +115,7 @@ class NotificationSettings(Section):
 class TaskSettings(Section):
     generation_horizon_months_ahead: int = Field(15, ge=1, le=36)
     client_can_unmark_own_paid_hours: int = Field(24, ge=0, le=720)
+    show_notices_to_clients: bool = True
 
 
 class AppSettings(Section):

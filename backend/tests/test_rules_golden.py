@@ -35,7 +35,9 @@ def test_golden_dates(target, code, period, expected):
 OOO_OSNO = company(
     regime="osno",
     has_employees=True,
-    has_property_tax=True,
+    has_property_avg=True,
+    has_property_cadastral=True,
+    has_property_advances=True,
     has_transport_tax=True,
     has_land_tax=True,
     has_trade_fee=True,
@@ -45,6 +47,7 @@ MONTHLY = company(regime="osno", profit_advances_mode="monthly_by_quarter")
 ACTUAL = company(regime="osno", profit_advances_mode="monthly_actual")
 USN_IP = company("ip", "usn15", has_employees=True)
 OSNO_IP = company("ip", "osno")
+OSNO_IP_PROPERTY = company("ip", "osno", has_transport_tax=True, has_land_tax=True)
 
 
 @pytest.mark.parametrize(
@@ -66,9 +69,16 @@ OSNO_IP = company("ip", "osno")
         (MONTHLY, "profit_advance", "2026-Q1", d(28, 4)),
         (ACTUAL, "profit_actual_declaration", "2026-01", d(25, 2)),
         (ACTUAL, "profit_actual_advance", "2026-11", d(28, 12)),
-        (OOO_OSNO, "property_notice", "2026-Q1", d(27, 4)),
+        (OOO_OSNO, "property_avg_notice", "2026-Q1", d(27, 4)),
+        (OOO_OSNO, "property_cad_year_notice", "2025", d(25, 2)),
         (OOO_OSNO, "property_declaration", "2025", d(25, 2)),
-        (OOO_OSNO, "property_year", "2025", d(2, 3)),  # 28.02 — суббота
+        (OOO_OSNO, "property_avg_year", "2025", d(2, 3)),  # 28.02 — суббота
+        (OOO_OSNO, "property_cad_year", "2025", d(2, 3)),
+        (OOO_OSNO, "accounting_report", "2025", d(31, 3)),
+        (OOO_OSNO, "trade_fee_notice", "2026-Q1", d(27, 4)),
+        (USN_IP, "efs1_stazh", "2025", d(26, 1)),
+        (OSNO_IP_PROPERTY, "ip_transport_tax", "2025", d(1, 12)),
+        (OSNO_IP_PROPERTY, "ip_land_tax", "2025", d(1, 12)),
         (OOO_OSNO, "transport_advance", "2026-Q1", d(28, 4)),
         (OOO_OSNO, "transport_year_notice", "2025", d(25, 2)),
         (OOO_OSNO, "land_year", "2025", d(2, 3)),
@@ -120,9 +130,11 @@ EMPLOYER = {
     "personal_info",
     "efs1_s2",
     "injury_contrib",
+    "efs1_stazh",
 }
+REPORT = {"accounting_report"}  # только организации
 USN_COMMON = {"usn_notice", "usn_advance"}
-USN_OOO = USN_COMMON | {"usn_declaration_ooo", "usn_year_ooo"}
+USN_OOO = USN_COMMON | {"usn_declaration_ooo", "usn_year_ooo", "accounting_report"}
 USN_OF_IP = USN_COMMON | {"usn_declaration_ip", "usn_year_ip"}
 NDS_CODES = {"nds_declaration", "nds_payment"}
 PROFIT_YEAR = {"profit_year", "profit_year_declaration"}
@@ -136,16 +148,22 @@ IP_CONTRIB = {"ip_fixed_contrib", "ip_1pct"}
         (company("ooo", "usn15", nds_payer=True), USN_OOO | NDS_CODES),
         (company("ooo", "usn6", has_employees=True), USN_OOO | EMPLOYER),
         (
-            company("ooo", "osno"),
-            NDS_CODES | PROFIT_YEAR | {"profit_declaration", "profit_advance"},
+            company("ooo", "osno", profit_advances_mode="quarterly"),
+            NDS_CODES | PROFIT_YEAR | REPORT | {"profit_declaration", "profit_advance"},
         ),
         (
             MONTHLY,
-            NDS_CODES | PROFIT_YEAR | {"profit_declaration", "profit_advance", "profit_monthly"},
+            NDS_CODES
+            | PROFIT_YEAR
+            | REPORT
+            | {"profit_declaration", "profit_advance", "profit_monthly"},
         ),
         (
             ACTUAL,
-            NDS_CODES | PROFIT_YEAR | {"profit_actual_declaration", "profit_actual_advance"},
+            NDS_CODES
+            | PROFIT_YEAR
+            | REPORT
+            | {"profit_actual_declaration", "profit_actual_advance"},
         ),
         (company("ip", "usn6"), USN_OF_IP | IP_CONTRIB),
         (
@@ -154,11 +172,22 @@ IP_CONTRIB = {"ip_fixed_contrib", "ip_1pct"}
             | IP_CONTRIB
             | {"ndfl_ip_notice", "ndfl_ip_advance", "ndfl_ip_declaration", "ndfl_ip_year"},
         ),
-        (company("ooo", "ausn_income"), {"ausn_tax"}),
+        (company("ooo", "ausn_income"), {"ausn_tax", "accounting_report"}),
         (company("ip", "ausn_income_expense"), {"ausn_tax"}),
         (
             company("ip", "ausn_income", has_employees=True),
-            {"ausn_tax", "ausn_injury", "ndfl_payment", "ndfl_end_payment", "ndfl_december"},
+            {
+                "ausn_tax",
+                "ausn_injury",
+                "ndfl_payment",
+                "ndfl_end_payment",
+                "ndfl_december",
+                "efs1_stazh",
+            },
+        ),
+        (
+            company("ip", "ausn_income", has_employees=True, ausn_ndfl_tasks=False),
+            {"ausn_tax", "ausn_injury", "efs1_stazh"},
         ),
     ],
 )
@@ -202,11 +231,10 @@ def test_patent(start, end, expected):
     assert [(i.due_date, i.part, i.amount_kopecks) for i in items] == expected
 
 
-def test_patent_of_exactly_six_months_is_flagged():
+def test_patent_of_exactly_six_months_is_paid_in_two_parts():
     items = year_items(schedule(OSNO_IP, [patent(d(1, 1), d(30, 6))]), "patent_payment")
 
-    assert len(items) == 2
-    assert all("два прочтения" in item.description for item in items)
+    assert [(i.due_date, i.part) for i in items] == [(d(1, 4), 1), (d(30, 6), 2)]
 
 
 def test_two_patents_do_not_collide():
@@ -218,13 +246,78 @@ def test_two_patents_do_not_collide():
 
 
 def test_periods_without_rules_file_are_not_guessed():
+    items = schedule(USN_IP, date_to=d(31, 12, 2028))
+
+    assert max(item.period_year for item in items) == 2027
+    # сроки периода 2027 года, наступающие в 2028, есть
+    assert dues(items, "insurance_payment", "2027-12") == [d(28, 1, 2028)]
+
+
+def test_each_year_uses_its_own_file():
     items = schedule(USN_IP, date_to=d(31, 12, 2027))
 
-    assert max(item.period_year for item in items) == 2026
-    # сроки периода 2026 года, наступающие в 2027, есть
     assert dues(items, "insurance_payment", "2026-12") == [d(28, 1, 2027)]
     assert dues(items, "usn_year_ip", "2026") == [d(28, 4, 2027)]
     assert dues(items, "ip_1pct", "2026") == [d(1, 7, 2027)]
+
+
+ASSETS = company(
+    regime="osno",
+    has_property_avg=True,
+    has_property_cadastral=True,
+    has_property_advances=True,
+    has_transport_tax=True,
+    has_land_tax=True,
+)
+
+
+@pytest.mark.parametrize(
+    ("code", "period", "expected"),
+    [
+        # за 2026 год — по прежним правилам (425-ФЗ действует с периода 2027 года)
+        ("transport_year", "2026", [d(1, 3, 2027)]),
+        ("transport_year_notice", "2026", [d(25, 2, 2027)]),
+        ("land_year", "2026", [d(1, 3, 2027)]),
+        ("property_cad_year", "2026", [d(1, 3, 2027)]),
+        # с 2027 года: аванс — 28-е второго месяца после квартала, год — 28 марта
+        ("transport_advance", "2027-Q1", [d(28, 5, 2027)]),
+        ("transport_advance", "2027-Q2", [d(30, 8, 2027)]),
+        ("land_advance", "2027-Q3", [d(29, 11, 2027)]),
+        ("land_year", "2027", [d(28, 3, 2028)]),
+        ("transport_year", "2027", [d(28, 3, 2028)]),
+        ("property_cad_advance", "2027-Q1", [d(28, 5, 2027)]),
+        ("property_cad_year", "2027", [d(28, 3, 2028)]),
+        # среднегодовая стоимость — без изменений
+        ("property_avg_advance", "2027-Q1", [d(28, 4, 2027)]),
+        ("property_avg_year", "2027", [d(28, 2, 2028)]),
+        ("transport_notice", "2027-Q1", []),
+        ("transport_year_notice", "2027", []),
+        ("property_cad_notice", "2027-Q1", []),
+        ("property_cad_year_notice", "2027", []),
+    ],
+)
+def test_property_taxes_from_2027(code, period, expected):
+    items = schedule(ASSETS, date_from=d(1, 1, 2027), date_to=d(31, 12, 2028))
+
+    assert dues(items, code, period) == expected
+
+
+def test_property_advances_are_off_by_default():
+    target = company(
+        regime="osno", has_property_cadastral=True, has_property_avg=True, has_land_tax=True
+    )
+
+    found = {item.rule_code for item in schedule(target, date_to=d(31, 12, 2027))}
+
+    assert not {"land_advance", "property_avg_advance", "property_cad_advance"} & found
+    assert {"land_year", "property_avg_year", "property_cad_year"} <= found
+
+
+def test_dsv_report_only_with_flag():
+    with_dsv = company(has_employees=True, has_dsv=True)
+
+    assert dues(schedule(with_dsv), "efs1_dsv", "2026-Q1") == [d(27, 4)]
+    assert not dues(schedule(company(has_employees=True)), "efs1_dsv")
 
 
 def test_every_occurrence_key_is_unique_and_has_source():

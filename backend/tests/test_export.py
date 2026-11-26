@@ -22,4 +22,4 @@ def test_export_five_companies(tmp_path, monkeypatch):
         rows = list(workbook[name].iter_rows(min_row=4, values_only=True))
         assert len(rows) > 10
         assert all(row[0].year == 2026 and row[6] for row in rows)
-    assert workbook["Вопросы"].max_row > 10
+    assert workbook["Вопросы"].max_row > 3

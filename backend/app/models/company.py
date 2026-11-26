@@ -55,11 +55,18 @@ class Company(Base):
     nds_payer: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_employees: Mapped[bool] = mapped_column(default=False, server_default="false")
     profit_advances_mode: Mapped[str | None] = mapped_column(String(32))
-    has_property_tax: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # имущество: по среднегодовой стоимости (декларация) и по кадастровой
+    has_property_avg: Mapped[bool] = mapped_column(default=False, server_default="false")
+    has_property_cadastral: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # авансы по имуществу, транспорту и земле установлены не везде
+    has_property_advances: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_transport_tax: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_land_tax: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_trade_fee: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_tourist_tax: Mapped[bool] = mapped_column(default=False, server_default="false")
+    has_dsv: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # нужны ли задачи по НДФЛ на АУСН (налог может перечислять банк)
+    ausn_ndfl_tasks: Mapped[bool] = mapped_column(default=True, server_default="true")
 
     region_code: Mapped[str] = mapped_column(String(2), default="", server_default="")
     accountant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)

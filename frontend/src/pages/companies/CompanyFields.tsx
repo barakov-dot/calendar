@@ -93,7 +93,7 @@ export function TaxFields({ form, onChange }: Props) {
       {isOoo && form.main_regime === 'osno' && (
         <Select
           label="Авансы по налогу на прибыль"
-          value={form.profit_advances_mode ?? 'quarterly'}
+          value={form.profit_advances_mode ?? 'monthly_by_quarter'}
           onChange={(event) =>
             change({ profit_advances_mode: event.target.value as ProfitAdvances })
           }
@@ -104,21 +104,47 @@ export function TaxFields({ form, onChange }: Props) {
       {isOoo && (
         <>
           <Checkbox
-            label="Налог на имущество"
-            checked={form.has_property_tax}
-            onChange={(has_property_tax) => change({ has_property_tax })}
+            label="Имущество по среднегодовой стоимости"
+            checked={form.has_property_avg}
+            onChange={(has_property_avg) => change({ has_property_avg })}
           />
           <Checkbox
-            label="Транспортный налог"
-            checked={form.has_transport_tax}
-            onChange={(has_transport_tax) => change({ has_transport_tax })}
-          />
-          <Checkbox
-            label="Земельный налог"
-            checked={form.has_land_tax}
-            onChange={(has_land_tax) => change({ has_land_tax })}
+            label="Имущество по кадастровой стоимости"
+            checked={form.has_property_cadastral}
+            onChange={(has_property_cadastral) => change({ has_property_cadastral })}
           />
         </>
+      )}
+      <Checkbox
+        label="Транспортный налог"
+        checked={form.has_transport_tax}
+        onChange={(has_transport_tax) => change({ has_transport_tax })}
+      />
+      <Checkbox
+        label="Земельный налог"
+        checked={form.has_land_tax}
+        onChange={(has_land_tax) => change({ has_land_tax })}
+      />
+      {isOoo && (
+        <Checkbox
+          label="Платит авансы по имущественным налогам"
+          checked={form.has_property_advances}
+          onChange={(has_property_advances) => change({ has_property_advances })}
+        />
+      )}
+      {form.has_employees && (
+        <Checkbox
+          label="Есть дополнительные взносы на накопительную пенсию (ДСВ)"
+          checked={form.has_dsv}
+          onChange={(has_dsv) => change({ has_dsv })}
+        />
+      )}
+      {form.has_employees && isAusn(form.main_regime) && (
+        <Checkbox
+          label="Создавать задачи по НДФЛ (АУСН)"
+          checked={form.ausn_ndfl_tasks}
+          onChange={(ausn_ndfl_tasks) => change({ ausn_ndfl_tasks })}
+        />
       )}
       <Checkbox
         label="Торговый сбор"

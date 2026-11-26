@@ -5,8 +5,15 @@ import { parseOffsets } from '../../lib/format'
 import type { AppSettings } from '../../lib/types'
 import { useSaveSettings } from './useSettings'
 
-export default function NotificationsTab({ saved }: { saved: AppSettings['notifications'] }) {
+export default function NotificationsTab({
+  saved,
+  tasks,
+}: {
+  saved: AppSettings['notifications']
+  tasks: AppSettings['tasks']
+}) {
   const [form, setForm] = useState(saved)
+  const [showNotices, setShowNotices] = useState(tasks.show_notices_to_clients)
   const [offsets, setOffsets] = useState(saved.default_client_offsets_days.join(', '))
   const save = useSaveSettings()
   const change = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
@@ -50,13 +57,21 @@ export default function NotificationsTab({ saved }: { saved: AppSettings['notifi
         checked={form.overdue_notify}
         onChange={(overdue_notify) => change({ overdue_notify })}
       />
+      <Checkbox
+        label="Показывать клиентам уведомления в ФНС"
+        checked={showNotices}
+        onChange={setShowNotices}
+      />
       <ErrorText error={save.error} />
       <Button
         disabled={days === null || save.isPending}
         onClick={() =>
           days &&
           save.mutate({
-            settings: { notifications: { ...form, default_client_offsets_days: days } },
+            settings: {
+              notifications: { ...form, default_client_offsets_days: days },
+              tasks: { show_notices_to_clients: showNotices },
+            },
           })
         }
       >

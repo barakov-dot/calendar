@@ -34,11 +34,15 @@ export interface CompanyForm {
   nds_payer: boolean
   has_employees: boolean
   profit_advances_mode: ProfitAdvances | null
-  has_property_tax: boolean
+  has_property_avg: boolean
+  has_property_cadastral: boolean
+  has_property_advances: boolean
   has_transport_tax: boolean
   has_land_tax: boolean
   has_trade_fee: boolean
   has_tourist_tax: boolean
+  has_dsv: boolean
+  ausn_ndfl_tasks: boolean
   notes: string
 }
 
@@ -57,11 +61,15 @@ export const EMPTY_COMPANY: CompanyForm = {
   nds_payer: false,
   has_employees: false,
   profit_advances_mode: null,
-  has_property_tax: false,
+  has_property_avg: false,
+  has_property_cadastral: false,
+  has_property_advances: false,
   has_transport_tax: false,
   has_land_tax: false,
   has_trade_fee: false,
   has_tourist_tax: false,
+  has_dsv: false,
+  ausn_ndfl_tasks: true,
   notes: '',
 }
 

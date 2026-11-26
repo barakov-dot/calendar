@@ -26,8 +26,8 @@ from app.services.telegram.factory import Proxy, ProxyConfigError
 logger = logging.getLogger("worker")
 
 GENERATION_HOUR = 3
-# Об отсутствии правил на следующий год напоминаем незадолго до его начала.
-RULES_WARNING_AHEAD = timedelta(days=60)
+# Об отсутствии правил и календаря на следующий год напоминаем незадолго до его начала.
+WARNING_AHEAD = timedelta(days=60)
 # Одно и то же предупреждение повторяется администратору не чаще раза в неделю.
 REPEAT_WARNING_AFTER = timedelta(days=7)
 _sent: dict[str, datetime] = {}
@@ -41,13 +41,13 @@ def should_send(text: str, now: datetime) -> bool:
 def warning_text(result: Result, current: date) -> str | None:
     """Что сообщить администратору после генерации."""
     lines = []
-    if result.missing_calendar_years:
-        years = ", ".join(map(str, sorted(result.missing_calendar_years)))
+    soon = (current + WARNING_AHEAD).year
+    if missing := sorted(year for year in result.missing_calendar_years if year <= soon):
+        years = ", ".join(map(str, missing))
         lines.append(
             f"Нет производственного календаря на {years}: переносы считаются по пятидневке "
             "без праздников. Загрузите календарь на странице настроек."
         )
-    soon = (current + RULES_WARNING_AHEAD).year
     if missing := sorted(year for year in result.missing_rule_years if year <= soon):
         years = ", ".join(map(str, missing))
         lines.append(f"Нет файла налоговых правил на {years}: задачи за эти периоды не созданы.")
