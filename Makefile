@@ -3,7 +3,7 @@ DEV := $(COMPOSE) -f docker-compose.dev.yml
 PROD := $(COMPOSE) -f docker-compose.prod.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help env dev down migrate test lint logs prod
+.PHONY: help env dev down migrate test lint logs prod check-amd64
 
 help: ## Список команд
 	@grep -hE '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -33,5 +33,13 @@ lint: env ## ruff + eslint (и проверка типов)
 logs: env ## Логи сервиса: make logs s=bot
 	$(DEV) logs -f $(s)
 
+check-amd64: ## Проверить, что образы собираются под amd64 (сервер)
+	docker buildx build --platform linux/amd64 --target dev --output type=cacheonly backend
+	docker buildx build --platform linux/amd64 --target prod --output type=cacheonly backend
+	docker buildx build --platform linux/amd64 --target dev --output type=cacheonly frontend
+	docker buildx build --platform linux/amd64 --target prod --output type=cacheonly frontend
+
 prod: env ## На сервере: собрать и запустить прод
 	$(PROD) up -d --build
+	# Caddyfile примонтирован файлом: без пересоздания изменения после git pull не применятся
+	$(PROD) up -d --force-recreate --no-deps caddy

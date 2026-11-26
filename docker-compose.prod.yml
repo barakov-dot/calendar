@@ -1,5 +1,11 @@
 # Продакшен (Ubuntu): без монтирования кода, наружу смотрит только Caddy.
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 x-prod-backend: &prod-backend
   restart: unless-stopped
   environment:
@@ -17,3 +23,29 @@ services:
 
   worker:
     <<: *prod-backend
+
+  caddy:
+    image: buh-calendar-web:prod
+    build:
+      context: ./frontend
+      target: prod
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?задайте в .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # сертификаты должны переживать пересборку
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  caddy_data:
+  caddy_config:
