@@ -8,6 +8,8 @@ dependencies = [
     "alembic",
     "asyncpg",
     "fastapi",
+    "httpx",
+    "pyjwt",
     "pydantic-settings",
     "sqlalchemy[asyncio]",
     "uvicorn[standard]",
@@ -15,7 +17,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx",
     "pytest",
     "pytest-asyncio",
     "ruff",

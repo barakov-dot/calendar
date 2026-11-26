@@ -4,10 +4,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health
+from app.api import auth, dev, health
 from app.core.config import Config, get_config
+from app.core.db import get_sessionmaker
 from app.core.logging import setup_logging
 from app.core.settings_store import get_store
+from app.services.users import ensure_admin
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             "(APP_UID/APP_GID в .env)",
             error,
         )
+    if admin_id := get_config().admin_telegram_id:
+        async with get_sessionmaker()() as db:
+            await ensure_admin(db, admin_id)
+    else:
+        logger.warning("ADMIN_TELEGRAM_ID не задан: администратор не создан")
     yield
 
 
@@ -37,6 +44,9 @@ def create_app(config: Config | None = None) -> FastAPI:
         openapi_url="/api/openapi.json" if config.is_dev else None,
     )
     app.include_router(health.router, prefix="/api")
+    app.include_router(auth.router, prefix="/api")
+    if config.is_dev:
+        app.include_router(dev.router, prefix="/api")
     return app
 
 

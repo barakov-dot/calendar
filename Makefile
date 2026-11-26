@@ -3,7 +3,7 @@ DEV := $(COMPOSE) -f docker-compose.dev.yml
 PROD := $(COMPOSE) -f docker-compose.prod.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help env dev down migrate test lint logs prod check-amd64
+.PHONY: help env dev down migrate test lint logs prod check-amd64 seed-dev
 
 help: ## Список команд
 	@grep -hE '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -29,6 +29,9 @@ lint: env ## ruff + eslint (и проверка типов)
 	$(DEV) run --rm --no-deps api sh -c "ruff check . && ruff format --check ."
 	$(DEV) build frontend
 	$(DEV) run --rm --no-deps frontend sh -c "npm run lint && npm run typecheck"
+
+seed-dev: env ## Тестовые пользователи (только разработка, стек должен быть запущен)
+	$(DEV) exec api python -m app.seed_dev
 
 logs: env ## Логи сервиса: make logs s=bot
 	$(DEV) logs -f $(s)

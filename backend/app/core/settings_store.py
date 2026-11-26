@@ -359,13 +359,13 @@ class SettingsStore:
             return
         self.backups_dir.mkdir(mode=0o700, exist_ok=True)
         stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
-        _atomic_write(self.backups_dir / f"settings-{stamp}.json", previous)
+        atomic_write(self.backups_dir / f"settings-{stamp}.json", previous)
         for old in self.list_backups()[BACKUPS_KEPT:]:
             old.unlink(missing_ok=True)
 
     def _write(self, settings: AppSettings) -> None:
         text = json.dumps(settings.model_dump(), ensure_ascii=False, indent=2) + "\n"
-        _atomic_write(self.path, text.encode("utf-8"))
+        atomic_write(self.path, text.encode("utf-8"))
 
     async def watch(self, interval: float = WATCH_INTERVAL_SECONDS) -> None:
         """Следит за файлом, пока задачу не отменят."""
@@ -374,7 +374,7 @@ class SettingsStore:
             await asyncio.sleep(interval)
 
 
-def _atomic_write(path: Path, content: bytes) -> None:
+def atomic_write(path: Path, content: bytes) -> None:
     """Временный файл → fsync → os.replace. Права 600."""
     descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=".tmp-", suffix=".json")
     try:

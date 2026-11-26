@@ -2,8 +2,13 @@
 
 import asyncio
 import contextlib
+import hashlib
+import hmac
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
+from urllib.parse import urlencode
 
 from aiogram.client.telegram import TelegramAPIServer
 from aiogram.methods import GetMe
@@ -18,6 +23,19 @@ async def eventually(condition: Callable[[], object], seconds: float = 5) -> Non
     async with asyncio.timeout(seconds):
         while not condition():  # noqa: ASYNC110 — состояние подделок не сообщает событиями
             await asyncio.sleep(0.01)
+
+
+def signed_init_data(telegram_id: int, issued: datetime, token: str = TOKEN) -> str:
+    """initData, как их присылает Telegram Mini App."""
+    fields = {
+        "auth_date": str(int(issued.timestamp())),
+        "query_id": "AAA",
+        "user": json.dumps({"id": telegram_id, "first_name": "Тест"}, ensure_ascii=False),
+    }
+    check = "\n".join(f"{key}={value}" for key, value in sorted(fields.items()))
+    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    fields["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+    return urlencode(fields)
 
 
 class FakeTelegram:
