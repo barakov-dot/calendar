@@ -505,13 +505,13 @@ GET/POST /api/admin/calendar/{year}
 
 ### Фаза 0 — Каркас и Docker (1 день)
 - [x] Монорепо по структуре из CLAUDE.md, `.gitignore`, `.env.example`, `config/settings.example.json`
-- [ ] `docker-compose.yml` + `.dev.yml` + `.prod.yml`, `Makefile`
+- [x] `docker-compose.yml` + `.dev.yml` + `.prod.yml`, `Makefile`
 - [x] `backend/Dockerfile` (python:3.12-slim), FastAPI с `/api/health`, подключение к БД, Alembic, ruff, pytest
 - [x] Контейнеры `bot` и `worker` из того же образа (пока заглушки с логом «запущен»)
 - [x] `frontend/Dockerfile` (multi-stage), Vite + React + TS + Tailwind, страница-заглушка, `node_modules` в volume
 - [x] `deploy/Caddyfile` (prod), заготовка `deploy/DEPLOY.md`
-- [ ] `make check-amd64` проходит
-- [ ] **Готово, когда:** `make dev` на Mac поднимает db, api, bot, worker, frontend; `localhost:5173` открывается, `localhost:8000/api/health` → ok; `make test` зелёный
+- [x] `make check-amd64` проходит
+- [x] **Готово, когда:** `make dev` на Mac поднимает db, api, bot, worker, frontend; `localhost:5173` открывается, `localhost:8000/api/health` → ok; `make test` зелёный
 
 ### Фаза 1 — Настройки (JSON) и бот через SOCKS5 (1–2 дня)
 - [ ] `settings_store`: Pydantic-схема, дефолты, атомарная запись, flock, бэкапы, отслеживание mtime, маскирование секретов
