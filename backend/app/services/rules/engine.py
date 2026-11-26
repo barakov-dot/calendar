@@ -20,6 +20,7 @@ from app.services.rules.schema import (
     Handler,
     Monthly,
     NdsThirds,
+    Payday,
     Quarterly,
     Rule,
     RuleFile,
@@ -63,6 +64,8 @@ class Occurrence:
     needs_amount: bool
     client_visible: bool
     amount_kopecks: int | None = None
+    # выплата по расписанию компании: перенос назад, прошедшие сроки не создаются задним числом
+    payday: bool = False
 
 
 class RuleBook:
@@ -116,6 +119,7 @@ class _Draft:
     part: int = 1
     names: tuple[tuple[str, str], ...] = ()
     amount: int | None = None
+    backwards: bool = False  # с выходного — на предыдущий рабочий день
 
 
 def _monthly(schedule: Monthly, year: int) -> Iterator[_Draft]:
@@ -148,6 +152,18 @@ def _nds_thirds(schedule: NdsThirds, year: int) -> Iterator[_Draft]:
         for part in (1, 2, 3):
             due = day_of_month(*add_months(year, quarter * 3, part), schedule.day)
             yield _Draft(f"{year}-Q{quarter}", due, part=part, names=names)
+
+
+def _payday(schedule: Payday, company: object, year: int) -> Iterator[_Draft]:
+    """ч. 6 и 8 ст. 136 ТК РФ."""
+    day = company.advance_day if schedule.payment == "advance" else company.salary_day
+    if day is None:
+        return
+    offset = 1 if schedule.payment == "salary" and day <= 15 else 0
+    for month in range(1, 13):
+        due = day_of_month(*add_months(year, month, offset), day)
+        names = (("period_name", f"{MONTHS[month - 1]} {year}"),)
+        yield _Draft(f"{year}-{month:02d}", due, names=names, backwards=True)
 
 
 def split_in_three(total: int) -> tuple[int, int, int]:
@@ -230,6 +246,8 @@ def occurrences(
                     drafts = _yearly(schedule, period_year)
                 case NdsThirds():
                     drafts = _nds_thirds(schedule, period_year)
+                case Payday():
+                    drafts = _payday(schedule, company, period_year)
                 case Handler(name="patent_payments"):
                     drafts = _patent_payments(patents, period_year)
                 case Handler(name="ndfl_december"):
@@ -244,7 +262,12 @@ def occurrences(
                 # Прошлогодний срок без календаря того года уже прошёл: не запрашиваем его.
                 if draft.due < date_from and draft.due.year not in work_calendar.years:
                     continue
-                due = work_calendar.shift_to_workday(draft.due)
+                shift = (
+                    work_calendar.shift_to_previous_workday
+                    if draft.backwards
+                    else work_calendar.shift_to_workday
+                )
+                due = shift(draft.due)
                 if due < date_from:
                     continue
                 result.append(
@@ -262,6 +285,7 @@ def occurrences(
                         needs_amount=rule.needs_amount,
                         client_visible=rule.client_visible,
                         amount_kopecks=draft.amount,
+                        payday=draft.backwards,
                     )
                 )
     return sorted(result, key=lambda item: (item.due_date, item.rule_code, item.part))

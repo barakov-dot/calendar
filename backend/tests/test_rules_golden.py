@@ -335,3 +335,41 @@ def test_loaded_calendars_are_enough_for_current_year():
     occurrences(book, OOO_OSNO, [], calendar, d(1, 1), d(31, 3, 2027))
 
     assert calendar.missing_years == set()
+
+
+def payroll(advance: int, salary: int):
+    return company(has_employees=True, advance_day=advance, salary_day=salary)
+
+
+@pytest.mark.parametrize(
+    ("target", "code", "period", "expected"),
+    [
+        # аванс в этом месяце, зарплата 10-го — в следующем
+        (payroll(25, 10), "salary_advance", "2026-04", d(24, 4)),  # 25.04 — суббота
+        (payroll(25, 10), "salary_payment", "2026-03", d(10, 4)),
+        # выплата за декабрь 2025 пришлась бы на каникулы и уехала в 2025 год
+        (payroll(25, 10), "salary_payment", "2025-12", None),
+        # 10-е выпадает на выходной — накануне
+        (payroll(25, 10), "salary_payment", "2026-04", d(8, 5)),
+        # зарплата во второй половине — за тот же месяц; 31-го нет — последний день
+        (payroll(15, 31), "salary_payment", "2026-02", d(27, 2)),
+        (payroll(15, 31), "salary_advance", "2026-02", d(13, 2)),
+        # через новогодние каникулы назад в прошлый год
+        (payroll(25, 5), "salary_payment", "2026-12", d(30, 12)),
+    ],
+)
+def test_paydays(target, code, period, expected):
+    found = dues(schedule(target, date_to=d(31, 3, 2027)), code, period)
+
+    assert found == ([expected] if expected else [])
+
+
+def test_no_paydays_without_days_or_employees():
+    assert not {"salary_advance", "salary_payment"} & codes(company(has_employees=True))
+    assert company(advance_day=25, salary_day=10).salary_day is None
+
+
+@pytest.mark.parametrize(("advance", "salary"), [(25, None), (None, 10), (5, 10), (20, 25)])
+def test_invalid_paydays(advance, salary):
+    with pytest.raises(ValueError):
+        company(has_employees=True, advance_day=advance, salary_day=salary)

@@ -332,3 +332,33 @@ async def test_client_visibility_of_notices(db, calendar, accountant, show, kind
 
     assert {task.kind for task in found} == kinds
     assert hidden.id not in {task.id for task in found}
+
+
+async def test_paydays_are_not_created_backdated_and_done_ones_do_not_move(
+    db, calendar, accountant
+):
+    company = await make_company(db, accountant, has_employees=True, advance_day=25, salary_day=10)
+    await generate(db, company)
+    items = await all_tasks(db)
+
+    salary = [t for (code, *_), t in items.items() if code.startswith("salary_")]
+    assert salary and all(t.due_date >= TODAY for t in salary)
+    assert all(not t.needs_amount and t.client_visible and t.kind == "payment" for t in salary)
+
+    paid = items[("salary_advance", "2026-06", 1)]
+    paid.status = "paid"
+    await db.commit()
+    company.advance_day = 20
+    await db.commit()
+    await generate(db, company)
+
+    items = await all_tasks(db)
+    assert items[("salary_advance", "2026-06", 1)].due_date == date(2026, 6, 25)
+    assert items[("salary_advance", "2026-07", 1)].due_date == date(2026, 7, 20)
+
+    company.advance_day = company.salary_day = None
+    await db.commit()
+    await generate(db, company)
+    items = await all_tasks(db)
+    assert ("salary_advance", "2026-07", 1) not in items
+    assert ("salary_advance", "2026-06", 1) in items

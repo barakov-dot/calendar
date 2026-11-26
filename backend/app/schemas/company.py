@@ -69,6 +69,8 @@ class CompanyData(Input):
     has_tourist_tax: bool = False
     has_dsv: bool = False
     ausn_ndfl_tasks: bool = True
+    advance_day: int | None = Field(None, ge=1, le=31)
+    salary_day: int | None = Field(None, ge=1, le=31)
     notes: str = Field("", max_length=10000)
 
     @field_validator("inn")
@@ -102,6 +104,13 @@ class CompanyData(Input):
             self.has_property_advances = False
         if not ausn:
             self.ausn_ndfl_tasks = True
+        if not self.has_employees:
+            self.advance_day = self.salary_day = None
+        elif (self.advance_day is None) != (self.salary_day is None):
+            raise ValueError("укажите оба дня выплаты: и аванса, и зарплаты")
+        elif self.salary_day is not None and (self.advance_day <= 15) == (self.salary_day <= 15):
+            # ст. 136 ТК РФ: не реже чем каждые полмесяца
+            raise ValueError("одна выплата должна приходиться на 1–15 число, другая — на 16–31")
         self.region_code = self.region_code or self.inn[:2]
         return self
 
@@ -189,6 +198,8 @@ class CompanyOut(BaseModel):
     has_tourist_tax: bool
     has_dsv: bool
     ausn_ndfl_tasks: bool
+    advance_day: int | None
+    salary_day: int | None
     notes: str
     is_archived: bool
     accountant_id: int | None

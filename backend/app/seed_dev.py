@@ -46,6 +46,8 @@ DEV_COMPANIES = (
             "has_employees": True,
             "has_property_avg": True,
             "has_property_cadastral": True,
+            "advance_day": 25,
+            "salary_day": 10,
             "has_land_tax": True,
         },
     ),

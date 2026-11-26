@@ -132,6 +132,11 @@ async def generate_tasks(
 
     for key, item in wanted.items():
         task = existing.get(key)
+        # Дни выплат могли указать только что: прошедшие выплаты задним числом не заводим.
+        if task is None and item.payday and item.due_date < current:
+            continue
+        if task is not None and item.payday and task.status != TaskStatus.PLANNED:
+            continue  # состоявшуюся выплату новое расписание не двигает
         if task is None:
             db.add(_new_task(company_id, item))
             result.created += 1

@@ -43,6 +43,8 @@ export interface CompanyForm {
   has_tourist_tax: boolean
   has_dsv: boolean
   ausn_ndfl_tasks: boolean
+  advance_day: number | null
+  salary_day: number | null
   notes: string
 }
 
@@ -70,6 +72,8 @@ export const EMPTY_COMPANY: CompanyForm = {
   has_tourist_tax: false,
   has_dsv: false,
   ausn_ndfl_tasks: true,
+  advance_day: null,
+  salary_day: null,
   notes: '',
 }
 

@@ -538,6 +538,28 @@ rules:
     source: "пп. 6 п. 2 и п. 7 ст. 11 Федерального закона № 27-ФЗ"
 
 
+  # --- Аванс и зарплата (дни задаются в карточке компании) ---
+  - code: salary_advance
+    title: "Выплата аванса за {period_name}"
+    kind: payment
+    applies: { has_employees: true }
+    schedule: { type: payday, payment: advance }
+    needs_amount: false
+    client_visible: true
+    source: "ч. 6 и 8 ст. 136 ТК РФ"
+    description: "Если день выплаты выходной, платят накануне."
+
+  - code: salary_payment
+    title: "Выплата зарплаты за {period_name}"
+    kind: payment
+    applies: { has_employees: true }
+    schedule: { type: payday, payment: salary }
+    needs_amount: false
+    client_visible: true
+    source: "ч. 6 и 8 ст. 136 ТК РФ"
+    description: "Если день выплаты выходной, платят накануне."
+
+
   # --- Бухгалтерская отчётность ---
   - code: accounting_report
     title: "Бухгалтерская отчётность за {period_name}"

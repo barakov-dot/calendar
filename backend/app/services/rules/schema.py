@@ -50,6 +50,17 @@ class NdsThirds(Strict):
     day: Day
 
 
+class Payday(Strict):
+    """Выплата в день, заданный в карточке компании. С выходного переносится назад.
+
+    advance — аванс за месяц, платится в этом же месяце. salary — зарплата за месяц:
+    день 1–15 означает следующий месяц, 16–31 — тот же.
+    """
+
+    type: Literal["payday"]
+    payment: Literal["advance", "salary"]
+
+
 class Handler(Strict):
     """Расчёт на Python для сроков, которые не описываются шаблоном."""
 
@@ -58,7 +69,7 @@ class Handler(Strict):
 
 
 Schedule = Annotated[
-    Monthly | Quarterly | Yearly | NdsThirds | Handler, Field(discriminator="type")
+    Monthly | Quarterly | Yearly | NdsThirds | Payday | Handler, Field(discriminator="type")
 ]
 
 

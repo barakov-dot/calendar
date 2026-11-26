@@ -91,6 +91,12 @@ class WorkCalendar:
             day += timedelta(days=1)
         return day
 
+    def shift_to_previous_workday(self, day: date) -> date:
+        """Ближайший рабочий день, начиная с day (назад): так переносят выплату зарплаты."""
+        while not self.is_workday(day):
+            day -= timedelta(days=1)
+        return day
+
     def last_workday_of_year(self, year: int) -> date:
         day = date(year, 12, 31)
         while not self.is_workday(day):

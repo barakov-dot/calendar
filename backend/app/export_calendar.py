@@ -67,6 +67,8 @@ def describe(company, patents) -> str:
     ]
     if company.profit_advances_mode:
         parts.append(PROFIT[company.profit_advances_mode])
+    if company.salary_day:
+        parts.append(f"аванс {company.advance_day}-го, зарплата {company.salary_day}-го")
     for patent in patents:
         parts.append(
             f"патент {patent.date_start:%d.%m.%Y}–{patent.date_end:%d.%m.%Y}, "

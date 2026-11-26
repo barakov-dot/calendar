@@ -42,7 +42,9 @@ def warning_text(result: Result, current: date) -> str | None:
     """Что сообщить администратору после генерации."""
     lines = []
     soon = (current + WARNING_AHEAD).year
-    if missing := sorted(year for year in result.missing_calendar_years if year <= soon):
+    if missing := sorted(
+        year for year in result.missing_calendar_years if current.year <= year <= soon
+    ):
         years = ", ".join(map(str, missing))
         lines.append(
             f"Нет производственного календаря на {years}: переносы считаются по пятидневке "

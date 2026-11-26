@@ -16,6 +16,8 @@ interface Props {
   onChange: (form: CompanyForm) => void
 }
 
+const day = (text: string) => (text === '' ? null : Number(text))
+
 const options = (names: Record<string, string>) =>
   Object.entries(names).map(([value, title]) => (
     <option key={value} value={value}>
@@ -131,6 +133,27 @@ export function TaxFields({ form, onChange }: Props) {
           checked={form.has_property_advances}
           onChange={(has_property_advances) => change({ has_property_advances })}
         />
+      )}
+      {form.has_employees && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Аванс: число месяца"
+            type="number"
+            min={1}
+            max={31}
+            value={form.advance_day ?? ''}
+            onChange={(event) => change({ advance_day: day(event.target.value) })}
+          />
+          <Field
+            label="Зарплата: число месяца"
+            type="number"
+            min={1}
+            max={31}
+            value={form.salary_day ?? ''}
+            hint="1–15 — за прошлый месяц, 16–31 — за текущий"
+            onChange={(event) => change({ salary_day: day(event.target.value) })}
+          />
+        </div>
       )}
       {form.has_employees && (
         <Checkbox

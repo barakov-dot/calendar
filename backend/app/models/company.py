@@ -36,6 +36,8 @@ class Company(Base):
         CheckConstraint(
             one_of("profit_advances_mode", ProfitAdvances), name="profit_advances_mode"
         ),
+        CheckConstraint("advance_day BETWEEN 1 AND 31", name="advance_day"),
+        CheckConstraint("salary_day BETWEEN 1 AND 31", name="salary_day"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -65,6 +67,9 @@ class Company(Base):
     has_trade_fee: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_tourist_tax: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_dsv: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # числа месяца, в которые компания платит аванс и зарплату
+    advance_day: Mapped[int | None]
+    salary_day: Mapped[int | None]
     # нужны ли задачи по НДФЛ на АУСН (налог может перечислять банк)
     ausn_ndfl_tasks: Mapped[bool] = mapped_column(default=True, server_default="true")
 
