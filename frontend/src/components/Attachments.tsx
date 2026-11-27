@@ -1,17 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { api, apiFile } from '../lib/api'
 import { formatSize, saveBlob } from '../lib/files'
 import { formatDateTime } from '../lib/format'
 import { miniAppInitData } from '../lib/telegram'
 import { useRefreshTasks } from '../lib/useTasks'
+import FileDrop from './FileDrop'
+import FilePreview, { type PreviewFile } from './FilePreview'
 import { Alert, Button, Card, ErrorText } from './ui'
 
 export interface AttachmentList {
   items: {
     id: number
     filename: string
+    content_type: string
     size: number
     uploaded_by_name: string
     created_at: string
@@ -36,12 +39,17 @@ export default function Attachments({ taskId }: { taskId: number }) {
     void queryClient.invalidateQueries({ queryKey: key })
     refresh()
   }
+  const [opened, setOpened] = useState<PreviewFile | null>(null)
+  const closePreview = useCallback(() => setOpened(null), [])
   const upload = useMutation({
-    mutationFn: (file: File) => {
-      if (list.data && file.size > list.data.max_bytes) {
-        throw new Error('Файл больше 10 МБ')
+    mutationFn: async (files: File[]) => {
+      // по одному: так сервер проверяет предел числа файлов, а ошибка называет файл
+      for (const file of files) {
+        if (list.data && file.size > list.data.max_bytes) {
+          throw new Error(`Файл больше 10 МБ: ${file.name}`)
+        }
+        await api(`/tasks/${taskId}/attachments`, { method: 'POST', file })
       }
-      return api(`/tasks/${taskId}/attachments`, { method: 'POST', file })
     },
     onSettled: changed,
   })
@@ -69,14 +77,23 @@ export default function Attachments({ taskId }: { taskId: number }) {
       <ul className="divide-y divide-slate-200 dark:divide-slate-700">
         {data?.items.map((item) => (
           <li key={item.id} className="space-y-2 py-2">
-            <div className="text-sm">
-              <span className="block font-medium break-all">{item.filename}</span>
+            <button
+              type="button"
+              onClick={() => setOpened(item)}
+              className="block w-full cursor-pointer rounded-lg text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+              <span className="block font-medium break-all text-blue-700 underline dark:text-blue-300">
+                {item.filename}
+              </span>
               <span className="text-slate-500 dark:text-slate-400">
                 {formatSize(item.size)} · {item.uploaded_by_name},{' '}
                 {formatDateTime(item.created_at)}
               </span>
-            </div>
+            </button>
             <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setOpened(item)}>
+                Открыть
+              </Button>
               {/* внутри Telegram скачивание из окна не работает */}
               {!inTelegram && (
                 <Button
@@ -108,23 +125,15 @@ export default function Attachments({ taskId }: { taskId: number }) {
         ))}
       </ul>
       {data?.can_upload && (
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">
-            {upload.isPending ? 'Загружаем…' : 'Приложить файл (PDF или фото, до 10 МБ)'}
-          </span>
-          <input
-            type="file"
-            accept="application/pdf,image/*"
-            disabled={upload.isPending}
-            className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              event.target.value = ''
-              if (file) upload.mutate(file)
-            }}
-          />
-        </label>
+        <FileDrop
+          title={upload.isPending ? 'Загружаем…' : 'Перетащите файл сюда или нажмите, чтобы выбрать'}
+          hint="PDF или фото, до 10 МБ"
+          accept="application/pdf,image/*"
+          disabled={upload.isPending}
+          onFiles={(files) => upload.mutate(files)}
+        />
       )}
+      {opened && <FilePreview file={opened} onClose={closePreview} />}
     </Card>
   )
 }
