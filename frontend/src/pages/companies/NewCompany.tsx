@@ -6,6 +6,7 @@ import { Alert, Button, Card, ErrorText, Field, Select } from '../../components/
 import { api } from '../../lib/api'
 import { type CompanyForm, EMPTY_COMPANY, toForm, withRegime } from '../../lib/company'
 import { isManager } from '../../lib/roles'
+import { todayIso } from '../../lib/tasks'
 import type { Company, Party, User } from '../../lib/types'
 import { RequisiteFields, TaxFields } from './CompanyFields'
 import type { PatentData } from './PatentForm'
@@ -116,7 +117,12 @@ function Details({
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [form, setForm] = useState(initial)
+  // новую компанию начинают вести с сегодняшнего дня: прежние сроки не станут пропущенными.
+  // Значение должно быть настоящим: пустое поле даты Safari рисует сегодняшним числом.
+  const [form, setForm] = useState<CompanyForm>(() => ({
+    ...initial,
+    calendar_start: todayIso(),
+  }))
   const [patents, setPatents] = useState<PatentData[]>([])
   const [accountantId, setAccountantId] = useState(user.id)
   const staff = useStaff(isManager(user.role))

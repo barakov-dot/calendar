@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { todayIso } from '../../lib/tasks'
 import type { User } from '../../lib/types'
 import NewCompany from './NewCompany'
 
@@ -53,6 +54,8 @@ function setup(suggest: unknown) {
 }
 
 describe('мастер добавления компании', () => {
+  afterEach(cleanup)
+
   it('заполняет карточку из подсказки и создаёт компанию', async () => {
     const { posts, actions } = setup({ enabled: true, suggestions: [party] })
 
@@ -70,6 +73,20 @@ describe('мастер добавления компании', () => {
       company: { inn: '7707083893', main_regime: 'osno', nds_payer: true, region_code: '77' },
     })
     expect((posts[0] as { company: object }).company).not.toHaveProperty('status')
+  })
+
+  it('ведёт новую компанию с сегодняшнего дня и отправляет эту дату', async () => {
+    const { posts, actions } = setup({ enabled: false, suggestions: [] })
+    await actions.click(screen.getByRole('button', { name: 'Заполнить вручную' }))
+
+    const field = screen.getByLabelText(/^Начало ведения в календаре/) as HTMLInputElement
+    expect(field.value).toBe(todayIso())
+    await actions.click(screen.getByRole('button', { name: 'Создать компанию' }))
+
+    await vi.waitFor(() => expect(posts).toHaveLength(1))
+    expect((posts[0] as { company: object }).company).toMatchObject({
+      calendar_start: todayIso(),
+    })
   })
 
   it('предлагает ручной ввод, когда DaData выключена', async () => {

@@ -1,14 +1,15 @@
 """Дата начала ведения календаря: прежние сроки не просрочены и молчат, но меняются."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
 
 from app.core.settings_store import get_store
 from app.models import Notification, Role, TaskStatus
-from app.services import reports
+from app.services import reports, tasks
 from app.services.declarations.parser import parse
+from app.services.inn import with_check_digits
 from app.services.notify.planner import plan
 from app.services.notify.sender import digest_tasks
 from tests.factories import auth, link_client, make_company, make_user
@@ -118,3 +119,25 @@ async def test_declaration_fills_paid_payment_without_amount(client, db, world):
     assert [part["kept"] for part in response.json()["parts"]] == ["", "", ""]
     await db.refresh(parts[1])
     assert (parts[1].status, parts[1].amount_kopecks) == ("paid", 33_334_00)
+
+
+async def test_new_company_has_no_missed_tasks(client, db, world):
+    headers = auth(world["accountant"])
+    data = {
+        "inn": with_check_digits("000000099"),
+        "name": "ООО «Новая»",
+        "entity_type": "ooo",
+        "main_regime": "osno",
+        "calendar_start": str(tasks.today()),
+    }
+
+    created = await client.post("/api/companies", json={"company": data}, headers=headers)
+
+    assert created.status_code == 201, created.json()
+    company_id = created.json()["id"]
+    yesterday = str(tasks.today() - timedelta(days=1))
+    late = {"company_id": company_id, "status": "planned", "to": yesterday}
+    everything = await client.get("/api/tasks", params=late, headers=headers)
+    active = await client.get("/api/tasks", params=late | {"hide_history": True}, headers=headers)
+    assert all(item["before_start"] for item in everything.json()["items"])
+    assert active.json()["total"] == 0
