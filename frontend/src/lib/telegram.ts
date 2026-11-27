@@ -43,6 +43,15 @@ export function showBackButton(onPress: () => void): () => void {
   }
 }
 
+/** Открывает чат или выбор чата внутри Telegram: path — часть ссылки после t.me. */
+export function openTelegramPath(path: string): void {
+  try {
+    postEvent('web_app_open_tg_link', { path_full: path as `/${string}` })
+  } catch {
+    // старый клиент Telegram: ссылку можно скопировать
+  }
+}
+
 /** Тёмная ли тема у Telegram; null — приложение открыто не в Telegram. */
 export function telegramDarkTheme(): boolean | null {
   try {

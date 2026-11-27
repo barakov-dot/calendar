@@ -2,12 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
+import TelegramLink from '../../components/TelegramLink'
 import { Alert, Badge, Button, Card, Checkbox, ErrorText, Field } from '../../components/ui'
 import { api } from '../../lib/api'
 import { formatDate } from '../../lib/company'
 import { formatDateTime, fullName } from '../../lib/format'
 import { type PersonCard, personProblems } from '../../lib/people'
 import { ROLE_NAMES } from '../../lib/roles'
+import { userTarget } from '../../lib/telegramLinks'
 
 type Company = PersonCard['companies'][number]
 
@@ -124,14 +126,12 @@ export default function UserCard() {
             <dt className="text-slate-500 dark:text-slate-400">Telegram</dt>
             <dd className="break-all">
               {person.username ? (
-                <a
-                  href={`https://t.me/${encodeURIComponent(person.username)}`}
-                  target="_blank"
-                  rel="noreferrer"
+                <TelegramLink
+                  to={userTarget(person.username)}
                   className="text-blue-700 underline dark:text-blue-300"
                 >
                   @{person.username}
-                </a>
+                </TelegramLink>
               ) : (
                 'без имени пользователя'
               )}

@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import TelegramLink from '../components/TelegramLink'
 import { Alert, Button, Card, Checkbox, ErrorText, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { parseOffsets } from '../lib/format'
 import type { User } from '../lib/types'
+import { userTarget } from '../lib/telegramLinks'
 
 interface Preferences {
   offsets_days: number[] | null
@@ -117,14 +119,9 @@ function ContactsCard() {
             {item.username && (
               <>
                 {' — '}
-                <a
-                  href={`https://t.me/${item.username}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-blue-600 underline"
-                >
+                <TelegramLink to={userTarget(item.username)} className="text-blue-600 underline">
                   @{item.username}
-                </a>
+                </TelegramLink>
               </>
             )}
           </li>

@@ -2,10 +2,12 @@ import { useMutation } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
+import TelegramLink from '../components/TelegramLink'
 import TelegramWidget from '../components/TelegramWidget'
 import { Alert, Button, Card, ErrorText } from '../components/ui'
 import { api, ApiError, session, type Tokens } from '../lib/api'
 import { miniAppInitData } from '../lib/telegram'
+import { chatTarget } from '../lib/telegramLinks'
 
 const POLL_MS = 2000
 
@@ -116,13 +118,19 @@ function Waiting({ request, onRestart }: { request: LoginRequest; onRestart: () 
         Откройте бота, нажмите «Запустить», сверьте код и подтвердите вход.
       </p>
       <p className="text-center text-3xl font-semibold tracking-widest">{request.code}</p>
+      <TelegramLink
+        to={chatTarget(request.deeplink)}
+        className="block rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white"
+      >
+        Открыть бота
+      </TelegramLink>
       <a
         href={request.deeplink}
         target="_blank"
         rel="noreferrer"
-        className="block rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white"
+        className="block text-center text-sm text-blue-600 underline"
       >
-        Открыть бота
+        Приложения Telegram нет на этом устройстве? Открыть в браузере
       </a>
       <p className="text-sm text-slate-500 dark:text-slate-400">Ждём подтверждения…</p>
     </>
