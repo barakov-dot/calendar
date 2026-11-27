@@ -1,5 +1,6 @@
 """Отчёт о выполненном. Сотрудникам, в пределах доступных им компаний."""
 
+import asyncio
 from datetime import date, timedelta
 from typing import Annotated, Literal
 
@@ -94,7 +95,8 @@ async def download(
     report = await _build(db, user, asked)
     media_type, render = FORMATS[extension]
     return Response(
-        render(report),
+        # сборка файла занимает процессор: не в общем цикле запросов
+        await asyncio.to_thread(render, report),
         media_type=media_type,
         headers={
             "Content-Disposition": f'attachment; filename="{report.filename(extension)}"',
@@ -110,7 +112,8 @@ async def send(
     report = await _build(db, user, asked)
     render = FORMATS[extension][1]
     try:
-        await send_document(user, render(report), report.filename(extension), report.title)
+        data = await asyncio.to_thread(render, report)
+        await send_document(user, data, report.filename(extension), report.title)
     except SendError as error:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(error)) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -235,6 +235,15 @@ notifications_log
 work_calendar
   date (PK), is_workday, note
 
+substitutions              -- замещение бухгалтера, обе даты включительно; назначает админ
+  id, accountant_id, substitute_id, date_from, date_to, created_by, created_at
+
+signatures                 -- электронные подписи; у каждой есть задача tasks.signature_id
+  id, company_id, holder, expires_on, notify_client, created_at
+
+task_attachments           -- платёжки: PDF или фото до 10 МБ, не больше 5 на задачу
+  id, task_id, uploaded_by, filename, content_type, size, data (bytea), created_at
+
 audit_log
   id, user_id, action, entity, entity_id, payload jsonb, created_at
 ```
@@ -427,6 +436,12 @@ get_accessible_company_ids(user):
 - Задача `paid` / `not_required` — напоминания прекращаются.
 - Просрочка: бухгалтеру всегда; клиенту — только при `can_mark_paid`.
 
+**ЭЦП:** бухгалтеру (и клиенту, если отмечено) за 30, 14, 7, 1 день и в день окончания; дни настраиваются.
+
+**Платёжка от клиента:** бухгалтеру сразу.
+
+**Замещение:** в его дни уведомления бухгалтера получает замещающий; если ему нельзя написать — сам бухгалтер.
+
 **Повторяющиеся напоминания:** воркер раз в сутки разворачивает `rrule` в задачи `source=custom` на 60 дней вперёд с учётом `shift_rule`.
 
 **Telegram:** не более ~25 сообщений/с, обработка 429 (`retry_after`), пользователь заблокировал бота → `bot_blocked = true`, бейдж у бухгалтера.
@@ -509,7 +524,16 @@ CRUD /api/reminders                             (company_id пуст — лич�
 GET/PUT /api/me/notification-settings
 GET  /api/me/contacts                          (поддержка и бухгалтеры клиента)
 
+GET/POST /api/tasks/{id}/attachments            (файл телом запроса, имя в X-Filename)
+GET/DELETE /api/attachments/{id}, POST /api/attachments/{id}/send
+CRUD /api/companies/{id}/signatures
+GET  /api/reports/completed?from=&to=&company_id=&accountant_id=
+GET  /api/reports/completed.{xlsx|pdf}, POST .../send  (прислать в Telegram)
+GET  /api/me/substitutions
+GET  /api/auth/options, POST /api/auth/telegram-widget
+
 # admin
+GET/POST /api/admin/substitutions, DELETE /api/admin/substitutions/{id}
 CRUD /api/admin/accountants, POST /api/admin/invites
 POST /api/admin/companies/{id}/reassign
 GET  /api/admin/audit
@@ -605,12 +629,12 @@ GET/POST /api/admin/calendar/{year}
 - [x] Ежегодная процедура в README: загрузить производственный календарь, скопировать `rules/<год>.yaml`, обновить по изменениям НК, прогнать тесты
 
 ### Фаза 8 — Развитие (по желанию)
-- [ ] Отчёт о выполненном за период (Excel/PDF) по компании и по бухгалтеру
-- [ ] Напоминания о сроке ЭЦП
-- [ ] Клиент с `can_mark_paid` прикрепляет платёжку (фото/PDF)
-- [ ] Замещение бухгалтера на время отпуска
+- [x] Отчёт о выполненном за период (Excel/PDF) по компании и по бухгалтеру
+- [x] Напоминания о сроке ЭЦП
+- [x] Клиент с `can_mark_paid` прикрепляет платёжку (фото/PDF)
+- [x] Замещение бухгалтера на время отпуска
 - [ ] Второй канал уведомлений (MAX / e-mail) — через абстракцию `Notifier`
-- [ ] Telegram Login Widget на сайте
+- [x] Telegram Login Widget на сайте
 
 ---
 
