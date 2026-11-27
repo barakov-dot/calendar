@@ -107,6 +107,9 @@ class Applies(Strict):
 class Rule(Strict):
     code: str = Field(pattern=r"^[a-z0-9_]{3,64}$")
     title: str = Field(min_length=1, max_length=300)
+    # для экрана задач: что сделать и за какой период (отдельной строкой)
+    action: str = Field("", max_length=200)
+    period: str = Field("за {period_name}", max_length=100)
     kind: TaskKind
     applies: Applies = Field(default_factory=Applies)
     schedule: Schedule

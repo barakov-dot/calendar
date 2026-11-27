@@ -3,9 +3,10 @@
 from datetime import date
 
 import pytest
+import yaml
 
 from app.services.rules.engine import occurrences
-from tests.rules_helpers import book, company, dues, patent, schedule, work_calendar
+from tests.rules_helpers import RULES_DIR, book, company, dues, patent, schedule, work_calendar
 
 
 def d(day: int, month: int, year: int = 2026) -> date:
@@ -373,3 +374,28 @@ def test_no_paydays_without_days_or_employees():
 def test_invalid_paydays(advance, salary):
     with pytest.raises(ValueError):
         company(has_employees=True, advance_day=advance, salary_day=salary)
+
+
+def test_every_rule_names_an_action_for_the_task_screen():
+    for path in sorted(RULES_DIR.glob("[0-9]*.yaml")):
+        for rule in yaml.safe_load(path.read_text(encoding="utf-8"))["rules"]:
+            assert rule.get("action"), f"{path.name}: {rule['code']}"
+
+
+@pytest.mark.parametrize(
+    ("target", "code", "period", "action", "label"),
+    [
+        (USN, "usn_advance", "2026-Q3", "Уплатить авансовый платёж по УСН", "за 9 месяцев 2026"),
+        (NDS, "nds_payment", "2026-Q2", "Уплатить 1/3 НДС", "за II квартал 2026, платёж 1 из 3"),
+        (payroll(25, 10), "ndfl_payment", "2026-11", "Уплатить НДФЛ", "за 1–22 ноября 2026"),
+        (payroll(25, 10), "salary_payment", "2026-04", "Выплатить зарплату", "за апрель 2026"),
+    ],
+)
+def test_task_screen_texts(target, code, period, action, label):
+    item = next(
+        item
+        for item in schedule(target)
+        if item.rule_code == code and item.period_key == period and item.part == 1
+    )
+
+    assert (item.action_title, item.period_label) == (action, label)

@@ -85,6 +85,8 @@ def _new_task(company_id: int, item: Occurrence) -> Task:
         part=item.part,
         kind=item.kind,
         title=item.title,
+        action_title=item.action_title,
+        period_label=item.period_label,
         description=item.description,
         source_ref=item.source_ref,
         due_date=item.due_date,
@@ -142,7 +144,8 @@ async def generate_tasks(
             result.created += 1
             continue
         changed = False
-        for name in ("due_date", "original_due_date", "title", "source_ref"):
+        texts = ("title", "action_title", "period_label", "source_ref")
+        for name in ("due_date", "original_due_date", *texts):
             if name == "due_date" and task.due_overridden:
                 continue  # срок изменён вручную
             if getattr(task, name) != getattr(item, name):

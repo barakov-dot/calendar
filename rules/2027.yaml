@@ -11,6 +11,7 @@ rules:
   # --- УСН ---
   - code: usn_notice
     title: "УСН: уведомление об авансе за {period_name}"
+    action: "Подать уведомление об авансе по УСН"
     kind: notice
     applies: { main_regime: [usn6, usn15] }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 25, month_offset: 1, naming: cumulative }
@@ -20,6 +21,7 @@ rules:
 
   - code: usn_advance
     title: "УСН: авансовый платёж за {period_name}"
+    action: "Уплатить авансовый платёж по УСН"
     kind: payment
     applies: { main_regime: [usn6, usn15] }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 1, naming: cumulative }
@@ -29,6 +31,7 @@ rules:
 
   - code: usn_declaration_ooo
     title: "УСН: декларация за {period_name}"
+    action: "Сдать декларацию по УСН"
     kind: report
     applies: { main_regime: [usn6, usn15], entity_type: [ooo] }
     schedule: { type: yearly, day: 25, month: 3 }
@@ -38,6 +41,7 @@ rules:
 
   - code: usn_year_ooo
     title: "УСН: налог за {period_name}"
+    action: "Уплатить налог по УСН"
     kind: payment
     applies: { main_regime: [usn6, usn15], entity_type: [ooo] }
     schedule: { type: yearly, day: 28, month: 3 }
@@ -47,6 +51,7 @@ rules:
 
   - code: usn_declaration_ip
     title: "УСН: декларация за {period_name}"
+    action: "Сдать декларацию по УСН"
     kind: report
     applies: { main_regime: [usn6, usn15], entity_type: [ip] }
     schedule: { type: yearly, day: 25, month: 4 }
@@ -56,6 +61,7 @@ rules:
 
   - code: usn_year_ip
     title: "УСН: налог за {period_name}"
+    action: "Уплатить налог по УСН"
     kind: payment
     applies: { main_regime: [usn6, usn15], entity_type: [ip] }
     schedule: { type: yearly, day: 28, month: 4 }
@@ -67,6 +73,7 @@ rules:
   # --- НДС ---
   - code: nds_declaration
     title: "НДС: декларация за {period_name}"
+    action: "Сдать декларацию по НДС"
     kind: report
     applies: { nds_payer: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 25, month_offset: 1 }
@@ -76,6 +83,8 @@ rules:
 
   - code: nds_payment
     title: "НДС за {period_name}: платёж {part} из 3"
+    action: "Уплатить 1/3 НДС"
+    period: "за {period_name}, платёж {part} из 3"
     kind: payment
     applies: { nds_payer: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: nds_thirds, day: 28 }
@@ -87,6 +96,7 @@ rules:
   # --- Налог на прибыль (ООО на ОСНО) ---
   - code: profit_declaration
     title: "Прибыль: декларация за {period_name}"
+    action: "Сдать декларацию по налогу на прибыль"
     kind: report
     applies: { entity_type: [ooo], main_regime: [osno], profit_advances_mode: [quarterly, monthly_by_quarter] }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 25, month_offset: 1, naming: cumulative }
@@ -96,6 +106,7 @@ rules:
 
   - code: profit_advance
     title: "Прибыль: авансовый платёж за {period_name}"
+    action: "Уплатить авансовый платёж по прибыли"
     kind: payment
     applies: { entity_type: [ooo], main_regime: [osno], profit_advances_mode: [quarterly, monthly_by_quarter] }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 1, naming: cumulative }
@@ -105,6 +116,8 @@ rules:
 
   - code: profit_monthly
     title: "Прибыль: ежемесячный авансовый платёж, {period_name}"
+    action: "Уплатить ежемесячный аванс по прибыли"
+    period: "{period_name}"
     kind: payment
     applies: { entity_type: [ooo], main_regime: [osno], profit_advances_mode: [monthly_by_quarter] }
     schedule: { type: monthly, day: 28, month_offset: 0 }
@@ -114,6 +127,8 @@ rules:
 
   - code: profit_actual_declaration
     title: "Прибыль: декларация по факту, отчётный период по {period_name}"
+    action: "Сдать декларацию по прибыли (по факту)"
+    period: "отчётный период по {period_name}"
     kind: report
     applies: { entity_type: [ooo], main_regime: [osno], profit_advances_mode: [monthly_actual] }
     schedule: { type: monthly, day: 25, month_offset: 1, months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }
@@ -123,6 +138,8 @@ rules:
 
   - code: profit_actual_advance
     title: "Прибыль: авансовый платёж по факту, отчётный период по {period_name}"
+    action: "Уплатить аванс по прибыли (по факту)"
+    period: "отчётный период по {period_name}"
     kind: payment
     applies: { entity_type: [ooo], main_regime: [osno], profit_advances_mode: [monthly_actual] }
     schedule: { type: monthly, day: 28, month_offset: 1, months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }
@@ -132,6 +149,7 @@ rules:
 
   - code: profit_year_declaration
     title: "Прибыль: декларация за {period_name}"
+    action: "Сдать декларацию по налогу на прибыль"
     kind: report
     applies: { entity_type: [ooo], main_regime: [osno] }
     schedule: { type: yearly, day: 25, month: 3 }
@@ -141,6 +159,7 @@ rules:
 
   - code: profit_year
     title: "Прибыль: налог за {period_name}"
+    action: "Уплатить налог на прибыль"
     kind: payment
     applies: { entity_type: [ooo], main_regime: [osno] }
     schedule: { type: yearly, day: 28, month: 3 }
@@ -152,6 +171,7 @@ rules:
   # --- Имущество организаций ---
   - code: property_avg_notice
     title: "Имущество (среднегодовая стоимость): уведомление об авансе за {period_name}"
+    action: "Подать уведомление по имуществу по среднегодовой стоимости"
     kind: notice
     applies: { entity_type: [ooo], has_property_avg: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 25, month_offset: 1 }
@@ -161,6 +181,7 @@ rules:
 
   - code: property_avg_advance
     title: "Имущество (среднегодовая стоимость): аванс за {period_name}"
+    action: "Уплатить аванс по имуществу по среднегодовой стоимости"
     kind: payment
     applies: { entity_type: [ooo], has_property_avg: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 1 }
@@ -170,6 +191,7 @@ rules:
 
   - code: property_declaration
     title: "Налог на имущество: декларация за {period_name}"
+    action: "Сдать декларацию по налогу на имущество"
     kind: report
     applies: { entity_type: [ooo], has_property_avg: true }
     schedule: { type: yearly, day: 25, month: 2 }
@@ -179,6 +201,7 @@ rules:
 
   - code: property_avg_year
     title: "Имущество (среднегодовая стоимость): налог за {period_name}"
+    action: "Уплатить налог на имущество по среднегодовой стоимости"
     kind: payment
     applies: { entity_type: [ooo], has_property_avg: true }
     schedule: { type: yearly, day: 28, month: 2 }
@@ -188,6 +211,7 @@ rules:
 
   - code: property_cad_advance
     title: "Имущество (кадастровая стоимость): аванс за {period_name}"
+    action: "Уплатить аванс по имуществу по кадастровой стоимости"
     kind: payment
     applies: { entity_type: [ooo], has_property_cadastral: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 2 }
@@ -198,6 +222,7 @@ rules:
 
   - code: property_cad_year
     title: "Имущество (кадастровая стоимость): налог за {period_name}"
+    action: "Уплатить налог на имущество по кадастровой стоимости"
     kind: payment
     applies: { entity_type: [ooo], has_property_cadastral: true }
     schedule: { type: yearly, day: 28, month: 3 }
@@ -210,6 +235,7 @@ rules:
   # --- Транспортный и земельный налог ---
   - code: transport_advance
     title: "Транспортный налог: аванс за {period_name}"
+    action: "Уплатить аванс по транспортному налогу"
     kind: payment
     applies: { entity_type: [ooo], has_transport_tax: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 2 }
@@ -220,6 +246,7 @@ rules:
 
   - code: transport_year
     title: "Транспортный налог: налог за {period_name}"
+    action: "Уплатить транспортный налог"
     kind: payment
     applies: { entity_type: [ooo], has_transport_tax: true }
     schedule: { type: yearly, day: 28, month: 3 }
@@ -230,6 +257,7 @@ rules:
 
   - code: ip_transport_tax
     title: "Транспортный налог ИП за {period_name} (по налоговому уведомлению)"
+    action: "Уплатить транспортный налог ИП (по уведомлению ФНС)"
     kind: payment
     applies: { entity_type: [ip], has_transport_tax: true }
     schedule: { type: yearly, day: 1, month: 12 }
@@ -240,6 +268,7 @@ rules:
 
   - code: land_advance
     title: "Земельный налог: аванс за {period_name}"
+    action: "Уплатить аванс по земельному налогу"
     kind: payment
     applies: { entity_type: [ooo], has_land_tax: true, has_property_advances: true }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 2 }
@@ -250,6 +279,7 @@ rules:
 
   - code: land_year
     title: "Земельный налог: налог за {period_name}"
+    action: "Уплатить земельный налог"
     kind: payment
     applies: { entity_type: [ooo], has_land_tax: true }
     schedule: { type: yearly, day: 28, month: 3 }
@@ -260,6 +290,7 @@ rules:
 
   - code: ip_land_tax
     title: "Земельный налог ИП за {period_name} (по налоговому уведомлению)"
+    action: "Уплатить земельный налог ИП (по уведомлению ФНС)"
     kind: payment
     applies: { entity_type: [ip], has_land_tax: true }
     schedule: { type: yearly, day: 1, month: 12 }
@@ -272,6 +303,7 @@ rules:
   # --- Торговый сбор и туристический налог ---
   - code: trade_fee_notice
     title: "Торговый сбор: уведомление за {period_name}"
+    action: "Подать уведомление по торговому сбору"
     kind: notice
     applies: { has_trade_fee: true }
     schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 25, month_offset: 1 }
@@ -281,6 +313,7 @@ rules:
 
   - code: trade_fee
     title: "Торговый сбор за {period_name}"
+    action: "Уплатить торговый сбор"
     kind: payment
     applies: { has_trade_fee: true }
     schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 28, month_offset: 1 }
@@ -290,6 +323,7 @@ rules:
 
   - code: tourist_declaration
     title: "Туристический налог: декларация за {period_name}"
+    action: "Сдать декларацию по туристическому налогу"
     kind: report
     applies: { has_tourist_tax: true }
     schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 25, month_offset: 1 }
@@ -299,6 +333,7 @@ rules:
 
   - code: tourist_payment
     title: "Туристический налог за {period_name}"
+    action: "Уплатить туристический налог"
     kind: payment
     applies: { has_tourist_tax: true }
     schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 28, month_offset: 1 }
@@ -310,6 +345,7 @@ rules:
   # --- НДФЛ предпринимателя на ОСНО ---
   - code: ndfl_ip_notice
     title: "НДФЛ ИП: уведомление об авансе за {period_name}"
+    action: "Подать уведомление об авансе по НДФЛ ИП"
     kind: notice
     applies: { entity_type: [ip], main_regime: [osno] }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 25, month_offset: 1, naming: cumulative }
@@ -319,6 +355,7 @@ rules:
 
   - code: ndfl_ip_advance
     title: "НДФЛ ИП: аванс за {period_name}"
+    action: "Уплатить аванс по НДФЛ ИП"
     kind: payment
     applies: { entity_type: [ip], main_regime: [osno] }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 28, month_offset: 1, naming: cumulative }
@@ -328,6 +365,7 @@ rules:
 
   - code: ndfl_ip_declaration
     title: "3-НДФЛ за {period_name}"
+    action: "Сдать декларацию 3-НДФЛ"
     kind: report
     applies: { entity_type: [ip], main_regime: [osno] }
     schedule: { type: yearly, day: 30, month: 4 }
@@ -337,6 +375,7 @@ rules:
 
   - code: ndfl_ip_year
     title: "НДФЛ ИП: налог за {period_name}"
+    action: "Уплатить НДФЛ ИП"
     kind: payment
     applies: { entity_type: [ip], main_regime: [osno] }
     schedule: { type: yearly, day: 15, month: 7 }
@@ -348,6 +387,7 @@ rules:
   # --- АУСН ---
   - code: ausn_tax
     title: "АУСН: налог за {period_name}"
+    action: "Уплатить налог по АУСН"
     kind: payment
     applies: { main_regime: [ausn_income, ausn_income_expense] }
     schedule: { type: monthly, day: 25, month_offset: 1 }
@@ -358,6 +398,7 @@ rules:
 
   - code: ausn_injury
     title: "АУСН: взнос на травматизм (1/12 годового) за {period_name}"
+    action: "Уплатить взнос на травматизм (АУСН, 1/12)"
     kind: payment
     applies: { main_regime: [ausn_income, ausn_income_expense], has_employees: true }
     schedule: { type: monthly, day: 15, month_offset: 1 }
@@ -369,6 +410,7 @@ rules:
   # --- Взносы ИП за себя ---
   - code: ip_fixed_contrib
     title: "Фиксированные взносы ИП за {period_name}"
+    action: "Уплатить фиксированные взносы ИП"
     kind: payment
     applies: { entity_type: [ip], main_regime: [osno, usn6, usn15] }
     schedule: { type: yearly, day: 28, month: 12, year_offset: 0 }
@@ -378,6 +420,7 @@ rules:
 
   - code: ip_1pct
     title: "Взносы ИП 1% с дохода свыше 300 000 ₽ за {period_name}"
+    action: "Уплатить взносы ИП 1% свыше 300 000 ₽"
     kind: payment
     applies: { entity_type: [ip], main_regime: [osno, usn6, usn15] }
     schedule: { type: yearly, day: 1, month: 7 }
@@ -389,6 +432,8 @@ rules:
   # --- Сотрудники: НДФЛ ---
   - code: ndfl_notice
     title: "НДФЛ за 1–22 {month_genitive}: уведомление"
+    action: "Подать уведомление по НДФЛ"
+    period: "за 1–22 {month_genitive} {year}"
     kind: notice
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: monthly, day: 25, month_offset: 0 }
@@ -398,6 +443,8 @@ rules:
 
   - code: ndfl_payment
     title: "НДФЛ за 1–22 {month_genitive}"
+    action: "Уплатить НДФЛ"
+    period: "за 1–22 {month_genitive} {year}"
     kind: payment
     applies: { has_employees: true, ausn_ndfl_tasks: true }
     schedule: { type: monthly, day: 28, month_offset: 0 }
@@ -407,6 +454,8 @@ rules:
 
   - code: ndfl_end_notice
     title: "НДФЛ с 23-го до конца месяца ({period_name}): уведомление"
+    action: "Подать уведомление по НДФЛ"
+    period: "с 23-го до конца месяца, {period_name}"
     kind: notice
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: monthly, day: 3, month_offset: 1, months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }
@@ -416,6 +465,8 @@ rules:
 
   - code: ndfl_end_payment
     title: "НДФЛ с 23-го до конца месяца ({period_name})"
+    action: "Уплатить НДФЛ"
+    period: "с 23-го до конца месяца, {period_name}"
     kind: payment
     applies: { has_employees: true, ausn_ndfl_tasks: true }
     schedule: { type: monthly, day: 5, month_offset: 1, months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }
@@ -425,6 +476,7 @@ rules:
 
   - code: ndfl_december_notice
     title: "НДФЛ за {period_name}: уведомление"
+    action: "Подать уведомление по НДФЛ"
     kind: notice
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: handler, name: ndfl_december }
@@ -434,6 +486,7 @@ rules:
 
   - code: ndfl_december
     title: "НДФЛ за {period_name}"
+    action: "Уплатить НДФЛ"
     kind: payment
     applies: { has_employees: true, ausn_ndfl_tasks: true }
     schedule: { type: handler, name: ndfl_december }
@@ -443,6 +496,7 @@ rules:
 
   - code: ndfl6
     title: "6-НДФЛ за {period_name}"
+    action: "Сдать 6-НДФЛ"
     kind: report
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: quarterly, quarters: [1, 2, 3], day: 25, month_offset: 1, naming: cumulative }
@@ -452,6 +506,7 @@ rules:
 
   - code: ndfl6_year
     title: "6-НДФЛ за {period_name}"
+    action: "Сдать 6-НДФЛ"
     kind: report
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: yearly, day: 25, month: 2 }
@@ -463,6 +518,7 @@ rules:
   # --- Сотрудники: страховые взносы и отчётность (на АУСН не применяются) ---
   - code: insurance_notice
     title: "Страховые взносы за {period_name}: уведомление"
+    action: "Подать уведомление по страховым взносам"
     kind: notice
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: monthly, day: 25, month_offset: 1, months: [1, 2, 4, 5, 7, 8, 10, 11] }
@@ -473,6 +529,7 @@ rules:
 
   - code: insurance_payment
     title: "Страховые взносы за {period_name}"
+    action: "Уплатить страховые взносы"
     kind: payment
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: monthly, day: 28, month_offset: 1 }
@@ -482,6 +539,7 @@ rules:
 
   - code: rsv
     title: "РСВ за {period_name}"
+    action: "Сдать РСВ"
     kind: report
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 25, month_offset: 1, naming: cumulative }
@@ -491,6 +549,7 @@ rules:
 
   - code: personal_info
     title: "Персонифицированные сведения о физлицах за {period_name}"
+    action: "Подать персонифицированные сведения"
     kind: report
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: monthly, day: 25, month_offset: 1 }
@@ -500,6 +559,7 @@ rules:
 
   - code: efs1_s2
     title: "ЕФС-1, раздел 2 за {period_name}"
+    action: "Сдать ЕФС-1, раздел 2"
     kind: report
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 25, month_offset: 1, naming: cumulative }
@@ -510,6 +570,7 @@ rules:
 
   - code: injury_contrib
     title: "Взносы на травматизм за {period_name}"
+    action: "Уплатить взносы на травматизм"
     kind: payment
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: monthly, day: 15, month_offset: 1 }
@@ -520,6 +581,7 @@ rules:
 
   - code: efs1_stazh
     title: "ЕФС-1, сведения о стаже за {period_name}"
+    action: "Сдать ЕФС-1, сведения о стаже"
     kind: report
     applies: { has_employees: true }
     schedule: { type: yearly, day: 25, month: 1 }
@@ -530,6 +592,7 @@ rules:
 
   - code: efs1_dsv
     title: "ЕФС-1, дополнительные взносы на накопительную пенсию за {period_name}"
+    action: "Сдать ЕФС-1 по дополнительным взносам"
     kind: report
     applies: { has_employees: true, has_dsv: true }
     schedule: { type: quarterly, quarters: [1, 2, 3, 4], day: 25, month_offset: 1, naming: cumulative }
@@ -541,6 +604,7 @@ rules:
   # --- Аванс и зарплата (дни задаются в карточке компании) ---
   - code: salary_advance
     title: "Выплата аванса за {period_name}"
+    action: "Выплатить аванс"
     kind: payment
     applies: { has_employees: true }
     schedule: { type: payday, payment: advance }
@@ -551,6 +615,7 @@ rules:
 
   - code: salary_payment
     title: "Выплата зарплаты за {period_name}"
+    action: "Выплатить зарплату"
     kind: payment
     applies: { has_employees: true }
     schedule: { type: payday, payment: salary }
@@ -563,6 +628,7 @@ rules:
   # --- Бухгалтерская отчётность ---
   - code: accounting_report
     title: "Бухгалтерская отчётность за {period_name}"
+    action: "Сдать бухгалтерскую отчётность"
     kind: report
     applies: { entity_type: [ooo] }
     schedule: { type: yearly, day: 31, month: 3 }
@@ -574,6 +640,8 @@ rules:
   # --- Патент ---
   - code: patent_payment
     title: "Патент {period_name}: платёж {part}"
+    action: "Уплатить патент"
+    period: "{period_name}, платёж {part}"
     kind: payment
     applies: { entity_type: [ip] }
     schedule: { type: handler, name: patent_payments }

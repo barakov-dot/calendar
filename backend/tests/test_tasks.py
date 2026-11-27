@@ -74,6 +74,21 @@ async def test_regeneration_keeps_status_amount_and_comments(db, calendar, accou
     assert (task.comment, task.client_note, task.client_visible) == ("внутренний", "клиенту", False)
 
 
+async def test_regeneration_fills_screen_texts_of_old_tasks(db, calendar, accountant):
+    company = await make_company(db, accountant)
+    await generate(db, company)
+    task = (await all_tasks(db))[("usn_advance", "2026-Q3", 1)]
+    # так выглядят задачи, созданные до появления этих полей
+    task.action_title, task.period_label, task.status = "", "", "paid"
+    await db.commit()
+
+    await generate(db, company)
+
+    task = (await all_tasks(db))[("usn_advance", "2026-Q3", 1)]
+    assert task.action_title == "Уплатить авансовый платёж по УСН"
+    assert (task.period_label, task.status) == ("за 9 месяцев 2026", "paid")
+
+
 async def test_rule_stops_applying(db, calendar, accountant):
     company = await make_company(db, accountant)
     await generate(db, company)

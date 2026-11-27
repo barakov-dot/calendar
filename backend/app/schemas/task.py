@@ -43,6 +43,8 @@ class TaskOut(ClientTaskOut):
     amount_overridden: bool
     needs_amount: bool
     client_visible: bool
+    action_title: str
+    period_label: str
     comment: str
     status_changed_at: datetime | None
     status_changed_by_name: str

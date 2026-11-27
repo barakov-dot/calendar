@@ -92,6 +92,9 @@ class Task(Base):
     kind: Mapped[str] = mapped_column(String(16))
     title: Mapped[str] = mapped_column(String(500))
     description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # из правила: «что сделать» и «за какой период»; у своих задач пусто
+    action_title: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    period_label: Mapped[str] = mapped_column(String(200), default="", server_default="")
     source_ref: Mapped[str] = mapped_column(String(500), default="", server_default="")
     due_date: Mapped[date]
     original_due_date: Mapped[date]

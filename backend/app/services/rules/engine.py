@@ -66,6 +66,8 @@ class Occurrence:
     amount_kopecks: int | None = None
     # выплата по расписанию компании: перенос назад, прошедшие сроки не создаются задним числом
     payday: bool = False
+    action_title: str = ""
+    period_label: str = ""
 
 
 class RuleBook:
@@ -208,12 +210,12 @@ def _ndfl_december(year: int, work_calendar: WorkCalendar) -> Iterator[_Draft]:
     yield _Draft(f"{year}-12", work_calendar.last_workday_of_year(year), names=names)
 
 
-def _title(rule: Rule, draft: _Draft) -> str:
-    values = dict(draft.names) | {"part": draft.part}
+def _text(rule: Rule, draft: _Draft, field: str, year: int) -> str:
+    values = dict(draft.names) | {"part": draft.part, "year": year}
     try:
-        return rule.title.format(**values)
+        return getattr(rule, field).format(**values)
     except (KeyError, IndexError, ValueError) as error:
-        raise RulesError(f"{rule.code}: неизвестная подстановка в title: {error}") from None
+        raise RulesError(f"{rule.code}: неизвестная подстановка в {field}: {error}") from None
 
 
 def occurrences(
@@ -277,7 +279,9 @@ def occurrences(
                         period_year=period_year,
                         part=draft.part,
                         kind=rule.kind,
-                        title=_title(rule, draft),
+                        title=_text(rule, draft, "title", period_year),
+                        action_title=rule.action,
+                        period_label=_text(rule, draft, "period", period_year),
                         description=rule.description,
                         source_ref=rule.source,
                         original_due_date=draft.due,
