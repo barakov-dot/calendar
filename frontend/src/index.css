@@ -14,3 +14,38 @@ html.dark {
 body {
   @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }
+
+/* Поля не шире своего блока: у выбора файла и даты есть собственная минимальная ширина. */
+input,
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/*
+ * На телефонах с iOS поле с шрифтом мельче 16px при касании увеличивает всю страницу,
+ * и она перестаёт помещаться в ширину экрана. Правило вне слоёв перебивает text-sm.
+ */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* iOS рисует поля даты и времени своей шириной, не глядя на заданную. */
+@supports (-webkit-touch-callout: none) {
+  input:is([type='date'], [type='time']) {
+    display: block;
+    width: 100%;
+    min-height: 2.6rem;
+    appearance: none;
+    text-align: left;
+  }
+
+  input::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}

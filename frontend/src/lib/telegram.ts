@@ -1,4 +1,4 @@
-import { postEvent, retrieveLaunchParams, retrieveRawInitData } from '@telegram-apps/sdk-react'
+import { on, postEvent, retrieveLaunchParams, retrieveRawInitData } from '@telegram-apps/sdk-react'
 
 /** initData, если приложение открыто внутри Telegram. */
 export function miniAppInitData(): string | null {
@@ -16,6 +16,30 @@ export function announceMiniAppReady(): void {
     postEvent('web_app_expand')
   } catch {
     // старый клиент Telegram: приложение работает и без этого
+  }
+}
+
+/**
+ * Показывает стрелку «Назад» в шапке Mini App вместо «Закрыть».
+ * Возвращает функцию, которая убирает стрелку.
+ */
+export function showBackButton(onPress: () => void): () => void {
+  const visible = (is_visible: boolean) => {
+    try {
+      postEvent('web_app_setup_back_button', { is_visible })
+    } catch {
+      // старый клиент Telegram: кнопки нет
+    }
+  }
+  try {
+    const off = on('back_button_pressed', onPress)
+    visible(true)
+    return () => {
+      off()
+      visible(false)
+    }
+  } catch {
+    return () => {}
   }
 }
 

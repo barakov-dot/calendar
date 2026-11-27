@@ -55,6 +55,8 @@ export default function Tasks({ user }: { user: User }) {
   const status = params.get('status') ?? 'planned'
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filtered = kind !== '' || params.get('status') !== null
+  // прошедшие сроки открываются по нажатию, иначе они заслоняют ближайшие дела
+  const showLate = params.get('late') === '1'
 
   const companies = useCompanies()
   const base = { company_id, kind }
@@ -84,34 +86,32 @@ export default function Tasks({ user }: { user: User }) {
         (task) => !(task.status === 'planned' && task.due_date < today),
       )
     : upTo(TABS.find(([key]) => key === tab)![2]!)
-  const list = [...late, ...current]
+  const list = showLate ? [...late, ...current] : current
   const ready = !!source.data
-  const upcoming = list.length - late.length
   const cut =
-    (source.data?.total ?? 0) > (source.data?.items.length ?? 0) || lateTotal > late.length
+    (source.data?.total ?? 0) > (source.data?.items.length ?? 0) ||
+    (showLate && lateTotal > late.length)
 
   const error = overdue.error ?? soon.error ?? everything.error
 
   return (
     <div className="space-y-4 pb-20">
       <h1 className="text-2xl font-bold">
-        {ready ? headline(tab, upcoming, status) : 'Задачи'}
+        {ready ? headline(tab, current.length, status) : 'Задачи'}
       </h1>
       {lateTotal > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
           <span className="min-w-0 flex-1">
             {lateTotal}{' '}
-            {plural(lateTotal, ['срок уже прошёл', 'срока уже прошли', 'сроков уже прошли'])} —
-            начните с {lateTotal === 1 ? 'него' : 'них'}
+            {plural(lateTotal, ['срок уже прошёл', 'срока уже прошли', 'сроков уже прошли'])}
           </span>
           <button
             type="button"
-            className="cursor-pointer underline"
-            onClick={() =>
-              document.getElementById('overdue')?.scrollIntoView({ behavior: 'smooth' })
-            }
+            aria-expanded={showLate}
+            className="cursor-pointer py-1 underline"
+            onClick={() => set({ late: showLate ? null : '1' })}
           >
-            Показать
+            {showLate ? 'Скрыть' : 'Показать'}
           </button>
         </div>
       )}
@@ -122,8 +122,7 @@ export default function Tasks({ user }: { user: User }) {
         className="grid grid-cols-4 gap-1 rounded-2xl bg-slate-200/60 p-1 dark:bg-slate-800/60"
       >
         {TABS.map(([key, title, days]) => {
-          const count =
-            days === null || !soon.data ? null : lateTotal + upTo(days).length
+          const count = days === null || !soon.data ? null : upTo(days).length
           return (
             <button
               key={key}
@@ -212,7 +211,7 @@ export default function Tasks({ user }: { user: User }) {
       )}
       {ready && (
         <TaskFeed
-          key={`${tab}|${company_id}|${kind}|${status}`}
+          key={`${tab}|${company_id}|${kind}|${status}|${showLate}`}
           tasks={list}
           today={today}
           editable={editable}

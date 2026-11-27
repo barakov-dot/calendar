@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { apiFile } from '../lib/api'
+import { coverBack } from '../lib/backStack'
 import { Alert, Button, ErrorText } from './ui'
 
 // библиотека PDF тяжёлая и загружается только при открытии файла
@@ -53,6 +54,9 @@ export default function FilePreview({
     staleTime: Infinity,
     gcTime: 0,
   })
+
+  // «Назад» в Mini App закрывает просмотр
+  useEffect(() => coverBack(onClose), [onClose])
 
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null

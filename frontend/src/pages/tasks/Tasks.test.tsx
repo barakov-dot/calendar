@@ -82,22 +82,33 @@ describe('экран задач', () => {
     vi.useRealTimers()
   })
 
-  it('считает задачи по периодам и показывает прошедшие сроки отдельно', async () => {
+  it('открывается на ближайшую неделю, прошедшие сроки спрятаны', async () => {
     const { user } = setup()
 
     await screen.findByText('На неделе 1 задача')
-    screen.getByText(/1 срок уже прошёл/)
-    expect(tab(/Сегодня/).textContent).toBe('Сегодня1')
-    expect(tab(/Неделя/).textContent).toBe('Неделя2')
-    expect(tab(/Месяц/).textContent).toBe('Месяц3')
-    await screen.findByText('Подать уведомление по НДФЛ')
-    screen.getByText('за 1–22 ноября 2026 · ООО «Ромашка»')
-    screen.getByText('2 дня назад')
+    await screen.findByText(/1 срок уже прошёл/)
+    expect(tab(/Неделя/).getAttribute('aria-selected')).toBe('true')
+    expect(tab(/Сегодня/).textContent).toBe('Сегодня0')
+    expect(tab(/Неделя/).textContent).toBe('Неделя1')
+    expect(tab(/Месяц/).textContent).toBe('Месяц2')
     screen.getByText('Пн, 30 ноября')
+    expect(screen.queryByText('Подать уведомление по НДФЛ')).toBeNull()
     expect(screen.queryByText('Задача 3')).toBeNull()
 
     await user.click(tab(/Месяц/))
     await screen.findByText('Задача 3')
+  })
+
+  it('показывает и снова прячет прошедшие сроки по нажатию', async () => {
+    const { user } = setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Показать' }))
+
+    await screen.findByText('Подать уведомление по НДФЛ')
+    screen.getByText('за 1–22 ноября 2026 · ООО «Ромашка»')
+    screen.getByText('2 дня назад')
+    await user.click(screen.getByRole('button', { name: 'Скрыть' }))
+    expect(screen.queryByText('Подать уведомление по НДФЛ')).toBeNull()
   })
 
   it('отмечает задачу одним нажатием и позволяет отменить', async () => {
@@ -114,14 +125,16 @@ describe('экран задач', () => {
     vi.stubGlobal('confirm', vi.fn(() => true))
     const { bulk, user } = setup()
 
+    await user.click(await screen.findByRole('button', { name: 'Показать' }))
     await user.click(await screen.findByRole('button', { name: 'Отметить все' }))
 
     await waitFor(() => expect(bulk).toEqual([{ ids: [1], status: 'done' }]))
   })
 
   it('помощнику не даёт отмечать и добавлять', async () => {
-    setup('assistant')
+    const { user } = setup('assistant')
 
+    await user.click(await screen.findByRole('button', { name: 'Показать' }))
     const row = await screen.findByText('Уплатить НДФЛ')
     expect(within(document.body).queryByRole('checkbox')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Отметить все' })).toBeNull()

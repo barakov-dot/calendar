@@ -18,6 +18,7 @@ import {
   SendIcon,
   UsersIcon,
 } from './Icons'
+import TelegramBack from './TelegramBack'
 import ThemeToggle from './ThemeToggle'
 import { Button } from './ui'
 
@@ -198,5 +199,11 @@ function ClientLayout({ user, onLogout }: { user: User; onLogout: () => void }) 
 }
 
 export default function Layout(props: { user: User; onLogout: () => void }) {
-  return props.user.role === 'client' ? <ClientLayout {...props} /> : <StaffLayout {...props} />
+  const client = props.user.role === 'client'
+  return (
+    <>
+      <TelegramBack client={client} />
+      {client ? <ClientLayout {...props} /> : <StaffLayout {...props} />}
+    </>
+  )
 }

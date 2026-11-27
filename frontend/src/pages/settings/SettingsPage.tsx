@@ -35,7 +35,7 @@ export default function SettingsPage() {
       {/* вкладки переносятся на новую строку, чтобы все были видны */}
       <nav className="flex flex-wrap gap-1">
         {TABS.map(([path, title]) => (
-          <NavLink key={path} to={`/settings/${path}`} className={navClass}>
+          <NavLink key={path} to={`/settings/${path}`} replace className={navClass}>
             {title}
           </NavLink>
         ))}
