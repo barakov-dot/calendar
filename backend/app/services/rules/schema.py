@@ -81,6 +81,7 @@ class Applies(Strict):
     profit_advances_mode: list[ProfitAdvances] | None = None
     nds_payer: bool | None = None
     has_employees: bool | None = None
+    no_salary: bool | None = None
     has_property_avg: bool | None = None
     has_property_cadastral: bool | None = None
     has_property_advances: bool | None = None

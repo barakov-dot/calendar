@@ -114,6 +114,18 @@ export function TaxFields({ form, onChange }: Props) {
         checked={form.has_employees}
         onChange={(has_employees) => change({ has_employees })}
       />
+      {form.has_employees && (
+        <div className="space-y-1">
+          <Checkbox
+            label="Зарплата не выплачивается"
+            checked={form.no_salary}
+            onChange={(no_salary) => change({ no_salary })}
+          />
+          <p className="pl-6 text-sm text-slate-500 dark:text-slate-400">
+            Взносы и отчёты по ним остаются. Задачи о выплатах и по НДФЛ не создаются.
+          </p>
+        </div>
+      )}
       {isOoo && form.main_regime === 'osno' && (
         <Select
           label="Авансы по налогу на прибыль"
@@ -156,7 +168,7 @@ export function TaxFields({ form, onChange }: Props) {
           onChange={(has_property_advances) => change({ has_property_advances })}
         />
       )}
-      {form.has_employees && (
+      {form.has_employees && !form.no_salary && (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Аванс: число месяца"
@@ -184,7 +196,7 @@ export function TaxFields({ form, onChange }: Props) {
           onChange={(has_dsv) => change({ has_dsv })}
         />
       )}
-      {form.has_employees && isAusn(form.main_regime) && (
+      {form.has_employees && !form.no_salary && isAusn(form.main_regime) && (
         <Checkbox
           label="Создавать задачи по НДФЛ (АУСН)"
           checked={form.ausn_ndfl_tasks}

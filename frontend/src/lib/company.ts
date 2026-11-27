@@ -37,6 +37,8 @@ export interface CompanyForm {
   main_regime: Regime
   nds_payer: boolean
   has_employees: boolean
+  /** Сотрудники есть, но выплат им нет: без зарплаты и НДФЛ. */
+  no_salary: boolean
   profit_advances_mode: ProfitAdvances | null
   has_property_avg: boolean
   has_property_cadastral: boolean
@@ -68,6 +70,7 @@ export const EMPTY_COMPANY: CompanyForm = {
   main_regime: 'usn6',
   nds_payer: false,
   has_employees: false,
+  no_salary: false,
   profit_advances_mode: null,
   has_property_avg: false,
   has_property_cadastral: false,

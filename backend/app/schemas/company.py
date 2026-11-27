@@ -62,6 +62,7 @@ class CompanyData(Input):
     main_regime: Regime
     nds_payer: bool | None = None
     has_employees: bool = False
+    no_salary: bool = False
     profit_advances_mode: ProfitAdvances | None = None
     has_property_avg: bool = False
     has_property_cadastral: bool = False
@@ -110,6 +111,8 @@ class CompanyData(Input):
         if not ausn:
             self.ausn_ndfl_tasks = True
         if not self.has_employees:
+            self.no_salary = False
+        if not self.has_employees or self.no_salary:
             self.advance_day = self.salary_day = None
         elif (self.advance_day is None) != (self.salary_day is None):
             raise ValueError("укажите оба дня выплаты: и аванса, и зарплаты")
@@ -195,6 +198,7 @@ class CompanyOut(BaseModel):
     main_regime: str
     nds_payer: bool
     has_employees: bool
+    no_salary: bool
     profit_advances_mode: str | None
     has_property_avg: bool
     has_property_cadastral: bool

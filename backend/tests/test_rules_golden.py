@@ -440,3 +440,23 @@ def test_ip_contributions_of_next_year_and_before_registration():
     assert [
         item.amount_kopecks for item in full if item.rule_code == "ip_fixed_contrib"
     ] == [57_390_00, 61_154_00]
+
+
+@pytest.mark.parametrize("regime", ["osno", "usn6", "ausn_income"])
+def test_no_salary_keeps_contributions_without_ndfl_and_paydays(regime):
+    paid = codes(company("ooo", regime, has_employees=True, advance_day=25, salary_day=10))
+    unpaid = codes(
+        company(
+            "ooo", regime, has_employees=True, no_salary=True, advance_day=25, salary_day=10
+        )
+    )
+
+    removed = paid - unpaid
+    assert removed and all(code.startswith(("ndfl", "salary")) for code in removed)
+    assert not any(code.startswith(("ndfl", "salary")) for code in unpaid)
+    kept = {"ausn_injury"} if regime.startswith("ausn") else {"insurance_payment", "rsv"}
+    assert kept <= unpaid
+
+
+def test_no_salary_needs_employees():
+    assert company("ooo", "osno", no_salary=True).no_salary is False

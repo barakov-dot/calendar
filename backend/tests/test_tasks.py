@@ -420,3 +420,20 @@ async def test_fixed_contribution_follows_registration_date_unless_edited(
     await db.commit()
     await generate(db, company)
     assert (await all_tasks(db))[key].amount_kopecks == 100
+
+
+async def test_switching_salary_off_removes_future_ndfl_tasks(db, calendar, accountant):
+    company = await make_company(
+        db, accountant, has_employees=True, advance_day=25, salary_day=10
+    )
+    await generate(db, company)
+    before = {key[0] for key in await all_tasks(db)}
+    assert {"ndfl_payment", "salary_payment", "insurance_payment"} <= before
+
+    company.no_salary, company.advance_day, company.salary_day = True, None, None
+    await db.commit()
+    await generate(db, company)
+
+    left = [task for task in (await all_tasks(db)).values() if task.due_date >= TODAY]
+    assert not [t for t in left if t.rule_code.startswith(("ndfl", "salary"))]
+    assert any(t.rule_code == "insurance_payment" for t in left)
