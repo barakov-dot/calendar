@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import InviteList from '../components/InviteList'
+import { SubstitutionsCard } from '../components/Substitutions'
 import { Button, Card, ErrorText } from '../components/ui'
 import { api } from '../lib/api'
 import { fullName } from '../lib/format'
@@ -93,6 +94,8 @@ export default function Accountants() {
         <ErrorText error={invite.error ?? invites.error ?? revoke.error} />
         <InviteList invites={invites.data ?? []} onRevoke={(id) => revoke.mutate(id)} />
       </Card>
+
+      <SubstitutionsCard />
     </div>
   )
 }

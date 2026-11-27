@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
+import TelegramWidget from '../components/TelegramWidget'
 import { Alert, Button, Card, ErrorText } from '../components/ui'
 import { api, ApiError, session, type Tokens } from '../lib/api'
 import { miniAppInitData } from '../lib/telegram'
@@ -65,6 +66,7 @@ function SiteLogin() {
       <Button onClick={() => start.mutate()} disabled={start.isPending}>
         Войти через Telegram
       </Button>
+      <TelegramWidget />
     </>
   )
 }

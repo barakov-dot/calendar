@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 
+import Attachments from '../../components/Attachments'
 import { Card, ErrorText } from '../../components/ui'
 import { api } from '../../lib/api'
 import { type Task, todayIso } from '../../lib/tasks'
@@ -32,6 +33,7 @@ export default function ClientTaskPage() {
           )}
         </Card>
       )}
+      {task.data?.kind === 'payment' && <Attachments taskId={id} />}
     </div>
   )
 }

@@ -16,7 +16,7 @@ interface Preferences {
 
 interface Contacts {
   support_contact: string
-  accountants: { company: string; accountant: string; username: string }[]
+  accountants: { company: string; accountant: string; username: string; substitute?: boolean }[]
 }
 
 const URL = '/me/notification-settings'
@@ -111,8 +111,9 @@ function ContactsCard() {
       <ErrorText error={contacts.error} />
       <ul className="space-y-1 text-sm">
         {contacts.data?.accountants.map((item) => (
-          <li key={item.company}>
+          <li key={`${item.company} ${item.accountant}`}>
             {item.company}: {item.accountant}
+            {item.substitute && ' (замещает бухгалтера)'}
             {item.username && (
               <>
                 {' — '}

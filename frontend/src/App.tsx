@@ -15,6 +15,7 @@ import NewCompany from './pages/companies/NewCompany'
 import Login from './pages/Login'
 import SettingsPage from './pages/settings/SettingsPage'
 import Reminders from './pages/reminders/Reminders'
+import Reports from './pages/reports/Reports'
 import CalendarPage from './pages/tasks/CalendarPage'
 import NewTask from './pages/tasks/NewTask'
 import TaskPage from './pages/tasks/TaskPage'
@@ -69,6 +70,7 @@ export default function App() {
               <>
                 <Route path="calendar" element={<CalendarPage user={user} />} />
                 <Route path="reminders" element={<Reminders user={user} />} />
+                <Route path="reports" element={<Reports user={user} />} />
                 <Route path="tasks/:id" element={<TaskPage user={user} />} />
                 <Route path="companies" element={<CompaniesList user={user} />} />
                 <Route path="companies/:id" element={<CompanyCard user={user} />} />

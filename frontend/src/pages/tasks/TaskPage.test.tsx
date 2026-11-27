@@ -55,7 +55,8 @@ function setup(role: Role) {
         sent.push({ url, method: String(init.method), body: JSON.parse(String(init.body)) })
         return new Response(JSON.stringify({ updated: 3, skipped: 0 }))
       }
-      return new Response(JSON.stringify(task))
+      const data = url.endsWith('/attachments') ? { items: [], can_upload: false } : task
+      return new Response(JSON.stringify(data))
     }),
   )
   const user = { id: 1, role } as User

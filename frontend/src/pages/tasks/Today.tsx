@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 
+import { SubstitutionNotice } from '../../components/Substitutions'
 import TaskFilterBar, { type Filters } from '../../components/TaskFilterBar'
 import TaskTable from '../../components/TaskTable'
 import { Alert, Card, ErrorText } from '../../components/ui'
@@ -36,6 +37,7 @@ export default function Today({ user }: { user: User }) {
           </Link>
         )}
       </div>
+      {editable && <SubstitutionNotice userId={user.id} />}
       <TaskFilterBar value={filters} onChange={setFilters} />
       <ErrorText error={overdue.error ?? week.error} />
       {showOverdue && overdue.data && overdue.data.total > 0 && (

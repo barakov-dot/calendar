@@ -65,6 +65,12 @@ function ClientTask({ task, today }: { task: Task; today: string }) {
             Отменить отметку
           </Button>
         )}
+        {task.kind === 'payment' &&
+          (task.can_mark_paid || task.can_unmark_paid || task.has_files) && (
+            <Link to={`/tasks/${task.id}`} className="text-sm text-blue-600 underline">
+              📎 {task.has_files ? 'Платёжка приложена' : 'Приложить платёжку'}
+            </Link>
+          )}
       </div>
       <ErrorText error={act.error} />
     </li>

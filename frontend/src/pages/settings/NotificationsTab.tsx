@@ -15,6 +15,8 @@ export default function NotificationsTab({
   const [form, setForm] = useState(saved)
   const [showNotices, setShowNotices] = useState(tasks.show_notices_to_clients)
   const [offsets, setOffsets] = useState(saved.default_client_offsets_days.join(', '))
+  const [signature, setSignature] = useState(saved.signature_offsets_days.join(', '))
+  const signatureDays = parseOffsets(signature)
   const save = useSaveSettings()
   const change = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
   const days = parseOffsets(offsets)
@@ -57,6 +59,15 @@ export default function NotificationsTab({
         checked={form.overdue_notify}
         onChange={(overdue_notify) => change({ overdue_notify })}
       />
+      <Field
+        label="Напоминать об окончании ЭЦП за (дней)"
+        value={signature}
+        hint="Через запятую. В день окончания напоминание приходит всегда."
+        onChange={(event) => setSignature(event.target.value)}
+      />
+      {signatureDays === null && (
+        <Alert kind="error">Укажите целые числа от 1 до 365 через запятую.</Alert>
+      )}
       <Checkbox
         label="Показывать клиентам уведомления в ФНС"
         checked={showNotices}
@@ -64,12 +75,17 @@ export default function NotificationsTab({
       />
       <ErrorText error={save.error} />
       <Button
-        disabled={days === null || save.isPending}
+        disabled={days === null || signatureDays === null || save.isPending}
         onClick={() =>
           days &&
+          signatureDays &&
           save.mutate({
             settings: {
-              notifications: { ...form, default_client_offsets_days: days },
+              notifications: {
+                ...form,
+                default_client_offsets_days: days,
+                signature_offsets_days: signatureDays,
+              },
               tasks: { show_notices_to_clients: showNotices },
             },
           })

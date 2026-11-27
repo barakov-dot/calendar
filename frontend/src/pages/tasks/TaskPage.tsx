@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
+import Attachments from '../../components/Attachments'
 import TextArea from '../../components/TextArea'
 import { Alert, Button, Card, Checkbox, ErrorText, Field } from '../../components/ui'
 import { api } from '../../lib/api'
@@ -60,7 +61,8 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
     },
   })
   const overdue = toneOf(task, todayIso()) === 'overdue'
-  const deletable = task.source === 'custom' && !task.recurring_reminder_id
+  const deletable =
+    task.source === 'custom' && !task.recurring_reminder_id && !task.signature_id
 
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
@@ -119,7 +121,13 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
         <ErrorText error={status.error ?? resetDue.error ?? remove.error} />
       </Card>
 
+      {task.signature_id && (
+        <Alert>
+          Напоминание об ЭЦП: срок и владелец меняются в карточке компании, вкладка «ЭЦП».
+        </Alert>
+      )}
       {task.nds_parts.length > 0 && <NdsBlock task={task} editable={editable} />}
+      {task.kind === 'payment' && <Attachments taskId={task.id} />}
       {task.source === 'rule' && (
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Основание: {task.source_ref}. Сроки сформированы автоматически, итоговое решение — за
@@ -194,18 +202,20 @@ function EditForm({ task }: { task: TaskDetail }) {
 
   return (
     <Card title="Изменить">
-      {task.source === 'custom' && (
+      {task.source === 'custom' && !task.signature_id && (
         <>
           <Field label="Название" value={form.title} onChange={(e) => change({ title: e.target.value })} />
           <TextArea label="Описание" value={form.description} onChange={(description) => change({ description })} />
         </>
       )}
-      <Field
-        label="Срок"
-        type="date"
-        value={form.due_date}
-        onChange={(event) => change({ due_date: event.target.value })}
-      />
+      {!task.signature_id && (
+        <Field
+          label="Срок"
+          type="date"
+          value={form.due_date}
+          onChange={(event) => change({ due_date: event.target.value })}
+        />
+      )}
       {hasAmount && (
         <Field
           label="Сумма, ₽"
@@ -226,7 +236,7 @@ function EditForm({ task }: { task: TaskDetail }) {
         value={form.client_note}
         onChange={(client_note) => change({ client_note })}
       />
-      {task.company_id !== null && (
+      {task.company_id !== null && !task.signature_id && (
         <Checkbox
           label="Клиент видит задачу"
           checked={form.client_visible}

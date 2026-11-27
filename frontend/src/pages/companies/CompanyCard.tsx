@@ -14,6 +14,7 @@ import ClientsBlock from './ClientsBlock'
 import { RequisiteFields, TaxFields } from './CompanyFields'
 import type { PatentData } from './PatentForm'
 import PatentList from './PatentList'
+import SignaturesBlock from './SignaturesBlock'
 import { useStaff } from './useStaff'
 
 export default function CompanyCard({ user }: { user: User }) {
@@ -35,7 +36,7 @@ export default function CompanyCard({ user }: { user: User }) {
   )
 }
 
-type Tab = 'tasks' | 'params' | 'clients' | 'reminders'
+type Tab = 'tasks' | 'params' | 'clients' | 'reminders' | 'signatures'
 
 function useCompanyAction<T>(id: number, action: (input: T) => Promise<unknown>) {
   const queryClient = useQueryClient()
@@ -65,6 +66,7 @@ function Loaded({ company, user }: { company: Company; user: User }) {
     ['params', 'Реквизиты и налоги'],
     ['clients', `Клиенты · ${company.members.length}`],
     ['reminders', 'Напоминания'],
+    ['signatures', 'ЭЦП'],
   ]
 
   return (
@@ -81,6 +83,7 @@ function Loaded({ company, user }: { company: Company; user: User }) {
       {tab === 'tasks' && <CompanyTasks companyId={company.id} editable={active} />}
       {tab === 'reminders' && <ReminderBlock companyId={company.id} editable={active} />}
       {tab === 'clients' && <ClientsBlock company={company} user={user} />}
+      {tab === 'signatures' && <SignaturesBlock companyId={company.id} editable={active} />}
       {/* вкладка скрывается, а не удаляется: несохранённые правки не теряются */}
       <div className={tab === 'params' ? 'space-y-4' : 'hidden'}>
         <div className={`flex flex-wrap items-center gap-2 text-sm ${editable ? '' : 'hidden'}`}>

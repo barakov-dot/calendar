@@ -21,6 +21,7 @@ function links(user: User): [string, string][] {
     ['/calendar', 'Календарь'],
     ['/companies', 'Компании'],
     ['/reminders', 'Напоминания'],
+    ['/reports', 'Отчёты'],
   ]
   if (user.role === 'assistant') return staff
   staff.push(['/preferences', 'Уведомления'])

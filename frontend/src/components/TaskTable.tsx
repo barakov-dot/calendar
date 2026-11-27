@@ -112,7 +112,15 @@ export default function TaskTable({
                 {formatDate(task.due_date)}
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-medium break-words">{task.title}</span>
+                <span className="block text-sm font-medium break-words">
+                  {task.title}
+                  {task.has_files && (
+                    <span title="Есть файл" aria-label="Есть файл">
+                      {' '}
+                      📎
+                    </span>
+                  )}
+                </span>
                 <span className="block text-xs text-slate-500 dark:text-slate-400">
                   <span className="@xl:hidden">{formatDate(task.due_date)} · </span>
                   {showCompany && `${task.company_name} · `}

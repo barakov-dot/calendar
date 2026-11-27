@@ -8,6 +8,7 @@ import TelegramTab from './TelegramTab'
 const saved = {
   bot_username: '',
   mini_app_url: '',
+  login_widget: false,
   proxy: {
     type: 'socks5' as const,
     enabled: false,

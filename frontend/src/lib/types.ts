@@ -38,6 +38,7 @@ export interface AppSettings {
   telegram: {
     bot_username: string
     mini_app_url: string
+    login_widget?: boolean
     proxy: ProxyForm & { type: 'socks5'; has_password: boolean }
   }
   dadata: {
@@ -58,6 +59,7 @@ export interface AppSettings {
     remind_on_due_day: boolean
     fill_amount_workdays_before: number
     overdue_notify: boolean
+    signature_offsets_days: number[]
   }
 }
 

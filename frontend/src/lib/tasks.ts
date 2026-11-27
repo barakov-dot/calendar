@@ -30,6 +30,7 @@ export interface Task {
   needs_amount: boolean
   can_mark_paid: boolean
   can_unmark_paid: boolean
+  has_files?: boolean
 }
 
 export interface NdsPart {
@@ -55,6 +56,7 @@ export interface TaskDetail extends Task {
   status_changed_by_name: string
   status_changed_by_role: string | null
   recurring_reminder_id: number | null
+  signature_id?: number | null
   nds_parts: NdsPart[]
 }
 
@@ -122,4 +124,10 @@ export function monthTitle(month: string): string {
     timeZone: 'UTC',
   }).format(new Date(`${month}-01T00:00:00Z`))
   return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/** Прошлый месяц целиком — за него отчёт нужен чаще всего. */
+export function previousMonth(today: string) {
+  const month = addMonths(today.slice(0, 7), -1)
+  return { from: `${month}-01`, to: addDays(`${today.slice(0, 7)}-01`, -1) }
 }

@@ -17,6 +17,7 @@ export default function TelegramTab({ saved }: { saved: AppSettings['telegram'] 
   const [proxy, setProxy] = useState(() => toForm(saved.proxy))
   const [botUsername, setBotUsername] = useState(saved.bot_username)
   const [miniAppUrl, setMiniAppUrl] = useState(saved.mini_app_url)
+  const [widget, setWidget] = useState(saved.login_widget ?? false)
   const save = useSaveSettings()
   const check = useMutation({
     mutationFn: (body: ProxyForm) =>
@@ -29,12 +30,20 @@ export default function TelegramTab({ saved }: { saved: AppSettings['telegram'] 
   const checkIsCurrent = JSON.stringify(check.variables) === JSON.stringify(proxy)
   const verified = checkIsCurrent && check.data?.ok === true
   const dirty =
-    proxyChanged || botUsername !== saved.bot_username || miniAppUrl !== saved.mini_app_url
+    proxyChanged ||
+    botUsername !== saved.bot_username ||
+    miniAppUrl !== saved.mini_app_url ||
+    widget !== (saved.login_widget ?? false)
 
   const submit = () =>
     save.mutate({
       settings: {
-        telegram: { bot_username: botUsername, mini_app_url: miniAppUrl, proxy },
+        telegram: {
+          bot_username: botUsername,
+          mini_app_url: miniAppUrl,
+          login_widget: widget,
+          proxy,
+        },
       },
     })
 
@@ -116,6 +125,11 @@ export default function TelegramTab({ saved }: { saved: AppSettings['telegram'] 
           value={miniAppUrl}
           onChange={(event) => setMiniAppUrl(event.target.value)}
         />
+        <Checkbox label="Кнопка входа Telegram на сайте" checked={widget} onChange={setWidget} />
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Сначала укажите домен сайта боту: @BotFather → /setdomain. Кнопка загружается с
+          telegram.org и работает только на этом домене.
+        </p>
       </Card>
       <ErrorText error={save.error} />
       <div className="flex flex-wrap gap-2">
