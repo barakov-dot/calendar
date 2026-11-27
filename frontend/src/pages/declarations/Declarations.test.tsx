@@ -10,15 +10,14 @@ const found: Declaration = {
   company_id: 1,
   company_name: 'ООО «Пример»',
   inn: '0000000000',
-  year: 2026,
-  quarter: 3,
+  title: 'НДС за III квартал 2026',
   correction: 1,
-  total_kopecks: 30_000_00,
+  totals: [{ label: 'К уплате за квартал', kopecks: 30_000_00 }],
   warnings: ['Есть раздел 2 (налоговый агент).'],
   parts: [
     {
       task_id: 1,
-      part: 1,
+      title: 'НДС: платёж 1 из 3',
       due_date: '2026-10-28',
       current_kopecks: 500_00,
       new_kopecks: 10_000_00,
@@ -26,7 +25,7 @@ const found: Declaration = {
     },
     {
       task_id: 2,
-      part: 2,
+      title: 'НДС: платёж 2 из 3',
       due_date: '2026-11-30',
       current_kopecks: null,
       new_kopecks: 10_000_00,
@@ -72,6 +71,8 @@ describe('загрузка декларации', () => {
 
     await screen.findByText('ООО «Пример»')
     screen.getByText(/III квартал 2026, корректировка № 1/)
+    screen.getByText('К уплате за квартал')
+    screen.getByRole('link', { name: 'НДС: платёж 2 из 3' })
     screen.getByText(/Не меняется: уже оплачен/)
     screen.getByText('Есть раздел 2 (налоговый агент).')
     expect(calls.map((call) => call.url)).toEqual(['/api/declarations/preview'])

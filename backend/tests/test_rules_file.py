@@ -65,12 +65,13 @@ def test_next_year_file_covers_its_periods(tmp_path):
 @pytest.mark.parametrize(
     ("total", "parts"),
     [
-        (100_000_00, (33_333_33, 33_333_33, 33_333_34)),
+        (100_000_00, (33_334_00, 33_334_00, 33_334_00)),
+        (611_100_00, (203_700_00, 203_700_00, 203_700_00)),
         (0, (0, 0, 0)),
-        (2, (0, 0, 2)),
-        (300, (100, 100, 100)),
+        (2, (100, 100, 100)),
+        (300_01, (101_00, 101_00, 101_00)),
     ],
 )
 def test_split_in_three(total, parts):
     assert split_in_three(total) == parts
-    assert sum(parts) == total
+    assert 0 <= sum(parts) - total < 300

@@ -224,17 +224,11 @@ class NdsPeriodNotFound(Exception):
 
 
 async def set_nds_amount(
-    db: AsyncSession,
-    actor: User,
-    company: Company,
-    period_key: str,
-    total: int,
-    correction: int | None = None,
+    db: AsyncSession, actor: User, company: Company, period_key: str, total: int
 ) -> list[Task]:
     """Разносит квартальную сумму НДС на три платежа.
 
-    Части с ручной суммой и уже оплаченные не пересчитываются. correction — номер
-    корректировки, если сумма взята из декларации.
+    Части с ручной суммой и уже оплаченные не пересчитываются.
     """
     parts = list(
         await db.scalars(
@@ -263,8 +257,7 @@ async def set_nds_amount(
         "task.nds_amount",
         "company",
         company.id,
-        {"period": period_key, "total_kopecks": total, "parts": changed}
-        | ({} if correction is None else {"declaration_correction": correction}),
+        {"period": period_key, "total_kopecks": total, "parts": changed},
     )
     await db.commit()
     return parts

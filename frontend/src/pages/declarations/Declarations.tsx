@@ -12,13 +12,12 @@ export interface Declaration {
   company_id: number
   company_name: string
   inn: string
-  year: number
-  quarter: number
+  title: string
   correction: number
-  total_kopecks: number
+  totals: { label: string; kopecks: number }[]
   parts: {
     task_id: number
-    part: number
+    title: string
     due_date: string
     current_kopecks: number | null
     new_kopecks: number
@@ -26,8 +25,6 @@ export interface Declaration {
   }[]
   warnings: string[]
 }
-
-const ROMAN = ['I', 'II', 'III', 'IV']
 
 /** Загрузка декларации: суммы платежей берутся из XML и записываются после проверки. */
 export default function Declarations() {
@@ -43,12 +40,13 @@ export default function Declarations() {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Декларации</h1>
       <p className="text-sm">
-        Загрузите XML декларации по НДС из учётной программы: сервис найдёт организацию по ИНН и
-        разделит налог на три платежа. Сначала вы увидите, что изменится.
+        Загрузите XML декларации по НДС или по прибыли из учётной программы: сервис найдёт
+        организацию по ИНН и впишет суммы в платежи. Сначала вы увидите, что изменится. НДС и
+        ежемесячные авансы по прибыли делятся на три равных платежа с округлением до рубля вверх.
       </p>
       <FileDrop
         title="Перетащите XML сюда или нажмите, чтобы выбрать"
-        hint="Основной файл декларации по НДС, без книг покупок и продаж. Файл не сохраняется."
+        hint="Основной файл декларации, без книг покупок и продаж. Можно сразу несколько. Файл не сохраняется."
         accept=".xml,text/xml,application/xml"
         onFiles={add}
       />
@@ -88,11 +86,18 @@ function Loaded({ id, file }: { id: number; file: File }) {
   return (
     <Card title={data.company_name}>
       <p className="text-sm">
-        НДС за {ROMAN[data.quarter - 1]} квартал {data.year}
+        {data.title}
         {data.correction > 0 && `, корректировка № ${data.correction}`} · ИНН {data.inn}
         <span className="block break-all text-slate-500 dark:text-slate-400">{file.name}</span>
       </p>
-      <p className="text-lg font-semibold">К уплате: {formatKopecks(data.total_kopecks)}</p>
+      <dl className="text-sm">
+        {data.totals.map((total) => (
+          <div key={total.label} className="flex flex-wrap justify-between gap-x-3">
+            <dt>{total.label}</dt>
+            <dd className="font-semibold tabular-nums">{formatKopecks(total.kopecks)}</dd>
+          </div>
+        ))}
+      </dl>
       {data.warnings.map((warning) => (
         <Alert key={warning} kind="warning">
           {warning}
@@ -102,8 +107,11 @@ function Loaded({ id, file }: { id: number; file: File }) {
         {data.parts.map((part) => (
           <li key={part.task_id} className="py-2">
             <Link to={`/tasks/${part.task_id}`} className="font-medium text-blue-600 underline">
-              Платёж {part.part}, {formatDate(part.due_date)}
+              {part.title}
             </Link>
+            <span className="block text-slate-500 dark:text-slate-400">
+              срок {formatDate(part.due_date)}
+            </span>
             <span className="block tabular-nums">
               {part.kept ? (
                 <span className="text-amber-700 dark:text-amber-300">

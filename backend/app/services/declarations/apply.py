@@ -1,16 +1,16 @@
-"""Куда попадёт сумма из декларации и запись её в платежи."""
+"""Куда попадут суммы из декларации и запись их в платежи."""
 
 from dataclasses import dataclass, replace
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import accessible_company_ids_query
 from app.models import Company, Task, TaskStatus, User
-from app.services import tasks
-from app.services.declarations.parser import DeclarationError, NdsDeclaration
+from app.models.company import ProfitAdvances
+from app.services import audit
+from app.services.declarations.parser import Declaration, DeclarationError, Item
 from app.services.notify.messages import money
-from app.services.rules.engine import split_in_three
 
 
 @dataclass(frozen=True)
@@ -23,13 +23,13 @@ class Part:
 
 @dataclass(frozen=True)
 class Plan:
-    declaration: NdsDeclaration
+    declaration: Declaration
     company: Company
     parts: list[Part]
 
 
 def _kept(task: Task) -> str:
-    # те же условия, что в tasks.set_nds_amount
+    """Оплаченные и исправленные вручную платежи не меняются."""
     if task.status == TaskStatus.PAID:
         return "уже оплачен"
     if task.status != TaskStatus.PLANNED:
@@ -39,8 +39,27 @@ def _kept(task: Task) -> str:
     return ""
 
 
-async def plan(db: AsyncSession, user: User, declaration: NdsDeclaration) -> Plan:
-    """Находит организацию по ИНН и три платежа за квартал декларации."""
+def _missing(company: Company, items: list[Item]) -> list[str]:
+    """Суммы, для которых нет платежа: чаще всего из-за настроек организации."""
+    warnings = []
+    monthly = [item for item in items if item.rule_code == "profit_monthly"]
+    if monthly and company.profit_advances_mode == ProfitAdvances.QUARTERLY:
+        listed = "; ".join(f"{item.label} — {money(item.amount_kopecks)}" for item in monthly)
+        warnings.append(
+            "В декларации есть ежемесячные авансы, а в карточке организации выбраны только "
+            "квартальные. Если организация платит ежемесячно, измените «Авансы по налогу на "
+            f"прибыль» и загрузите декларацию ещё раз. Не записано: {listed}."
+        )
+        items = [item for item in items if item not in monthly]
+    return warnings + [
+        f"Нет платежа «{item.label}»: {money(item.amount_kopecks)} записать некуда. "
+        "Проверьте настройки организации."
+        for item in items
+    ]
+
+
+async def plan(db: AsyncSession, user: User, declaration: Declaration, lock: bool = False) -> Plan:
+    """Находит организацию по ИНН и платежи, к которым относятся суммы декларации."""
     company = await db.scalar(
         select(Company).where(
             Company.inn == declaration.inn,
@@ -52,43 +71,55 @@ async def plan(db: AsyncSession, user: User, declaration: NdsDeclaration) -> Pla
         raise DeclarationError(f"Организации с ИНН {declaration.inn} нет среди ваших")
     if company.is_archived:
         raise DeclarationError("Организация в архиве")
-    found = list(
-        await db.scalars(
-            select(Task)
-            .where(
-                Task.company_id == company.id,
-                Task.rule_code == tasks.NDS_RULE,
-                Task.period_key == declaration.period_key,
-            )
-            .order_by(Task.part)
-        )
+    keys = [(item.rule_code, item.period_key, item.part) for item in declaration.items]
+    query = select(Task).where(
+        Task.company_id == company.id,
+        tuple_(Task.rule_code, Task.period_key, Task.part).in_(keys),
     )
+    found = {
+        (task.rule_code, task.period_key, task.part): task
+        for task in await db.scalars(query.with_for_update() if lock else query)
+    }
     if not found:
         raise DeclarationError(
-            f"Платежей НДС за {declaration.quarter} квартал {declaration.year} года нет. "
-            "Проверьте, что в карточке организации отмечено «Плательщик НДС»."
+            f"{declaration.title}: платежей для этих сумм нет. Проверьте в карточке "
+            "организации режим налогообложения, «Плательщик НДС» и порядок авансов по прибыли."
         )
-    amounts = split_in_three(declaration.total_kopecks)
-    parts = [Part(task, amounts[task.part - 1], _kept(task)) for task in found]
-    # оплаченные и ручные части остаются, и сумма платежей может разойтись с декларацией
-    after = sum(
-        (part.task.amount_kopecks or 0) if part.kept else part.new_kopecks for part in parts
-    )
-    if after != declaration.total_kopecks:
-        warning = (
-            f"Три платежа в сумме дадут {money(after)}, а по декларации "
-            f"{money(declaration.total_kopecks)}. Проверьте платежи, которые не меняются."
+
+    parts, missing = [], []
+    for item, key in zip(declaration.items, keys, strict=True):
+        task = found.get(key)
+        if task is None:
+            missing.append(item)
+        else:
+            parts.append(Part(task, item.amount_kopecks, _kept(task)))
+    warnings = [*declaration.warnings, *_missing(company, missing)]
+    parts.sort(key=lambda part: part.task.due_date)
+    if any(part.kept and part.task.amount_kopecks != part.new_kopecks for part in parts):
+        warnings.append(
+            "Часть платежей не меняется, и их суммы отличаются от декларации. Проверьте разницу."
         )
-        declaration = replace(declaration, warnings=(*declaration.warnings, warning))
-    return Plan(declaration, company, parts)
+    return Plan(replace(declaration, warnings=tuple(warnings)), company, parts)
 
 
 async def apply(db: AsyncSession, user: User, found: Plan) -> None:
-    await tasks.set_nds_amount(
+    """Записывает суммы по плану, составленному с блокировкой задач."""
+    changed = []
+    for part in found.parts:
+        if part.kept:
+            continue
+        part.task.amount_kopecks = part.new_kopecks
+        changed.append({"task_id": part.task.id, "kopecks": part.new_kopecks})
+    audit.record(
         db,
-        user,
-        found.company,
-        found.declaration.period_key,
-        found.declaration.total_kopecks,
-        correction=found.declaration.correction,
+        user.id,
+        "task.declaration_amounts",
+        "company",
+        found.company.id,
+        {
+            "declaration": found.declaration.title,
+            "correction": found.declaration.correction,
+            "tasks": changed,
+        },
     )
+    await db.commit()

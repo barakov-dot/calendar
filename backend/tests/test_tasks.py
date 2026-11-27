@@ -218,7 +218,7 @@ async def test_nds_split_override_and_paid(db, calendar, accountant):
 
     await tasks.set_nds_amount(db, accountant, company, "2026-Q2", 100_000_00)
     parts = nds_parts(await all_tasks(db))
-    assert [p.amount_kopecks for p in parts] == [33_333_33, 33_333_33, 33_333_34]
+    assert [p.amount_kopecks for p in parts] == [33_334_00] * 3
     assert not any(p.amount_overridden for p in parts)
 
     tasks.override_amount(parts[0], 500)
@@ -227,9 +227,9 @@ async def test_nds_split_override_and_paid(db, calendar, accountant):
     await tasks.set_nds_amount(db, accountant, company, "2026-Q2", 300)
 
     parts = nds_parts(await all_tasks(db))
-    assert [p.amount_kopecks for p in parts] == [500, 33_333_33, 100]
+    assert [p.amount_kopecks for p in parts] == [500, 33_334_00, 100]
     await generate(db, company)
-    assert [p.amount_kopecks for p in nds_parts(await all_tasks(db))] == [500, 33_333_33, 100]
+    assert [p.amount_kopecks for p in nds_parts(await all_tasks(db))] == [500, 33_334_00, 100]
     last = (await db.scalars(select(AuditLog).order_by(AuditLog.id.desc()))).first()
     assert last.payload == {"period": "2026-Q2", "total_kopecks": 300, "parts": [3]}
 

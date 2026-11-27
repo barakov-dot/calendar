@@ -19,7 +19,7 @@ router = APIRouter(prefix="/declarations")
 
 class PartOut(BaseModel):
     task_id: int
-    part: int
+    title: str
     due_date: date
     current_kopecks: int | None
     new_kopecks: int
@@ -27,14 +27,18 @@ class PartOut(BaseModel):
     kept: str
 
 
+class TotalOut(BaseModel):
+    label: str
+    kopecks: int
+
+
 class DeclarationOut(BaseModel):
     company_id: int
     company_name: str
     inn: str
-    year: int
-    quarter: int
+    title: str
     correction: int
-    total_kopecks: int
+    totals: list[TotalOut]
     parts: list[PartOut]
     warnings: list[str]
 
@@ -54,15 +58,14 @@ def _out(found: declarations.Plan) -> DeclarationOut:
         company_id=company.id,
         company_name=company.short_name or company.name,
         inn=source.inn,
-        year=source.year,
-        quarter=source.quarter,
+        title=source.title,
         correction=source.correction,
-        total_kopecks=source.total_kopecks,
+        totals=[TotalOut(label=label, kopecks=kopecks) for label, kopecks in source.totals],
         warnings=list(source.warnings),
         parts=[
             PartOut(
                 task_id=part.task.id,
-                part=part.task.part,
+                title=part.task.title,
                 due_date=part.task.due_date,
                 current_kopecks=part.task.amount_kopecks,
                 new_kopecks=part.new_kopecks,
@@ -73,27 +76,25 @@ def _out(found: declarations.Plan) -> DeclarationOut:
     )
 
 
-async def _run(action, request: Request, user: Staff, db: Database) -> DeclarationOut:
+async def _plan(
+    request: Request, user: Staff, db: Database, lock: bool = False
+) -> declarations.Plan:
     try:
-        found = await action(db, user, parse(await _body(request)))
+        return await declarations.plan(db, user, parse(await _body(request)), lock)
     except DeclarationError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
-    return _out(found)
 
 
 @router.post("/preview")
 async def preview(request: Request, user: Staff, db: Database) -> DeclarationOut:
-    return await _run(declarations.plan, request, user, db)
+    return _out(await _plan(request, user, db))
 
 
 @router.post("/apply")
 async def apply(request: Request, user: Staff, db: Database) -> DeclarationOut:
     """Отвечает тем, как было до записи: current_kopecks — прежние суммы."""
-    try:
-        found = await declarations.plan(db, user, parse(await _body(request)))
-        # снимок прежних сумм делается до записи: она меняет те же объекты
-        before = _out(found)
-        await declarations.apply(db, user, found)
-    except DeclarationError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
+    found = await _plan(request, user, db, lock=True)
+    # снимок прежних сумм делается до записи: она меняет те же объекты
+    before = _out(found)
+    await declarations.apply(db, user, found)
     return before

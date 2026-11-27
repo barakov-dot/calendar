@@ -303,7 +303,7 @@ function NdsBlock({ task, editable }: { task: TaskDetail; editable: boolean }) {
             label="Сумма НДС за весь квартал, ₽"
             inputMode="decimal"
             value={total}
-            hint="Делится на три части. Оплаченные и исправленные вручную не меняются."
+            hint="Три равные части, каждая округляется до рубля вверх. Оплаченные и исправленные вручную не меняются."
             onChange={(event) => setTotal(event.target.value)}
           />
           {kopecks === undefined && <Alert kind="error">Сумма — число, например 36 000,50.</Alert>}

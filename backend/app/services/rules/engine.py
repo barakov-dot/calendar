@@ -169,9 +169,12 @@ def _payday(schedule: Payday, company: object, year: int) -> Iterator[_Draft]:
 
 
 def split_in_three(total: int) -> tuple[int, int, int]:
-    """Деление на три платежа с округлением вниз, остаток — в третий."""
-    third = total // 3
-    return third, third, total - 2 * third
+    """Три равных платежа, каждый округлён до рубля вверх (в копейках).
+
+    В сумме может получиться на 1–2 ₽ больше налога: переплата остаётся на ЕНС.
+    """
+    third = -(-total // 300) * 100
+    return third, third, third
 
 
 def add_calendar_months(day: date, months: int) -> date:

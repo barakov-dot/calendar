@@ -23,7 +23,7 @@ function items(user: User): Item[] {
   const list: Item[] = []
   if (canEdit(user.role)) {
     list.push(
-      ['/declarations', 'Декларации', 'Суммы НДС из XML', UploadIcon],
+      ['/declarations', 'Декларации', 'Суммы НДС и прибыли из XML', UploadIcon],
       ['/preferences', 'Уведомления', 'Что и когда присылает бот', BellIcon],
     )
   }
