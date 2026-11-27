@@ -513,3 +513,47 @@ async def test_who_may_not_share(client, world, name, status):
     )
 
     assert response.status_code == status
+
+
+@pytest.mark.parametrize(
+    ("moment", "status"),
+    [
+        # квитанция 07.12; время московское (UTC+3)
+        (datetime(2026, 12, 6, 20, 0, tzinfo=UTC), "planned"),
+        (datetime(2026, 12, 7, 13, 59, tzinfo=UTC), "planned"),
+        (datetime(2026, 12, 7, 14, 0, tzinfo=UTC), "done"),
+        # воркер не работал в срок: отметка ставится при следующем запуске
+        (datetime(2026, 12, 9, 6, 0, tzinfo=UTC), "done"),
+    ],
+)
+async def test_receipt_is_signed_automatically_at_17(client, db, world, moment, status):
+    got = await create(client, world["accountant"], body(world["company"]))
+
+    await plan(db, get_store().get(), moment)
+
+    receipt = await db.get(Task, got["receipt"]["task_id"], populate_existing=True)
+    response = await db.get(Task, got["response"]["task_id"], populate_existing=True)
+    assert (receipt.status, response.status) == (status, "planned")
+    assert receipt.status_changed_by_role == ("system" if status == "done" else None)
+
+
+async def test_returned_receipt_stays_and_new_date_reopens(client, db, world):
+    got = await create(client, world["accountant"], body(world["company"]))
+    headers = auth(world["accountant"])
+    task_id = got["receipt"]["task_id"]
+    await plan(db, get_store().get(), datetime(2026, 12, 7, 15, 0, tzinfo=UTC))
+
+    # дату квитанции перенесли: автоматическая отметка снимается
+    url = f"/api/demands/{got['id']}"
+    moved = await client.put(
+        url, json=body(world["company"], receipt_date="2026-12-10"), headers=headers
+    )
+    assert moved.json()["receipt"]["status"] == "planned"
+
+    await plan(db, get_store().get(), datetime(2026, 12, 10, 15, 0, tzinfo=UTC))
+    # человек вернул задачу в план: сервис больше не отмечает её сам
+    await client.patch(f"/api/tasks/{task_id}", json={"status": "planned"}, headers=headers)
+    await plan(db, get_store().get(), datetime(2026, 12, 11, 15, 0, tzinfo=UTC))
+
+    task = await db.get(Task, task_id, populate_existing=True)
+    assert task.status == "planned"

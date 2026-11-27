@@ -4,7 +4,7 @@
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import or_, select
@@ -15,6 +15,7 @@ from app.core.settings_store import AppSettings
 from app.models import (
     EDITORS,
     MANAGERS,
+    ChangedBy,
     Company,
     CompanyMember,
     DemandStep,
@@ -31,6 +32,8 @@ from app.services.calendar.workdays import WorkCalendar, load_calendar
 from app.services.notify.queue import enqueue
 from app.services.task_state import PAYDAY_RULES, before_start_condition
 
+# в это время дня квитанция по требованию считается подписанной
+RECEIPT_SIGNED_AT = "17:00"
 # Просрочку сообщаем по свежим срокам: старый долг не должен сыпаться пачкой.
 OVERDUE_WINDOW_DAYS = 3
 
@@ -290,10 +293,35 @@ async def _overdue(db: AsyncSession, settings: AppSettings, staff: _Staff, curre
         await enqueue(db, member.user_id, NotificationType.OVERDUE, task.due_date, task.id)
 
 
+async def _sign_receipts(db: AsyncSession, current: date, clock: str) -> None:
+    """Квитанция о приёме требования подписывается сама в срок: отмечаем это.
+
+    Задачи, статус которых уже меняли люди, не трогаем: «Вернуть в план» остаётся в силе.
+    """
+    last = current if clock >= RECEIPT_SIGNED_AT else current - timedelta(days=1)
+    rows = await db.scalars(
+        select(Task)
+        .where(
+            Task.demand_step == DemandStep.RECEIPT,
+            Task.status == TaskStatus.PLANNED,
+            Task.status_changed_at.is_(None),
+            Task.due_date <= last,
+        )
+        .with_for_update(skip_locked=True)
+    )
+    for task in rows:
+        task.status = TaskStatus.DONE
+        task.status_changed_by_role = ChangedBy.SYSTEM
+        task.status_changed_at = datetime.now(UTC)
+
+
 async def plan(db: AsyncSession, settings: AppSettings, now: datetime) -> None:
     moment = local_now(settings, now)
     current, clock = moment.date(), moment.strftime("%H:%M")
     calendar = await load_calendar(db)
+    # до напоминаний: о подписанной квитанции сообщать уже нечего
+    await _sign_receipts(db, current, clock)
+    await db.flush()
     await _digests(db, settings, current, clock, calendar.is_workday(current))
     # остальное — не раньше общего времени дайджеста, чтобы не писать ночью
     if clock >= settings.notifications.digest_time:

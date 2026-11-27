@@ -135,6 +135,10 @@ async def _sync(db: AsyncSession, demand: Demand) -> None:
             db.add(task)
         elif task.due_date != due:
             task.due_date = task.original_due_date = due
+            # отметку, поставленную автоматически по прежней дате, снимаем
+            if task.status_changed_by_role == ChangedBy.SYSTEM:
+                task.status = TaskStatus.PLANNED
+                task.status_changed_by_role = task.status_changed_at = None
             # напоминания о новом сроке начинаются заново
             await db.execute(
                 delete(Notification).where(
