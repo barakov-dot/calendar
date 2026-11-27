@@ -23,6 +23,7 @@ from app.core.permissions import editable_task_condition, visible_task_condition
 from app.core.settings_store import AppSettings
 from app.models import (
     Attachment,
+    Broadcast,
     Company,
     CompanyMember,
     Notification,
@@ -223,6 +224,9 @@ async def _compose(
 ) -> Message | None:
     if not user.is_active or user.bot_blocked:
         return None
+    if rows[0].type == NotificationType.BROADCAST:
+        item = await db.get(Broadcast, rows[0].broadcast_id)
+        return Message(item.text, None, [rows[0]])
     if rows[0].type == NotificationType.DIGEST:
         return await _digest(db, settings, user, rows[0], current)
     if rows[0].type in GROUPED and user.role != Role.CLIENT:

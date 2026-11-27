@@ -106,6 +106,8 @@ class NotificationSettings(Section):
     fill_amount_workdays_before: int = Field(5, ge=0, le=60)
     overdue_notify: bool = True
     signature_offsets_days: list[int] = Field(default_factory=lambda: [30, 14, 7, 1])
+    # напоминать администратору, если «make backup» давно не создавал копию
+    backup_alert: bool = True
 
     @field_validator("default_client_offsets_days", "signature_offsets_days")
     @classmethod

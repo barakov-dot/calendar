@@ -27,6 +27,7 @@ class NotificationType(StrEnum):
     FILL_AMOUNT = "fill_amount"
     ATTACHMENT = "attachment"  # клиент приложил файл
     SIGNATURE = "signature"  # заканчивается срок электронной подписи
+    BROADCAST = "broadcast"  # рассылка администратора
 
 
 class NotificationStatus(StrEnum):
@@ -48,6 +49,19 @@ class NotificationSettings(Base):
     digest_time: Mapped[str | None] = mapped_column(String(5))
 
 
+class Broadcast(Base):
+    """Сообщение администратора группе пользователей."""
+
+    __tablename__ = "broadcasts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    text: Mapped[str] = mapped_column(Text)
+    # выбранные группы; пусто — получателей отмечали по одному
+    roles: Mapped[list[str]] = mapped_column(ARRAY(String(16)))
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
+
+
 class Notification(Base):
     """Журнал и очередь отправки."""
 
@@ -59,6 +73,7 @@ class Notification(Base):
             "task_id",
             "type",
             "scheduled_for",
+            "broadcast_id",
             name="uq_notifications_log_key",
             postgresql_nulls_not_distinct=True,
         ),
@@ -70,6 +85,9 @@ class Notification(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    broadcast_id: Mapped[int | None] = mapped_column(
+        ForeignKey("broadcasts.id", ondelete="CASCADE"), index=True
+    )
     type: Mapped[str] = mapped_column(String(32))
     scheduled_for: Mapped[date]
     status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")

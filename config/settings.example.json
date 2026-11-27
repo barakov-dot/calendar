@@ -33,7 +33,8 @@
     "remind_on_due_day": true,
     "fill_amount_workdays_before": 5,
     "overdue_notify": true,
-    "signature_offsets_days": [30, 14, 7, 1]
+    "signature_offsets_days": [30, 14, 7, 1],
+    "backup_alert": true
   },
   "tasks": {
     "generation_horizon_months_ahead": 15,

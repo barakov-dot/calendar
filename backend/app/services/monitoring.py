@@ -113,7 +113,10 @@ async def sending_problems(db: AsyncSession, now: datetime) -> dict[str, str]:
     return problems
 
 
-def backup_problems(directory: Path, now: float) -> dict[str, str]:
+def backup_problems(directory: Path, now: float, wanted: bool = True) -> dict[str, str]:
+    """wanted=False — копии делают другим способом (например, всей виртуальной машины)."""
+    if not wanted:
+        return {}
     newest = max((path.stat().st_mtime for path in directory.glob("buh-*.tar.gz")), default=None)
     if newest is None or now - newest > BACKUP_MAX_AGE_SECONDS:
         return {"backup": "Нет свежей резервной копии (старше 36 часов). Проверьте cron"}

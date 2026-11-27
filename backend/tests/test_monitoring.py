@@ -87,6 +87,11 @@ def test_backup_age(tmp_path):
     assert "backup" in backup_problems(tmp_path, NOW + 37 * 3600)
 
 
+def test_backup_alert_can_be_switched_off(tmp_path):
+    assert backup_problems(tmp_path, 1_000_000, wanted=True)
+    assert backup_problems(tmp_path, 1_000_000, wanted=False) == {}
+
+
 async def test_sending_problems(db):
     user = await make_user(db, 5, Role.CLIENT)
     now = datetime.now(UTC)

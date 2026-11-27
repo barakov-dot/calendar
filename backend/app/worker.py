@@ -114,7 +114,8 @@ async def run_monitor(store: SettingsStore, config: Config, client: TelegramClie
             async with get_sessionmaker()() as db:
                 problems |= await sending_problems(db, datetime.now(UTC))
             if not config.is_dev:
-                problems |= backup_problems(Path(config.backups_path), now)
+                wanted = store.get().notifications.backup_alert
+                problems |= backup_problems(Path(config.backups_path), now, wanted)
             await alerter.tick(problems, now)
         except Exception:
             logger.exception("Ошибка мониторинга")

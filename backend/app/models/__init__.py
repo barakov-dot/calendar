@@ -11,6 +11,7 @@ from app.models.company import (
 )
 from app.models.extras import Attachment, Signature, Substitution
 from app.models.notification import (
+    Broadcast,
     Notification,
     NotificationSettings,
     NotificationStatus,
@@ -34,6 +35,7 @@ __all__ = [
     "Audience",
     "AuditLog",
     "Base",
+    "Broadcast",
     "ChangedBy",
     "Company",
     "CompanyMember",

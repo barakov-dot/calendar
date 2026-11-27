@@ -20,6 +20,7 @@ from app.api import (
     signatures,
     substitutions,
     tasks,
+    users,
 )
 from app.core.config import Config, get_config
 from app.core.db import get_sessionmaker
@@ -76,7 +77,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.include_router(reminders.router, prefix="/api")
     app.include_router(me.router, prefix="/api")
     app.include_router(admin_calendar.router, prefix="/api")
-    for module in (attachments, reports, signatures, substitutions):
+    for module in (attachments, reports, signatures, substitutions, users):
         app.include_router(module.router, prefix="/api")
     if config.is_dev:
         app.include_router(dev.router, prefix="/api")

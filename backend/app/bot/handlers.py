@@ -62,10 +62,7 @@ async def _known_user(db: AsyncSession, telegram: TelegramUser) -> User | None:
         user.bot_blocked = False
         await db.commit()
     if user.pd_consent_at is not None:
-        profile = _profile(telegram)
-        user.first_name = profile.first_name
-        user.last_name = profile.last_name
-        user.username = profile.username
+        invites.apply_profile(user, _profile(telegram))
         await db.commit()
     return user
 

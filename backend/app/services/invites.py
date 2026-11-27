@@ -30,6 +30,14 @@ class TelegramProfile:
     username: str = ""
 
 
+def apply_profile(user: User, profile: TelegramProfile) -> None:
+    """Данные из Telegram. Имя, заданное администратором, остаётся."""
+    if not user.name_overridden:
+        user.first_name = profile.first_name
+        user.last_name = profile.last_name
+    user.username = profile.username
+
+
 async def create(
     db: AsyncSession,
     kind: InviteKind,
@@ -146,9 +154,7 @@ async def accept(db: AsyncSession, token: str, profile: TelegramProfile) -> User
     if user is None:
         user = User(telegram_id=profile.telegram_id, role=invite.kind)
         db.add(user)
-    user.first_name = profile.first_name
-    user.last_name = profile.last_name
-    user.username = profile.username
+    apply_profile(user, profile)
     user.pd_consent_at = user.pd_consent_at or now
     await db.flush()
     if invite.kind == InviteKind.CLIENT:

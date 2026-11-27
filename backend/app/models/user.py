@@ -37,6 +37,8 @@ class User(Base):
     first_name: Mapped[str] = mapped_column(String(255), default="", server_default="")
     last_name: Mapped[str] = mapped_column(String(255), default="", server_default="")
     username: Mapped[str] = mapped_column(String(255), default="", server_default="")
+    # имя задал администратор: данные из Telegram его не перезаписывают
+    name_overridden: Mapped[bool] = mapped_column(default=False, server_default="false")
     role: Mapped[str] = mapped_column(String(16))
     is_active: Mapped[bool] = mapped_column(default=True, server_default="true")
     bot_blocked: Mapped[bool] = mapped_column(default=False, server_default="false")
