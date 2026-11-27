@@ -6,9 +6,10 @@ import { Alert, Button, Card, ErrorText, Select, Tabs } from '../../components/u
 import { api } from '../../lib/api'
 import { ENTITY_NAMES, REGIME_NAMES, toForm } from '../../lib/company'
 import { formatDateTime } from '../../lib/format'
-import { canEdit } from '../../lib/roles'
+import { canEdit, isManager } from '../../lib/roles'
 import type { Company, User } from '../../lib/types'
 import { ReminderBlock } from '../reminders/Reminders'
+import CompanyDemands from './CompanyDemands'
 import CompanyTasks from './CompanyTasks'
 import ClientsBlock from './ClientsBlock'
 import { RequisiteFields, TaxFields } from './CompanyFields'
@@ -36,7 +37,7 @@ export default function CompanyCard({ user }: { user: User }) {
   )
 }
 
-type Tab = 'tasks' | 'params' | 'clients' | 'reminders' | 'signatures'
+type Tab = 'tasks' | 'demands' | 'params' | 'clients' | 'reminders' | 'signatures'
 
 function useCompanyAction<T>(id: number, action: (input: T) => Promise<unknown>) {
   const queryClient = useQueryClient()
@@ -63,6 +64,7 @@ function Loaded({ company, user }: { company: Company; user: User }) {
   const active = editable && !company.is_archived
   const tabs: [Tab, string][] = [
     ['tasks', 'Задачи'],
+    ['demands', 'Требования'],
     ['params', 'Реквизиты и налоги'],
     ['clients', `Клиенты · ${company.members.length}`],
     ['reminders', 'Напоминания'],
@@ -81,6 +83,7 @@ function Loaded({ company, user }: { company: Company; user: User }) {
       {company.is_archived && <Alert kind="warning">Компания в архиве.</Alert>}
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       {tab === 'tasks' && <CompanyTasks companyId={company.id} editable={active} />}
+      {tab === 'demands' && <CompanyDemands companyId={company.id} editable={active} />}
       {tab === 'reminders' && <ReminderBlock companyId={company.id} editable={active} />}
       {tab === 'clients' && <ClientsBlock company={company} user={user} />}
       {tab === 'signatures' && <SignaturesBlock companyId={company.id} editable={active} />}
@@ -111,7 +114,7 @@ function Loaded({ company, user }: { company: Company; user: User }) {
             <Patents company={company} />
           </fieldset>
         )}
-        {user.role === 'admin' && <Reassign key={company.accountant_id} company={company} />}
+        {isManager(user.role) && <Reassign key={company.accountant_id} company={company} />}
         <ErrorText error={archive.error} />
         {editable && (
           <Button

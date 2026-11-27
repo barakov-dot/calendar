@@ -13,7 +13,7 @@ from sqlalchemy import or_, select
 from app.api.companies import NOT_FOUND, Staff
 from app.api.deps import Database, require_role
 from app.core.permissions import accessible_company_ids_query, get_accessible_company
-from app.models import Audience, Company, RecurringReminder, Role, User
+from app.models import EDITORS, Audience, Company, RecurringReminder, Role, User
 from app.schemas.task import ReminderIn, ReminderOut
 from app.services import audit, reminders, tasks
 from app.services.calendar.workdays import load_calendar
@@ -21,7 +21,7 @@ from app.services.companies import person_name
 
 router = APIRouter()
 
-Reader = Annotated[User, Depends(require_role(Role.ADMIN, Role.ACCOUNTANT, Role.ASSISTANT))]
+Reader = Annotated[User, Depends(require_role(*EDITORS, Role.ASSISTANT))]
 
 REMINDER_NOT_FOUND = "Напоминание не найдено"
 
@@ -29,7 +29,7 @@ REMINDER_NOT_FOUND = "Напоминание не найдено"
 def _visible(user: User):
     company = RecurringReminder.company_id.in_(accessible_company_ids_query(user))
     personal = RecurringReminder.company_id.is_(None)
-    if user.role == Role.ACCOUNTANT:
+    if user.role in (Role.CHIEF, Role.ACCOUNTANT):
         personal = personal & (RecurringReminder.created_by == user.id)
     return or_(company, personal)
 
@@ -37,7 +37,7 @@ def _visible(user: User):
 def _can_edit(user: User, reminder: RecurringReminder) -> bool:
     if user.role == Role.ADMIN:
         return True
-    if user.role != Role.ACCOUNTANT:
+    if user.role not in (Role.CHIEF, Role.ACCOUNTANT):
         return False
     return reminder.company_id is not None or reminder.created_by == user.id
 

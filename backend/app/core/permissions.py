@@ -7,7 +7,7 @@ from sqlalchemy import ColumnElement, Select, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.settings_store import get_settings
-from app.models import Company, CompanyMember, Role, Substitution, Task, TaskKind, User
+from app.models import MANAGERS, Company, CompanyMember, Role, Substitution, Task, TaskKind, User
 
 
 def business_today() -> date:
@@ -28,10 +28,10 @@ def _accountant_condition(user: User, on: date | None) -> ColumnElement[bool]:
 def accessible_company_ids_query(user: User, on: date | None = None) -> Select[tuple[int]]:
     """Подзапрос с id доступных пользователю компаний.
 
-    admin и assistant — все (помощник только читает); accountant — где он ответственный
+    admin, chief и assistant — все (помощник только читает); accountant — где он ответственный
     или замещает ответственного; client — к которым привязан (архивные клиенту не видны).
     """
-    if user.role in (Role.ADMIN, Role.ASSISTANT):
+    if user.role in (*MANAGERS, Role.ASSISTANT):
         return select(Company.id)
     if user.role == Role.ACCOUNTANT:
         return select(Company.id).where(_accountant_condition(user, on))
@@ -85,7 +85,8 @@ def editable_task_condition(user: User, on: date | None = None) -> ColumnElement
         return or_(
             Task.company_id.in_(accessible_company_ids_query(user)), Task.company_id.is_(None)
         )
-    if user.role == Role.ACCOUNTANT:
+    # личные задачи других людей главный бухгалтер не видит и не меняет
+    if user.role in (Role.CHIEF, Role.ACCOUNTANT):
         return or_(
             Task.company_id.in_(accessible_company_ids_query(user, on)), Task.owner_id == user.id
         )

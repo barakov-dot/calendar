@@ -14,7 +14,7 @@ import {
 import ThemeToggle from '../components/ThemeToggle'
 import { Button } from '../components/ui'
 import { fullName } from '../lib/format'
-import { canEdit, ROLE_NAMES } from '../lib/roles'
+import { canEdit, isManager, ROLE_NAMES } from '../lib/roles'
 import type { User } from '../lib/types'
 import { needsAttention, useCompanies } from '../lib/useCompanies'
 
@@ -34,13 +34,15 @@ function items(user: User): Item[] {
     ['/reminders', 'Напоминания', 'Свои повторяющиеся задачи', BellIcon],
     ['/reports', 'Отчёты', 'Что выполнено за период: Excel и PDF', ReportIcon],
   )
-  if (user.role === 'admin') {
+  if (isManager(user.role)) {
     list.push(
       ['/users', 'Пользователи', 'Все, кто подключён: карточки и имена', UsersIcon],
       ['/broadcasts', 'Рассылка', 'Сообщение от бота выбранным людям', SendIcon],
       ['/accountants', 'Команда', 'Сотрудники, приглашения, замещения', UsersIcon],
-      ['/settings', 'Настройки сервиса', 'Telegram, DaData, сроки, копии', GearIcon],
     )
+  }
+  if (user.role === 'admin') {
+    list.push(['/settings', 'Настройки сервиса', 'Telegram, DaData, сроки, копии', GearIcon])
   }
   return list
 }

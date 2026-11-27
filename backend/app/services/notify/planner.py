@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import client_task_condition
 from app.core.settings_store import AppSettings
 from app.models import (
+    EDITORS,
+    MANAGERS,
     Company,
     CompanyMember,
     DemandStep,
@@ -61,7 +63,7 @@ async def _digests(
     rows = await db.execute(
         select(User.id, NotificationSettings.daily_digest, NotificationSettings.digest_time)
         .outerjoin(NotificationSettings, NotificationSettings.user_id == User.id)
-        .where(User.role.in_((Role.ADMIN, Role.ACCOUNTANT)), *reachable())
+        .where(User.role.in_(EDITORS), *reachable())
     )
     for user_id, enabled, own_time in rows:
         if enabled is False or clock < (own_time or settings.notifications.digest_time):
@@ -223,7 +225,7 @@ async def _demands(
     }
     admins = []
     if notifications.demand_notify_admin:
-        query = select(User.id).where(User.role == Role.ADMIN, *reachable())
+        query = select(User.id).where(User.role.in_(MANAGERS), *reachable())
         admins = list(await db.scalars(query))
     rows = await db.execute(
         # 200 дней — с запасом: пороги не больше 60 рабочих дней
@@ -237,7 +239,22 @@ async def _demands(
         threshold = next((days for days in offsets[task.demand_step] if days >= left), None)
         if threshold is None:
             continue
-        for user_id in {*staff.recipients(company.accountant_id), *admins}:
+        recipients = {*staff.recipients(company.accountant_id), *admins}
+        # клиент не подписывает квитанцию, ему напоминают только о сроке исполнения
+        if notifications.demand_notify_clients and task.demand_step == DemandStep.RESPONSE:
+            recipients |= set(
+                await db.scalars(
+                    select(User.id)
+                    .join(CompanyMember, CompanyMember.user_id == User.id)
+                    .where(
+                        CompanyMember.company_id == company.id,
+                        CompanyMember.receive_reminders.is_(True),
+                        User.role == Role.CLIENT,
+                        *reachable(),
+                    )
+                )
+            )
+        for user_id in recipients:
             await enqueue(
                 db,
                 user_id,

@@ -4,7 +4,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import business_today
-from app.models import Company, CompanyMember, Role, Substitution, User
+from app.models import MANAGERS, Company, CompanyMember, Role, Substitution, User
 from app.services import audit
 from app.services.companies import person_name
 
@@ -93,9 +93,22 @@ async def update(
     first_name: str | None = None,
     last_name: str | None = None,
     is_active: bool | None = None,
+    role: str | None = None,
     reset_name: bool = False,
 ) -> None:
+    # главный бухгалтер не управляет администратором и другими главными бухгалтерами
+    if actor.role != Role.ADMIN and user.id != actor.id and user.role in MANAGERS:
+        raise PersonError("Администратора и главных бухгалтеров меняет только администратор")
+    if user.id == actor.id and is_active is False:
+        raise PersonError("Отключить собственный доступ нельзя")
     changed: dict = {}
+    if role is not None and role != user.role:
+        if actor.role != Role.ADMIN:
+            raise PersonError("Роль меняет только администратор")
+        if user.role not in (Role.ACCOUNTANT, Role.CHIEF):
+            raise PersonError("Роль меняется только между бухгалтером и главным бухгалтером")
+        user.role = role
+        changed["role"] = role
     renamed = False
     for field, value in (("first_name", first_name), ("last_name", last_name)):
         if value is not None and getattr(user, field) != value:

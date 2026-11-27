@@ -1,6 +1,6 @@
 import type { CompanyForm, EntityType, Regime } from './company'
 
-export type Role = 'admin' | 'accountant' | 'assistant' | 'client'
+export type Role = 'admin' | 'chief' | 'accountant' | 'assistant' | 'client'
 
 export interface User {
   id: number
@@ -63,6 +63,7 @@ export interface AppSettings {
     demand_receipt_offsets_days: number[]
     demand_response_offsets_days: number[]
     demand_notify_admin: boolean
+    demand_notify_clients: boolean
     backup_alert: boolean
   }
 }

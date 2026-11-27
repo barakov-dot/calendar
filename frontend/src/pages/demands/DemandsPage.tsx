@@ -1,28 +1,28 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 
 import FileDrop from '../../components/FileDrop'
 import { Alert, Button, ErrorText, Select, Tabs } from '../../components/ui'
 import { api } from '../../lib/api'
-import { formatDate, formatKopecks, toRublesText } from '../../lib/company'
+import { toRublesText } from '../../lib/company'
 import {
   type Demand,
-  type DemandStep,
   EMPTY_DEMAND,
   nextDue,
   type Recognized,
   useDemands,
 } from '../../lib/demands'
 import { canEdit } from '../../lib/roles'
-import { relativeDay, todayIso } from '../../lib/tasks'
 import type { User } from '../../lib/types'
 import { useRefreshTasks } from '../../lib/useTasks'
+import DemandCards from './DemandCards'
 import DemandForm, { type DemandBody } from './DemandForm'
 
 interface Draft {
   file: File | null
   found: Recognized | null
+  companyId: number
 }
 
 function NewDemand({ draft, onClose }: { draft: Draft; onClose: () => void }) {
@@ -32,7 +32,7 @@ function NewDemand({ draft, onClose }: { draft: Draft; onClose: () => void }) {
   const found = draft.found
   const initial = {
     ...EMPTY_DEMAND,
-    company_id: found?.company_id ?? 0,
+    company_id: found?.company_id ?? draft.companyId,
     knd: found?.knd ?? '',
     number: found?.number ?? '',
     doc_date: found?.doc_date ?? '',
@@ -88,44 +88,18 @@ function NewDemand({ draft, onClose }: { draft: Draft; onClose: () => void }) {
   )
 }
 
-function Step({ title, step, today }: { title: string; step: DemandStep | null; today: string }) {
-  if (!step) return null
-  const open = step.status === 'planned'
-  const overdue = open && step.due_date < today
-  return (
-    <span className="flex flex-wrap items-baseline gap-x-2 text-sm">
-      <span aria-hidden="true" className={open ? 'text-slate-400' : 'font-bold text-green-600'}>
-        {open ? '○' : '✓'}
-      </span>
-      <span>
-        {title}: {formatDate(step.due_date)}
-      </span>
-      {open && (
-        <span
-          className={
-            overdue
-              ? 'font-semibold text-red-700 dark:text-red-400'
-              : 'text-slate-500 dark:text-slate-400'
-          }
-        >
-          {relativeDay(step.due_date, today)}
-        </span>
-      )}
-    </span>
-  )
-}
-
 /** Требования инспекции: загрузка и список по ближайшему сроку. */
 export default function DemandsPage({ user }: { user: User }) {
-  const today = todayIso()
   const editable = canEdit(user.role)
   const demands = useDemands()
   const [tab, setTab] = useState<'open' | 'closed'>('open')
-  const [company, setCompany] = useState('')
+  const [params] = useSearchParams()
+  const [company, setCompany] = useState(params.get('company') ?? '')
   const [draft, setDraft] = useState<Draft | null>(null)
   const recognize = useMutation({
     mutationFn: async (file: File) => ({
       file,
+      companyId: Number(params.get('company') ?? 0),
       found: await api<Recognized>('/demands/recognize', { method: 'POST', file }),
     }),
     onSuccess: setDraft,
@@ -163,7 +137,9 @@ export default function DemandsPage({ user }: { user: User }) {
           />
           {recognize.isPending && <p className="text-sm">Читаем файл…</p>}
           <ErrorText error={recognize.error} />
-          <Button variant="secondary" onClick={() => setDraft({ file: null, found: null })}>
+          <Button variant="secondary" onClick={() =>
+              setDraft({ file: null, found: null, companyId: Number(company) })
+            }>
             Добавить без файла
           </Button>
         </>
@@ -194,29 +170,7 @@ export default function DemandsPage({ user }: { user: User }) {
       {demands.data && shown.length === 0 && (
         <p className="py-6 text-center text-slate-500 dark:text-slate-400">Требований нет.</p>
       )}
-      <ul className="grid gap-3 lg:grid-cols-2">
-        {shown.map((item) => (
-          <li key={item.id}>
-            <Link
-              to={`/demands/${item.id}`}
-              className="block h-full space-y-1 rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/50"
-            >
-              <span className="block font-semibold break-words">{item.company_name}</span>
-              <span className="block text-sm break-words">
-                {item.name}
-                {item.number && ` № ${item.number}`} от {formatDate(item.doc_date)}
-              </span>
-              {item.amount_kopecks != null && (
-                <span className="block text-sm font-medium tabular-nums">
-                  {formatKopecks(item.amount_kopecks)}
-                </span>
-              )}
-              <Step title="Квитанция" step={item.receipt} today={today} />
-              <Step title={item.response_label} step={item.response} today={today} />
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <DemandCards demands={shown} />
     </div>
   )
 }

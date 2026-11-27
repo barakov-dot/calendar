@@ -22,10 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import editable_task_condition, visible_task_condition
 from app.core.settings_store import AppSettings
 from app.models import (
+    EDITORS,
     Attachment,
     Broadcast,
     Company,
     CompanyMember,
+    DemandStep,
     Notification,
     NotificationStatus,
     NotificationType,
@@ -90,7 +92,7 @@ async def _task_for(
     """Задача, если получатель всё ещё вправе её видеть."""
     if user.role == Role.CLIENT:
         condition = visible_task_condition(user, settings.tasks.show_notices_to_clients, current)
-    elif user.role in (Role.ADMIN, Role.ACCOUNTANT):
+    elif user.role in EDITORS:
         condition = editable_task_condition(user, current)
     else:
         return None
@@ -109,7 +111,7 @@ async def _task_for(
 async def _digest(
     db: AsyncSession, settings: AppSettings, user: User, row: Notification, current: date
 ) -> Message | None:
-    if row.scheduled_for != current or user.role not in (Role.ADMIN, Role.ACCOUNTANT):
+    if row.scheduled_for != current or user.role not in EDITORS:
         return None
     header = f"Доброе утро! План на {messages.short(current)}"
     text = messages.overview(header, await digest_tasks(db, user, current), current)
@@ -151,9 +153,48 @@ async def _grouped(
     )
 
 
+async def _demand(
+    db: AsyncSession, settings: AppSettings, user: User, row: Notification, current: date
+) -> Message | None:
+    """Напоминание о требовании: сотруднику — о любом шаге, клиенту — о сроке исполнения."""
+    if user.role == Role.CLIENT:
+        if not settings.notifications.demand_notify_clients:
+            return None
+        # задачи требований скрыты из календаря клиента, поэтому права проверяются отдельно
+        found = (
+            await db.execute(
+                select(Task, Company)
+                .join(Company, Company.id == Task.company_id)
+                .join(CompanyMember, CompanyMember.company_id == Company.id)
+                .where(
+                    Task.id == row.task_id,
+                    Task.demand_step == DemandStep.RESPONSE,
+                    CompanyMember.user_id == user.id,
+                    CompanyMember.receive_reminders.is_(True),
+                    Company.is_archived.is_(False),
+                )
+            )
+        ).first()
+    else:
+        found = await _task_for(db, settings, user, row.task_id, current)
+    if found is None:
+        return None
+    task, company = found[0], found[1]
+    if task.demand_id is None or task.status != TaskStatus.PLANNED or task.due_date < current:
+        return None
+    workdays = workdays_until(await load_calendar(db), current, task.due_date)
+    buttons = messages.keyboard(
+        messages.calendar_button(settings, "Открыть", f"demands/{task.demand_id}")
+    )
+    text = messages.demand_reminder(task, company, current, workdays)
+    return Message(text, buttons, [row])
+
+
 async def _single(
     db: AsyncSession, settings: AppSettings, user: User, row: Notification, current: date
 ) -> Message | None:
+    if row.type == NotificationType.DEMAND:
+        return await _demand(db, settings, user, row, current)
     item = await _task_for(db, settings, user, row.task_id, current)
     if item is None:
         return None
@@ -167,20 +208,6 @@ async def _single(
             messages.calendar_button(settings, "Открыть", f"tasks/{task.id}")
         )
         return Message(messages.signature_reminder(task, company, current), buttons, [row])
-    if row.type == NotificationType.DEMAND:
-        if (
-            user.role == Role.CLIENT
-            or task.demand_id is None
-            or task.status != TaskStatus.PLANNED
-            or task.due_date < current
-        ):
-            return None
-        workdays = workdays_until(await load_calendar(db), current, task.due_date)
-        buttons = messages.keyboard(
-            messages.calendar_button(settings, "Открыть", f"demands/{task.demand_id}")
-        )
-        text = messages.demand_reminder(task, company, current, workdays)
-        return Message(text, buttons, [row])
     if row.type == NotificationType.ATTACHMENT:
         author = await db.scalar(
             select(User)

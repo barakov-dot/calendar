@@ -89,9 +89,14 @@ export default function NotificationsTab({
         <Alert kind="error">Укажите целые числа от 0 до 60 через запятую.</Alert>
       )}
       <Checkbox
-        label="Напоминать о требованиях и администратору"
+        label="Напоминать о требованиях администратору и главному бухгалтеру"
         checked={form.demand_notify_admin}
         onChange={(demand_notify_admin) => change({ demand_notify_admin })}
+      />
+      <Checkbox
+        label="Напоминать клиентам о сроке исполнения требования"
+        checked={form.demand_notify_clients}
+        onChange={(demand_notify_clients) => change({ demand_notify_clients })}
       />
       <h3 className="pt-2 font-semibold">Прочее</h3>
       <Checkbox

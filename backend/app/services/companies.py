@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import accessible_company_ids_query
 from app.core.settings_store import get_settings
-from app.models import Company, CompanyMember, Invite, Patent, Role, Task, TaskStatus, User
+from app.models import EDITORS, Company, CompanyMember, Invite, Patent, Task, TaskStatus, User
 from app.schemas.company import (
     CompanyData,
     CompanyListItem,
@@ -68,7 +68,7 @@ def person_name(user: User | None) -> str:
 async def responsible(db: AsyncSession, user_id: int) -> User:
     """Пользователь, которому можно назначить компанию."""
     user = await db.get(User, user_id)
-    if user is None or not user.is_active or user.role not in (Role.ACCOUNTANT, Role.ADMIN):
+    if user is None or not user.is_active or user.role not in EDITORS:
         raise CompanyError("Ответственным может быть только действующий бухгалтер")
     return user
 

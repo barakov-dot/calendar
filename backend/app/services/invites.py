@@ -120,7 +120,8 @@ def _check_role(user: User | None, invite: Invite) -> None:
             "Вы уже зарегистрированы с другой ролью, приглашение не использовано. "
             "Обратитесь к администратору."
         )
-    if user.role in (Role.ACCOUNTANT, Role.ASSISTANT) and user.pd_consent_at is not None:
+    team = (Role.CHIEF, Role.ACCOUNTANT, Role.ASSISTANT)
+    if user.role in team and user.pd_consent_at is not None:
         raise InviteError("Вы уже подключены.")
 
 

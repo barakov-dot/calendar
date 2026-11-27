@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router'
 import { Alert, Button, Card, ErrorText, Field, Select } from '../../components/ui'
 import { api } from '../../lib/api'
 import { type CompanyForm, EMPTY_COMPANY, toForm, withRegime } from '../../lib/company'
+import { isManager } from '../../lib/roles'
 import type { Company, Party, User } from '../../lib/types'
 import { RequisiteFields, TaxFields } from './CompanyFields'
 import type { PatentData } from './PatentForm'
@@ -118,7 +119,7 @@ function Details({
   const [form, setForm] = useState(initial)
   const [patents, setPatents] = useState<PatentData[]>([])
   const [accountantId, setAccountantId] = useState(user.id)
-  const staff = useStaff(user.role === 'admin')
+  const staff = useStaff(isManager(user.role))
   const create = useMutation({
     mutationFn: () =>
       api<Company>('/companies', {
@@ -161,7 +162,7 @@ function Details({
           />
         </Card>
       )}
-      {user.role === 'admin' && (
+      {isManager(user.role) && (
         <Card title="Ответственный">
           <Select
             label="Бухгалтер"

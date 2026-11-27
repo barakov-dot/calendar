@@ -4,7 +4,11 @@ import type { Invite } from '../lib/types'
 import TelegramLink from './TelegramLink'
 import { Button } from './ui'
 
-const KINDS: Record<string, string> = { accountant: 'бухгалтер,', assistant: 'помощник,' }
+const KINDS: Record<string, string> = {
+  chief: 'главный бухгалтер,',
+  accountant: 'бухгалтер,',
+  assistant: 'помощник,',
+}
 const MESSAGE =
   'Приглашение в платёжный календарь. Нажмите на ссылку, затем «Запустить». Ссылка одноразовая.'
 

@@ -10,12 +10,20 @@ from app.models.base import Base
 
 class Role(StrEnum):
     ADMIN = "admin"
+    CHIEF = "chief"  # главный бухгалтер: все компании и люди, без настроек сервиса
     ACCOUNTANT = "accountant"
     ASSISTANT = "assistant"  # помощник бухгалтера: видит всё, ничего не меняет
     CLIENT = "client"
 
 
+# руководят работой: все компании, пользователи, приглашения, замещения
+MANAGERS = (Role.ADMIN, Role.CHIEF)
+# вправе менять компании и задачи (бухгалтер — только свои)
+EDITORS = (Role.ADMIN, Role.CHIEF, Role.ACCOUNTANT)
+
+
 class InviteKind(StrEnum):
+    CHIEF = "chief"
     ACCOUNTANT = "accountant"
     ASSISTANT = "assistant"
     CLIENT = "client"

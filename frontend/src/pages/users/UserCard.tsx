@@ -8,8 +8,9 @@ import { api } from '../../lib/api'
 import { formatDate } from '../../lib/company'
 import { formatDateTime, fullName } from '../../lib/format'
 import { type PersonCard, personProblems } from '../../lib/people'
-import { ROLE_NAMES } from '../../lib/roles'
+import { isManager, ROLE_NAMES } from '../../lib/roles'
 import { userTarget } from '../../lib/telegramLinks'
+import type { User } from '../../lib/types'
 
 type Company = PersonCard['companies'][number]
 
@@ -86,7 +87,7 @@ function ClientCompany({
   )
 }
 
-export default function UserCard() {
+export default function UserCard({ viewer }: { viewer: User }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -112,6 +113,12 @@ export default function UserCard() {
   }
   const client = person.role === 'client'
   const problems = personProblems(person)
+  const admin = viewer.role === 'admin'
+  // администратора и главных бухгалтеров главный бухгалтер не меняет (кроме своего имени)
+  const own = person.id === viewer.id
+  const managed = admin || own || !isManager(person.role)
+  const promotion =
+    person.role === 'accountant' ? 'chief' : person.role === 'chief' ? 'accountant' : null
 
   return (
     <div className="space-y-4">
@@ -157,7 +164,23 @@ export default function UserCard() {
             >
               Написать сообщение
             </Button>
-            {person.role !== 'admin' && (
+            {admin && promotion && (
+              <Button
+                variant="secondary"
+                disabled={save.isPending}
+                onClick={() => {
+                  const title = ROLE_NAMES[promotion]
+                  if (window.confirm(`Изменить роль ${fullName(person)}: ${title}?`)) {
+                    save.mutate({ role: promotion })
+                  }
+                }}
+              >
+                {promotion === 'chief'
+                  ? 'Сделать главным бухгалтером'
+                  : 'Сделать бухгалтером'}
+              </Button>
+            )}
+            {managed && !own && person.role !== 'admin' && (
               <Button
                 variant={person.is_active ? 'danger' : 'secondary'}
                 disabled={save.isPending}
@@ -175,13 +198,15 @@ export default function UserCard() {
             )}
           </div>
         </Card>
-        <NameForm
-          // после сохранения поля заполняются заново
-          key={`${person.first_name}|${person.last_name}`}
-          person={person}
-          pending={save.isPending}
-          onSave={(body) => save.mutate(body)}
-        />
+        {managed && (
+          <NameForm
+            // после сохранения поля заполняются заново
+            key={`${person.first_name}|${person.last_name}`}
+            person={person}
+            pending={save.isPending}
+            onSave={(body) => save.mutate(body)}
+          />
+        )}
       </div>
       <ErrorText error={save.error} />
       {save.isSuccess && <Alert kind="success">Сохранено.</Alert>}

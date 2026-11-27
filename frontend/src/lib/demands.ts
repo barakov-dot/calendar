@@ -4,7 +4,8 @@ import { api } from './api'
 import type { TaskStatus } from './tasks'
 
 export interface DemandStep {
-  task_id: number
+  /** Клиенту задачи не отдаются. */
+  task_id: number | null
   due_date: string
   status: TaskStatus
 }

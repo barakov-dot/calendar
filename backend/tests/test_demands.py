@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.core.config import get_config
 from app.core.settings_store import get_store
-from app.models import Demand, Notification, Role, Task
+from app.models import CompanyMember, Demand, Notification, Role, Task
 from app.services.calendar.workdays import load_calendar, load_missing_years
 from app.services.demands.recognize import pdf_text, read
 from app.services.demands.types import add_workdays, get_book
@@ -269,7 +269,7 @@ async def test_task_is_changed_only_through_demand(client, db, world):
         ("accountant", 200, 201),
         ("helper", 200, 403),
         ("stranger", 404, 404),
-        ("client_user", 403, 403),
+        ("client_user", 200, 403),
     ],
 )
 async def test_access(client, world, name, view, change):
@@ -316,7 +316,12 @@ async def test_reminders_use_own_workday_thresholds(client, db, world):
     await plan(db, settings, morning)
 
     rows = (await db.scalars(select(Notification).where(Notification.type == "demand"))).all()
-    assert {row.user_id for row in rows} == {world["accountant"].id, world["admin"].id}
+    # бухгалтеру, администратору и клиенту организации
+    assert {row.user_id for row in rows} == {
+        world["accountant"].id,
+        world["admin"].id,
+        world["client_user"].id,
+    }
     # ближайший из порогов 5, 3, 1, 0 — «за 3»
     assert {(row.task_id, row.scheduled_for) for row in rows} == {
         (got["response"]["task_id"], date(2026, 12, 11))
@@ -329,7 +334,7 @@ async def test_reminders_use_own_workday_thresholds(client, db, world):
         finally:
             await bot.session.close()
     texts = [text for _, text in telegram.sent if "📄" in text]
-    assert len(texts) == 2
+    assert len(texts) == 3
     assert "Представить пояснения" in texts[0] and "осталось рабочих дней: 2" in texts[0]
 
 
@@ -344,3 +349,69 @@ async def test_admin_reminders_can_be_switched_off(client, db, world):
     assert [(row.user_id, row.scheduled_for) for row in rows] == [
         (world["accountant"].id, date(2026, 12, 5))
     ]
+
+
+async def test_client_sees_own_demand_without_note_and_tasks(client, db, world):
+    got = await create(client, world["accountant"], body(world["company"], note="внутреннее"))
+    headers = auth(world["client_user"])
+    url = f"/api/demands/{got['id']}"
+    await client.post(
+        f"{url}/file", content=pdf("x"), headers=auth(world["accountant"]) | {"X-Filename": "a.pdf"}
+    )
+    other = await make_company(db, world["stranger"], 2)
+    foreign = await create(client, world["admin"], body(other, number="200"))
+
+    listed = (await client.get("/api/demands", headers=headers)).json()
+    detail = (await client.get(url, headers=headers)).json()
+
+    assert [item["id"] for item in listed] == [got["id"]]
+    assert (detail["note"], detail["response"]["task_id"], detail["filename"]) == (
+        "",
+        None,
+        "a.pdf",
+    )
+    assert (await client.get(f"{url}/file", headers=headers)).status_code == 200
+    assert (await client.get(f"/api/demands/{foreign['id']}", headers=headers)).status_code == 404
+    assert (await client.delete(url, headers=headers)).status_code == 403
+    task = f"/api/tasks/{got['response']['task_id']}"
+    assert (await client.get(task, headers=headers)).status_code == 404
+
+
+async def test_company_filter(client, db, world):
+    await create(client, world["accountant"], body(world["company"]))
+    other = await make_company(db, world["accountant"], 2)
+    got = await create(client, world["accountant"], body(other, number="200"))
+
+    listed = await client.get(
+        "/api/demands", params={"company_id": other.id}, headers=auth(world["accountant"])
+    )
+
+    assert [item["id"] for item in listed.json()] == [got["id"]]
+
+
+@pytest.mark.parametrize(
+    ("settings", "member", "expected"),
+    [
+        ({}, {}, True),
+        ({"demand_notify_clients": False}, {}, False),
+        ({}, {"receive_reminders": False}, False),
+    ],
+)
+async def test_client_reminders_only_about_response(client, db, world, settings, member, expected):
+    for row in await db.scalars(select(CompanyMember)):
+        for name, value in member.items():
+            setattr(row, name, value)
+    await db.commit()
+    got = await create(client, world["accountant"], body(world["company"]))
+    if settings:
+        get_store().update({"notifications": settings})
+
+    # 03.12: и квитанция (07.12), и ответ уже в порогах 2 и 5 рабочих дней
+    await plan(db, get_store().get(), datetime(2026, 12, 7, 7, 0, tzinfo=UTC))
+
+    rows = await db.scalars(
+        select(Notification.task_id).where(
+            Notification.type == "demand", Notification.user_id == world["client_user"].id
+        )
+    )
+    assert rows.all() == ([got["response"]["task_id"]] if expected else [])

@@ -7,6 +7,7 @@ import { formatKopecks } from '../../lib/company'
 import { saveBlob } from '../../lib/files'
 import { previousMonth, todayIso } from '../../lib/tasks'
 import { miniAppInitData } from '../../lib/telegram'
+import { isManager } from '../../lib/roles'
 import type { CompanyListItem, User } from '../../lib/types'
 import { useStaff } from '../companies/useStaff'
 
@@ -35,7 +36,7 @@ export default function Reports({ user }: { user: User }) {
     queryKey: ['companies', false, ''],
     queryFn: () => api<CompanyListItem[]>('/companies'),
   })
-  const staff = useStaff(user.role === 'admin')
+  const staff = useStaff(isManager(user.role))
   const query = new URLSearchParams(
     Object.entries(form).filter(([, value]) => value !== ''),
   ).toString()
@@ -87,7 +88,7 @@ export default function Reports({ user }: { user: User }) {
               </option>
             ))}
           </Select>
-          {user.role === 'admin' && (
+          {isManager(user.role) && (
             <Select
               label="Бухгалтер"
               value={form.accountant_id}

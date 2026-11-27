@@ -1,6 +1,7 @@
-"""Требования инспекции. Смотрят сотрудники, меняют администратор и бухгалтер.
+"""Требования инспекции. Меняют администратор и бухгалтеры, смотрят ещё помощник и клиент.
 
-Клиентам раздел недоступен. Недоступное требование отвечает 404.
+Клиент видит требования только своих компаний, без комментария и задач. Недоступное
+требование отвечает 404.
 """
 
 import asyncio
@@ -15,7 +16,7 @@ from sqlalchemy import select
 from app.api.companies import Staff
 from app.api.deps import Database, require_role
 from app.core.permissions import accessible_company_ids_query
-from app.models import Company, Demand, DemandStep, Role, TaskStatus, User
+from app.models import EDITORS, Company, Demand, DemandStep, Role, TaskStatus, User
 from app.schemas.company import MAX_KOPECKS
 from app.services import attachments
 from app.services.demands import service
@@ -25,7 +26,8 @@ from app.services.telegram.documents import SendError, send_document
 
 router = APIRouter(prefix="/demands")
 
-Viewer = Annotated[User, Depends(require_role(Role.ADMIN, Role.ACCOUNTANT, Role.ASSISTANT))]
+Viewer = Annotated[User, Depends(require_role(*EDITORS, Role.ASSISTANT, Role.CLIENT))]
+Employee = Annotated[User, Depends(require_role(*EDITORS, Role.ASSISTANT))]
 Day = Annotated[date, Field(ge=date(2020, 1, 1), le=date(2100, 12, 31))]
 
 
@@ -83,7 +85,8 @@ class RecognizedOut(BaseModel):
 
 
 class StepOut(BaseModel):
-    task_id: int
+    # клиенту задачи не отдаются
+    task_id: int | None
     due_date: date
     status: str
 
@@ -117,7 +120,8 @@ def _failed(error: service.DemandError) -> HTTPException:
     return HTTPException(error.code, str(error))
 
 
-async def _out(db: Database, rows: list[tuple[Demand, Company]]) -> list[DemandOut]:
+async def _out(db: Database, user: User, rows: list[tuple[Demand, Company]]) -> list[DemandOut]:
+    client = user.role == Role.CLIENT
     book = get_book()
     tasks = await service.steps(db, [demand.id for demand, _ in rows])
     result = []
@@ -129,13 +133,18 @@ async def _out(db: Database, rows: list[tuple[Demand, Company]]) -> list[DemandO
         steps = {
             step: None
             if task is None
-            else StepOut(task_id=task.id, due_date=task.due_date, status=task.status)
+            else StepOut(
+                task_id=None if client else task.id, due_date=task.due_date, status=task.status
+            )
             for step, task in found.items()
         }
         response = steps[DemandStep.RESPONSE]
         fields = {
             name: getattr(demand, name) for name in DemandOut.model_fields if hasattr(Demand, name)
         }
+        if client:
+            # комментарий — рабочая заметка бухгалтера
+            fields["note"] = ""
         result.append(
             DemandOut(
                 **fields,
@@ -157,7 +166,7 @@ async def _one(db: Database, user: User, demand_id: int) -> DemandOut:
     except service.DemandError as error:
         raise _failed(error) from None
     company = await db.get(Company, demand.company_id)
-    return (await _out(db, [(demand, company)]))[0]
+    return (await _out(db, user, [(demand, company)]))[0]
 
 
 async def _body(request: Request) -> bytes:
@@ -170,7 +179,7 @@ async def _body(request: Request) -> bytes:
 
 
 @router.get("/types")
-async def types(_: Viewer) -> list[KindOut]:
+async def types(_: Employee) -> list[KindOut]:
     book = get_book()
     return [
         KindOut(
@@ -219,9 +228,11 @@ async def recognize(request: Request, user: Staff, db: Database) -> RecognizedOu
 
 
 @router.get("")
-async def list_demands(user: Viewer, db: Database) -> list[DemandOut]:
-    """Все доступные требования: ближайший срок сверху."""
-    rows = await db.execute(
+async def list_demands(
+    user: Viewer, db: Database, company_id: int | None = None
+) -> list[DemandOut]:
+    """Все доступные требования или одной компании: ближайший срок сверху."""
+    query = (
         select(Demand, Company)
         .join(Company, Company.id == Demand.company_id)
         .where(
@@ -230,7 +241,10 @@ async def list_demands(user: Viewer, db: Database) -> list[DemandOut]:
         )
         .order_by(Demand.response_date, Demand.id)
     )
-    return await _out(db, [tuple(row) for row in rows])
+    if company_id is not None:
+        query = query.where(Demand.company_id == company_id)
+    rows = await db.execute(query)
+    return await _out(db, user, [tuple(row) for row in rows])
 
 
 @router.get("/{demand_id}")

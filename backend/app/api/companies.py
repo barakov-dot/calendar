@@ -11,10 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 
 from app.api.admin_users import InviteOut, invite_link_base, invite_out
-from app.api.deps import AdminUser, CurrentUser, Database, require_role
+from app.api.deps import CurrentUser, Database, ManagerUser, require_role
 from app.core.permissions import get_accessible_company
 from app.core.settings_store import get_settings
-from app.models import Company, CompanyMember, InviteKind, Patent, Role, User
+from app.models import EDITORS, MANAGERS, Company, CompanyMember, InviteKind, Patent, Role, User
 from app.schemas.company import (
     ClientCompanyOut,
     ClientInviteIn,
@@ -37,7 +37,7 @@ from app.services.dadata.client import DadataError, cached_party, search
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-Staff = Annotated[User, Depends(require_role(Role.ADMIN, Role.ACCOUNTANT))]
+Staff = Annotated[User, Depends(require_role(*EDITORS))]
 
 NOT_FOUND = "Компания не найдена"
 
@@ -104,7 +104,7 @@ async def suggest(_: Staff, q: Annotated[str, Query(min_length=3, max_length=300
 async def create_company(body: CompanyCreate, user: Staff, db: Database) -> CompanyOut:
     # Бухгалтер создаёт компанию только себе; выбирать ответственного может админ.
     accountant_id = user.id
-    if user.role == Role.ADMIN and body.accountant_id is not None:
+    if user.role in MANAGERS and body.accountant_id is not None:
         accountant_id = body.accountant_id
     try:
         if accountant_id != user.id:
@@ -170,7 +170,9 @@ async def refresh_dadata(company: StaffCompany, user: Staff, db: Database) -> Co
 
 
 @router.post("/admin/companies/{company_id}/reassign")
-async def reassign(company_id: int, body: ReassignIn, admin: AdminUser, db: Database) -> CompanyOut:
+async def reassign(
+    company_id: int, body: ReassignIn, admin: ManagerUser, db: Database
+) -> CompanyOut:
     company = await db.get(Company, company_id)
     if company is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
@@ -280,7 +282,9 @@ async def unlink_member(user_id: int, company: StaffCompany, user: Staff, db: Da
 
 
 @router.get("/companies/{company_id}/invites")
-async def list_client_invites(_: AdminUser, company: StaffCompany, db: Database) -> list[InviteOut]:
+async def list_client_invites(
+    _: ManagerUser, company: StaffCompany, db: Database
+) -> list[InviteOut]:
     found = await invites.list_open(db, InviteKind.CLIENT, company.id)
     if not found:
         return []
@@ -290,7 +294,7 @@ async def list_client_invites(_: AdminUser, company: StaffCompany, db: Database)
 
 @router.post("/companies/{company_id}/invites", status_code=status.HTTP_201_CREATED)
 async def invite_client(
-    body: ClientInviteIn, user: AdminUser, company: StaffCompany, db: Database
+    body: ClientInviteIn, user: ManagerUser, company: StaffCompany, db: Database
 ) -> InviteOut:
     if company.is_archived:
         raise HTTPException(status.HTTP_409_CONFLICT, "Компания в архиве")
@@ -305,7 +309,7 @@ async def invite_client(
     "/companies/{company_id}/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def revoke_client_invite(
-    invite_id: int, user: AdminUser, company: StaffCompany, db: Database
+    invite_id: int, user: ManagerUser, company: StaffCompany, db: Database
 ) -> Response:
     ids = [invite.id for invite in await invites.list_open(db, InviteKind.CLIENT, company.id)]
     if invite_id not in ids or not await invites.revoke(db, invite_id, user):
@@ -316,11 +320,11 @@ async def revoke_client_invite(
 
 
 @router.get("/staff")
-async def staff(_: AdminUser, db: Database) -> list[dict]:
-    """Кому можно назначить компанию: действующие бухгалтеры и администраторы."""
+async def staff(_: ManagerUser, db: Database) -> list[dict]:
+    """Кому можно назначить компанию: действующие бухгалтеры всех уровней и администраторы."""
     users = await db.scalars(
         select(User)
-        .where(User.role.in_((Role.ADMIN, Role.ACCOUNTANT)), User.is_active.is_(True))
+        .where(User.role.in_(EDITORS), User.is_active.is_(True))
         .order_by(User.id)
     )
     return [{"id": user.id, "name": companies.person_name(user)} for user in users]

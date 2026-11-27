@@ -9,15 +9,7 @@ from sqlalchemy.orm import undefer
 
 from app.core.permissions import editable_task_condition, visible_task_condition
 from app.core.settings_store import get_settings
-from app.models import (
-    Attachment,
-    NotificationType,
-    Role,
-    Task,
-    TaskKind,
-    TaskStatus,
-    User,
-)
+from app.models import EDITORS, Attachment, NotificationType, Role, Task, TaskKind, TaskStatus, User
 from app.services import audit, payments, tasks
 from app.services.notify.queue import enqueue
 
@@ -83,7 +75,7 @@ async def may_edit(db: AsyncSession, user: User, task: Task) -> bool:
         return False
     if user.role == Role.CLIENT:
         return task.company_id in await payments.payer_company_ids(db, user)
-    if user.role not in (Role.ADMIN, Role.ACCOUNTANT):
+    if user.role not in EDITORS:
         return False
     found = await db.scalar(
         select(Task.id).where(Task.id == task.id, editable_task_condition(user))

@@ -10,6 +10,7 @@ import type { Role } from '../../lib/types'
 const MAX_LENGTH = 3500
 
 const GROUPS: [Role, string][] = [
+  ['chief', 'Главным бухгалтерам'],
   ['accountant', 'Бухгалтерам'],
   ['assistant', 'Помощникам'],
   ['client', 'Клиентам'],

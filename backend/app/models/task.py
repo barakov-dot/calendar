@@ -41,6 +41,7 @@ class TaskStatus(StrEnum):
 class ChangedBy(StrEnum):
     ACCOUNTANT = "accountant"
     ADMIN = "admin"
+    CHIEF = "chief"
     CLIENT = "client"
     SYSTEM = "system"  # статус выставила генерация: правило перестало подходить
 

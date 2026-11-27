@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from app.core.config import Config, get_config
 from app.core.db import get_session
-from app.models import Role, User
+from app.models import MANAGERS, Role, User
 from app.services.users import can_sign_in
 
 Database = Annotated[AsyncSession, Depends(get_session)]
@@ -70,3 +70,5 @@ def require_role(*roles: Role) -> Callable:
 
 
 AdminUser = Annotated[User, Depends(require_role(Role.ADMIN))]
+# администратор и главный бухгалтер
+ManagerUser = Annotated[User, Depends(require_role(*MANAGERS))]

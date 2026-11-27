@@ -6,13 +6,13 @@ import InviteList from '../../components/InviteList'
 import { Badge, Button, Card, Checkbox, ErrorText } from '../../components/ui'
 import { api } from '../../lib/api'
 import { fullName } from '../../lib/format'
-import { canEdit } from '../../lib/roles'
+import { canEdit, isManager } from '../../lib/roles'
 import type { Company, Invite, Member, User } from '../../lib/types'
 
 export default function ClientsBlock({ company, user }: { company: Company; user: User }) {
   const editable = canEdit(user.role)
   // приглашает только администратор
-  const canInvite = user.role === 'admin'
+  const canInvite = isManager(user.role)
   const base = `/companies/${company.id}`
   const queryClient = useQueryClient()
   const [paysSelf, setPaysSelf] = useState(false)

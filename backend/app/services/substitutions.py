@@ -8,9 +8,9 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Role, Substitution, User
+from app.models import EDITORS, Substitution, User
 
-STAFF = (Role.ADMIN, Role.ACCOUNTANT)
+STAFF = EDITORS
 
 
 def active_on(day: date):

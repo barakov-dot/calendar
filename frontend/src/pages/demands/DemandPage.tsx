@@ -40,12 +40,27 @@ export default function DemandPage({ user }: { user: User }) {
         ← Все требования
       </Link>
       <ErrorText error={demand.error} />
-      {demand.data && <Loaded key={id} demand={demand.data} editable={canEdit(user.role)} />}
+      {demand.data && (
+        <Loaded
+          key={id}
+          demand={demand.data}
+          editable={canEdit(user.role)}
+          client={user.role === 'client'}
+        />
+      )}
     </div>
   )
 }
 
-function Loaded({ demand, editable }: { demand: Demand; editable: boolean }) {
+function Loaded({
+  demand,
+  editable,
+  client,
+}: {
+  demand: Demand
+  editable: boolean
+  client: boolean
+}) {
   const refresh = useRefreshDemand()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -94,9 +109,13 @@ function Loaded({ demand, editable }: { demand: Demand; editable: boolean }) {
         )}
         <Card title={`${demand.name}${demand.number ? ` № ${demand.number}` : ''}`}>
           <p className="text-sm">
-            <Link to={`/companies/${demand.company_id}`} className="text-blue-600 underline">
-              {demand.company_name}
-            </Link>
+            {client ? (
+              demand.company_name
+            ) : (
+              <Link to={`/companies/${demand.company_id}`} className="text-blue-600 underline">
+                {demand.company_name}
+              </Link>
+            )}
             {demand.knd && ` · КНД ${demand.knd}`}
           </p>
           <p className="text-sm">
@@ -172,18 +191,24 @@ function Step({
   const overdue = open && step.due_date < today
   return (
     <section aria-label={title} className="space-y-1 text-sm">
-      <Link to={`/tasks/${step.task_id}`} className="font-medium text-blue-600 underline">
-        {title}
-      </Link>
+      {step.task_id === null ? (
+        <span className="font-medium">{title}</span>
+      ) : (
+        <Link to={`/tasks/${step.task_id}`} className="font-medium text-blue-600 underline">
+          {title}
+        </Link>
+      )}
       <p className={overdue ? 'font-semibold text-red-700 dark:text-red-400' : ''}>
         {formatDate(step.due_date)}
         {open ? ` · ${relativeDay(step.due_date, today)}` : ` · ${STATUS_NAMES[step.status]} ✓`}
       </p>
-      {editable && (
+      {editable && step.task_id !== null && (
         <Button
           variant={open ? 'primary' : 'secondary'}
           disabled={change.isPending}
-          onClick={() => change.mutate({ ids: [step.task_id], status: open ? done : 'planned' })}
+          onClick={() =>
+            change.mutate({ ids: [step.task_id!], status: open ? done : 'planned' })
+          }
         >
           {open ? doneLabel : 'Вернуть в план'}
         </Button>

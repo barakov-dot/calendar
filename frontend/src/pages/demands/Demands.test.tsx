@@ -150,6 +150,46 @@ describe('требования', () => {
     )
   })
 
+  it('клиент видит требование без задач и кнопок', async () => {
+    const hidden = {
+      ...demand,
+      filename: 'a.pdf',
+      content_type: 'application/pdf',
+      receipt: { ...demand.receipt!, task_id: null },
+      response: { ...demand.response!, task_id: null },
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(hidden))),
+    )
+    const user: User = {
+      id: 2,
+      first_name: 'К',
+      last_name: '',
+      username: '',
+      role: 'client',
+      is_active: true,
+    }
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/demands/7']}>
+          <Routes>
+            <Route path="/demands/:id" element={<DemandPage user={user} />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await screen.findByRole('button', { name: 'Открыть' })
+    screen.getByText('Представить пояснения')
+    expect(screen.queryByRole('link', { name: 'Представить пояснения' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'ООО «Пример»' })).toBeNull()
+    for (const name of ['Квитанция подписана', 'Изменить', 'Удалить']) {
+      expect(screen.queryByRole('button', { name })).toBeNull()
+    }
+    expect(screen.queryByText('Приложить файл')).toBeNull()
+  })
+
   it('помощник видит список, но не загружает и не отмечает', async () => {
     setup('/demands', 'assistant')
 

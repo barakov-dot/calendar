@@ -9,7 +9,8 @@ import { fullName } from '../lib/format'
 import { ROLE_NAMES } from '../lib/roles'
 import type { Invite, User } from '../lib/types'
 
-export default function Accountants() {
+export default function Accountants({ user: viewer }: { user: User }) {
+  const admin = viewer.role === 'admin'
   const queryClient = useQueryClient()
   const accountants = useQuery({
     queryKey: ['accountants'],
@@ -22,7 +23,7 @@ export default function Accountants() {
   const reload = () => queryClient.invalidateQueries()
 
   const invite = useMutation({
-    mutationFn: (kind: 'accountant' | 'assistant') =>
+    mutationFn: (kind: 'chief' | 'accountant' | 'assistant') =>
       api<Invite>('/admin/invites', { method: 'POST', body: { kind } }),
     onSuccess: reload,
   })
@@ -63,7 +64,8 @@ export default function Accountants() {
                 )}
                 {!user.is_active && <span className="text-red-600"> — отключён</span>}
               </span>
-              <Button
+              {(admin || user.role !== 'chief') && (
+                <Button
                 variant={user.is_active ? 'danger' : 'secondary'}
                 disabled={toggle.isPending}
                 onClick={() => {
@@ -73,7 +75,8 @@ export default function Accountants() {
                 }}
               >
                 {user.is_active ? 'Отключить' : 'Включить'}
-              </Button>
+                </Button>
+              )}
             </li>
           ))}
         </ul>
@@ -82,6 +85,15 @@ export default function Accountants() {
       <Card title="Приглашения">
         <p className="text-sm">Ссылка одноразовая и действует 7 дней.</p>
         <div className="flex flex-wrap gap-2">
+          {admin && (
+            <Button
+              variant="secondary"
+              onClick={() => invite.mutate('chief')}
+              disabled={invite.isPending}
+            >
+              Пригласить главного бухгалтера
+            </Button>
+          )}
           <Button onClick={() => invite.mutate('accountant')} disabled={invite.isPending}>
             Пригласить бухгалтера
           </Button>

@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation } from 'react-router'
 import { useDemands } from '../lib/demands'
 import { fullName } from '../lib/format'
 import { navClass } from '../lib/navClass'
-import { canEdit, ROLE_NAMES } from '../lib/roles'
+import { canEdit, isManager, ROLE_NAMES } from '../lib/roles'
 import { dayTitle, todayIso } from '../lib/tasks'
 import type { User } from '../lib/types'
 import { needsAttention, useCompanies } from '../lib/useCompanies'
@@ -90,7 +90,7 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
       : []),
     { to: '/reminders', title: 'Напоминания', Symbol: BellIcon },
     { to: '/reports', title: 'Отчёты', Symbol: ReportIcon },
-    ...(user.role === 'admin'
+    ...(isManager(user.role)
       ? [
           { to: '/users', title: 'Пользователи', Symbol: UsersIcon, also: ['/users/'] },
           { to: '/broadcasts', title: 'Рассылка', Symbol: SendIcon },
@@ -187,6 +187,7 @@ const CLIENT_LINKS: [string, string][] = [
   ['/', 'Платежи'],
   ['/calendar', 'Календарь'],
   ['/history', 'История'],
+  ['/demands', 'Требования'],
   ['/preferences', 'Настройки'],
 ]
 

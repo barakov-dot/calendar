@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel, model_validator
 from sqlalchemy import or_, select
 
-from app.api.deps import AdminUser, CurrentUser, Database
+from app.api.deps import CurrentUser, Database, ManagerUser
 from app.models import Substitution, User
 from app.schemas.company import Input
 from app.services import audit, tasks
@@ -74,12 +74,12 @@ async def my_substitutions(user: CurrentUser, db: Database) -> list[Substitution
 
 
 @router.get("/admin/substitutions")
-async def list_substitutions(_: AdminUser, db: Database) -> list[SubstitutionOut]:
+async def list_substitutions(_: ManagerUser, db: Database) -> list[SubstitutionOut]:
     return await _list(db)
 
 
 @router.post("/admin/substitutions", status_code=status.HTTP_201_CREATED)
-async def create(body: SubstitutionIn, admin: AdminUser, db: Database) -> list[SubstitutionOut]:
+async def create(body: SubstitutionIn, admin: ManagerUser, db: Database) -> list[SubstitutionOut]:
     for user_id in (body.accountant_id, body.substitute_id):
         user = await db.get(User, user_id)
         if user is None or not user.is_active or user.role not in STAFF:
@@ -112,7 +112,7 @@ async def create(body: SubstitutionIn, admin: AdminUser, db: Database) -> list[S
 
 
 @router.delete("/admin/substitutions/{substitution_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete(substitution_id: int, admin: AdminUser, db: Database) -> Response:
+async def delete(substitution_id: int, admin: ManagerUser, db: Database) -> Response:
     row = await db.get(Substitution, substitution_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Замещение не найдено")

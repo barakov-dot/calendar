@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { PersonCard } from '../../lib/people'
+import type { Role, User } from '../../lib/types'
 import UserCard from './UserCard'
 
 const card: PersonCard = {
@@ -34,20 +35,28 @@ const card: PersonCard = {
   substitutions: [],
 }
 
-function setup() {
+function setup(viewerRole: Role = 'admin', shown: PersonCard = card) {
+  const viewer: User = {
+    id: 1,
+    first_name: 'А',
+    last_name: '',
+    username: '',
+    role: viewerRole,
+    is_active: true,
+  }
   const patches: { url: string; body: unknown }[] = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit) => {
       if (init.method === 'PATCH') patches.push({ url, body: JSON.parse(init.body as string) })
-      return new Response(JSON.stringify(card))
+      return new Response(JSON.stringify(shown))
     }),
   )
   render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={['/users/4']}>
         <Routes>
-          <Route path="users/:id" element={<UserCard />} />
+          <Route path="users/:id" element={<UserCard viewer={viewer} />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -56,6 +65,26 @@ function setup() {
 }
 
 describe('карточка пользователя', () => {
+  afterEach(cleanup)
+
+  it('администратор повышает бухгалтера до главного', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    const { patches, user } = setup('admin', { ...card, role: 'accountant', companies: [] })
+
+    await user.click(await screen.findByRole('button', { name: 'Сделать главным бухгалтером' }))
+
+    await waitFor(() => expect(patches[0].body).toEqual({ role: 'chief' }))
+  })
+
+  it('главный бухгалтер не меняет другого главного и роли', async () => {
+    setup('chief', { ...card, role: 'chief', companies: [] })
+
+    await screen.findByRole('button', { name: 'Написать сообщение' })
+    expect(screen.queryByRole('button', { name: 'Отключить доступ' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Сделать/ })).toBeNull()
+    expect(screen.queryByLabelText('Фамилия')).toBeNull()
+  })
+
   it('сохраняет новое имя', async () => {
     const { patches, user } = setup()
 

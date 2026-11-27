@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import editable_task_condition, visible_task_condition
 from app.core.settings_store import get_settings
 from app.models import (
+    EDITORS,
     Company,
     CompanyMember,
     NotificationType,
@@ -129,7 +130,7 @@ async def unmark_paid(db: AsyncSession, user: User, task_id: int) -> Task:
                 "Напишите бухгалтеру.",
                 403,
             )
-    elif user.role in (Role.ADMIN, Role.ACCOUNTANT):
+    elif user.role in EDITORS:
         task = await db.scalar(
             select(Task).where(Task.id == task_id, editable_task_condition(user)).with_for_update()
         )

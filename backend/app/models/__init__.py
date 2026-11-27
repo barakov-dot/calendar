@@ -29,9 +29,20 @@ from app.models.task import (
     TaskStatus,
     WorkDay,
 )
-from app.models.user import AuditLog, Invite, InviteKind, LoginRequest, Role, User
+from app.models.user import (
+    EDITORS,
+    MANAGERS,
+    AuditLog,
+    Invite,
+    InviteKind,
+    LoginRequest,
+    Role,
+    User,
+)
 
 __all__ = [
+    "EDITORS",
+    "MANAGERS",
     "Attachment",
     "Audience",
     "AuditLog",

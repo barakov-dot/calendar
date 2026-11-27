@@ -28,7 +28,7 @@ import MyTasks from './pages/tasks/MyTasks'
 import NewTask from './pages/tasks/NewTask'
 import TaskPage from './pages/tasks/TaskPage'
 import Tasks from './pages/tasks/Tasks'
-import { canEdit } from './lib/roles'
+import { canEdit, isManager } from './lib/roles'
 import { useAuth } from './useAuth'
 
 // Страница dev-логина не попадает в прод-сборку.
@@ -67,6 +67,8 @@ export default function App() {
             {user.role !== 'assistant' && (
               <Route path="preferences" element={<Preferences user={user} />} />
             )}
+            <Route path="demands" element={<DemandsPage user={user} />} />
+            <Route path="demands/:id" element={<DemandPage user={user} />} />
             {user.role === 'client' && (
               <>
                 <Route path="calendar" element={<ClientCalendar />} />
@@ -80,8 +82,6 @@ export default function App() {
                 <Route path="more" element={<More user={user} onLogout={logout} />} />
                 <Route path="reminders" element={<Reminders user={user} />} />
                 <Route path="reports" element={<Reports user={user} />} />
-                <Route path="demands" element={<DemandsPage user={user} />} />
-                <Route path="demands/:id" element={<DemandPage user={user} />} />
                 <Route path="tasks/:id" element={<TaskPage user={user} />} />
                 <Route path="companies" element={<CompaniesList user={user} />} />
                 <Route path="companies/:id" element={<CompanyCard user={user} />} />
@@ -95,15 +95,15 @@ export default function App() {
                 )}
               </>
             )}
-            {user.role === 'admin' && (
+            {isManager(user.role) && (
               <>
-                <Route path="accountants" element={<Accountants />} />
+                <Route path="accountants" element={<Accountants user={user} />} />
                 <Route path="users" element={<UsersList />} />
-                <Route path="users/:id" element={<UserCard />} />
+                <Route path="users/:id" element={<UserCard viewer={user} />} />
                 <Route path="broadcasts" element={<Broadcasts />} />
-                <Route path="settings/*" element={<SettingsPage />} />
               </>
             )}
+            {user.role === 'admin' && <Route path="settings/*" element={<SettingsPage />} />}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         ) : (

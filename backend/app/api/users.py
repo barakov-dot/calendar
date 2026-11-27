@@ -1,12 +1,12 @@
-"""Пользователи и рассылки. Только администратор."""
+"""Пользователи и рассылки: администратор и главный бухгалтер."""
 
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from app.api.deps import AdminUser, Database
+from app.api.deps import Database, ManagerUser
 from app.models import Broadcast, Role, User
 from app.services import broadcasts, people
 from app.services.companies import person_name
@@ -66,6 +66,8 @@ class PersonPatch(BaseModel):
     first_name: Name | None = None
     last_name: Name | None = None
     is_active: bool | None = None
+    # повышение бухгалтера и обратно: только администратор
+    role: Literal["chief", "accountant"] | None = None
     # снова брать имя из Telegram
     reset_name: bool = False
 
@@ -73,7 +75,7 @@ class PersonPatch(BaseModel):
 class Audience(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    roles: list[Role] = Field(default_factory=list, max_length=4)
+    roles: list[Role] = Field(default_factory=list, max_length=5)
     user_ids: list[int] = Field(default_factory=list, max_length=1000)
 
 
@@ -176,7 +178,7 @@ async def _card(db: Database, user: User) -> PersonCard:
 
 @router.get("/users")
 async def list_users(
-    _: AdminUser,
+    _: ManagerUser,
     db: Database,
     role: Role | None = None,
     q: Annotated[str, Query(max_length=100)] = "",
@@ -185,13 +187,13 @@ async def list_users(
 
 
 @router.get("/users/{user_id}")
-async def read_user(user_id: int, _: AdminUser, db: Database) -> PersonCard:
+async def read_user(user_id: int, _: ManagerUser, db: Database) -> PersonCard:
     return await _card(db, await _user(db, user_id))
 
 
 @router.patch("/users/{user_id}")
 async def update_user(
-    user_id: int, body: PersonPatch, admin: AdminUser, db: Database
+    user_id: int, body: PersonPatch, admin: ManagerUser, db: Database
 ) -> PersonCard:
     user = await _user(db, user_id)
     try:
@@ -202,7 +204,7 @@ async def update_user(
 
 
 @router.post("/broadcasts/preview")
-async def preview(body: Audience, admin: AdminUser, db: Database) -> Preview:
+async def preview(body: Audience, admin: ManagerUser, db: Database) -> Preview:
     found = await broadcasts.recipients(db, admin, body.roles, body.user_ids)
     return Preview(
         recipients=[person_name(user) for user in found.ready],
@@ -229,12 +231,12 @@ def _broadcast(item: Broadcast, author: str, counts: dict[str, int]) -> Broadcas
 
 
 @router.get("/broadcasts")
-async def list_broadcasts(_: AdminUser, db: Database) -> list[BroadcastOut]:
+async def list_broadcasts(_: ManagerUser, db: Database) -> list[BroadcastOut]:
     return [_broadcast(*row) for row in await broadcasts.history(db)]
 
 
 @router.get("/broadcasts/{broadcast_id}/deliveries")
-async def list_deliveries(broadcast_id: int, _: AdminUser, db: Database) -> list[Delivery]:
+async def list_deliveries(broadcast_id: int, _: ManagerUser, db: Database) -> list[Delivery]:
     if await db.get(Broadcast, broadcast_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Рассылка не найдена")
     return [
@@ -244,7 +246,7 @@ async def list_deliveries(broadcast_id: int, _: AdminUser, db: Database) -> list
 
 
 @router.post("/broadcasts", status_code=status.HTTP_201_CREATED)
-async def send_broadcast(body: BroadcastIn, admin: AdminUser, db: Database) -> BroadcastOut:
+async def send_broadcast(body: BroadcastIn, admin: ManagerUser, db: Database) -> BroadcastOut:
     try:
         item = await broadcasts.create(db, admin, body.text, body.roles, body.user_ids)
     except broadcasts.BroadcastError as error:

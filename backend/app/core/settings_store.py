@@ -109,8 +109,10 @@ class NotificationSettings(Section):
     # требования инспекции: за сколько рабочих дней напоминать; 0 — в сам день
     demand_receipt_offsets_days: list[int] = Field(default_factory=lambda: [2, 1, 0])
     demand_response_offsets_days: list[int] = Field(default_factory=lambda: [5, 3, 1, 0])
-    # напоминать о требованиях и администратору, а не только бухгалтеру
+    # напоминать о требованиях и администратору с главным бухгалтером, а не только ответственному
     demand_notify_admin: bool = True
+    # напоминать клиентам о сроке исполнения требования
+    demand_notify_clients: bool = True
     # напоминать администратору, если «make backup» давно не создавал копию
     backup_alert: bool = True
 
