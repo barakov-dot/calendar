@@ -52,6 +52,17 @@ export function RequisiteFields({ form, onChange }: Props) {
       />
       <Field label="Название" {...bind('name')} />
       <Field label="Краткое название" {...bind('short_name')} />
+      {!isOoo && (
+        <Field
+          label="Дата регистрации ИП"
+          type="date"
+          value={form.registration_date ?? ''}
+          hint="Если ИП зарегистрирован в этом году, взносы за себя считаются с этой даты"
+          onChange={(event) =>
+            onChange({ ...form, registration_date: event.target.value || null })
+          }
+        />
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         {isOoo && <Field label="КПП" maxLength={9} {...bind('kpp')} />}
         <Field label={isOoo ? 'ОГРН' : 'ОГРНИП'} maxLength={15} {...bind('ogrn')} />

@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from app.api import companies as api
 from app.core.settings_store import get_store
-from app.models import AuditLog, Company, CompanyMember, InviteKind, Role
+from app.models import AuditLog, Company, CompanyMember, InviteKind, Role, Task
 from app.services import dadata, invites
 from app.services.dadata.client import parse_party
 from app.services.inn import is_valid_inn, with_check_digits
@@ -420,3 +420,34 @@ async def test_refresh_when_not_found(client, db, staff, dadata_found):
     )
 
     assert response.status_code == 404
+
+
+def test_dadata_registration_date_only_for_ip():
+    moment = 1774213200000  # 23.03.2026 00:00 по Москве
+    state = {"status": "ACTIVE", "registration_date": moment}
+
+    ip = parse_party(suggestion(type="INDIVIDUAL", inn="000000000001", state=state))
+    ooo = parse_party(suggestion(state=state))
+
+    assert (ip.registration_date.isoformat(), ooo.registration_date) == ("2026-03-23", None)
+
+
+async def test_ip_registration_date_recalculates_contributions(client, db, staff):
+    headers = auth(staff[1])
+    created = await client.post("/api/companies", json={"company": IP}, headers=headers)
+    url = f"/api/companies/{created.json()['id']}"
+
+    edited = await client.patch(
+        url, json={"company": {"registration_date": "2026-07-01"}}, headers=headers
+    )
+
+    assert edited.status_code == 200, edited.json()
+    assert edited.json()["registration_date"] == "2026-07-01"
+    record = await db.scalar(select(AuditLog).where(AuditLog.action == "company.update"))
+    assert record.payload["changes"] == {"registration_date": "2026-07-01"}
+    amount = await db.scalar(
+        select(Task.amount_kopecks).where(
+            Task.rule_code == "ip_fixed_contrib", Task.period_key == "2026"
+        )
+    )
+    assert amount == 28_695_00

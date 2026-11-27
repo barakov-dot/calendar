@@ -3,7 +3,9 @@
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -38,10 +40,21 @@ class Party:
     region_code: str
     status: str  # ACTIVE, LIQUIDATING, LIQUIDATED, BANKRUPT, REORGANIZING
     raw: dict[str, Any] = field(repr=False, compare=False)
+    registration_date: date | None = None  # только у ИП
 
 
 def _text(value: Any, limit: int) -> str:
     return value.strip()[:limit] if isinstance(value, str) else ""
+
+
+def _moscow_date(milliseconds: Any) -> date | None:
+    """Дата из отметки времени DaData."""
+    if not isinstance(milliseconds, int):
+        return None
+    try:
+        return datetime.fromtimestamp(milliseconds / 1000, ZoneInfo("Europe/Moscow")).date()
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 def parse_party(suggestion: dict[str, Any]) -> Party | None:
@@ -66,6 +79,9 @@ def parse_party(suggestion: dict[str, Any]) -> Party | None:
         region_code=(kladr or inn)[:2],
         status=_text((data.get("state") or {}).get("status"), 32),
         raw=suggestion,
+        registration_date=_moscow_date((data.get("state") or {}).get("registration_date"))
+        if is_ip
+        else None,
     )
 
 

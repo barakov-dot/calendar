@@ -1,6 +1,6 @@
 """Операции с компаниями. Права проверяет вызывающий через core.permissions."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
@@ -23,7 +23,16 @@ from app.services import audit
 from app.services.dadata.client import Party
 
 # Поля карточки, которые приходят из DaData и обновляются кнопкой «Обновить».
-DADATA_FIELDS = ("kpp", "ogrn", "name", "short_name", "address", "okved", "director_name")
+DADATA_FIELDS = (
+    "kpp",
+    "ogrn",
+    "registration_date",
+    "name",
+    "short_name",
+    "address",
+    "okved",
+    "director_name",
+)
 # Значения этих полей в журнал не пишутся: там могут быть персональные данные.
 NOT_JOURNALED = {"notes", "director_name", "address"}
 MISSING_AMOUNT_AHEAD = timedelta(days=30)
@@ -110,7 +119,8 @@ def _apply(company: Company, values: dict) -> dict:
     for key, value in values.items():
         if getattr(company, key) != value:
             setattr(company, key, value)
-            changes[key] = None if key in NOT_JOURNALED else value
+            journal = value.isoformat() if isinstance(value, date) else value
+            changes[key] = None if key in NOT_JOURNALED else journal
     return changes
 
 

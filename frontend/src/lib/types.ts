@@ -148,6 +148,7 @@ export interface Party {
   inn: string
   kpp: string
   ogrn: string
+  registration_date: string | null
   name: string
   short_name: string
   address: string

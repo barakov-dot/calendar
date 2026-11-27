@@ -49,6 +49,8 @@ class CompanyData(Input):
     inn: str
     kpp: str = Field("", pattern=r"^(\d{4}[0-9A-Z]{2}\d{3})?$")
     ogrn: str = Field("", pattern=r"^(\d{13}|\d{15})?$")
+    # только у ИП
+    registration_date: date | None = Field(None, ge=date(1991, 1, 1), le=date(2100, 12, 31))
     name: str = Field(min_length=1, max_length=1000)
     short_name: str = Field("", max_length=500)
     address: str = Field("", max_length=1000)
@@ -96,6 +98,8 @@ class CompanyData(Input):
             )
         else:
             self.profit_advances_mode = None
+        if is_ooo:
+            self.registration_date = None
         if not is_ooo:
             self.kpp = ""
             self.director_name = ""
@@ -178,6 +182,7 @@ class CompanyOut(BaseModel):
     inn: str
     kpp: str
     ogrn: str
+    registration_date: date | None
     name: str
     short_name: str
     address: str
@@ -227,6 +232,7 @@ class PartyOut(BaseModel):
     inn: str
     kpp: str
     ogrn: str
+    registration_date: date | None
     name: str
     short_name: str
     address: str

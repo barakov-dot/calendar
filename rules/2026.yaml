@@ -470,8 +470,10 @@ rules:
     applies: { entity_type: [ip], main_regime: [osno, usn6, usn15] }
     schedule: { type: yearly, day: 28, month: 12, year_offset: 0 }
     needs_amount: true
+    annual_amount: 57390
+    from_registration: true
     client_visible: true
-    source: "п. 2 ст. 432 НК РФ"
+    source: "п. 1.2 и п. 3 ст. 430, п. 2 ст. 432 НК РФ"
 
   - code: ip_1pct
     title: "Взносы ИП 1% с дохода свыше 300 000 ₽ за {period_name}"
@@ -480,6 +482,7 @@ rules:
     applies: { entity_type: [ip], main_regime: [osno, usn6, usn15] }
     schedule: { type: yearly, day: 1, month: 7 }
     needs_amount: true
+    from_registration: true
     client_visible: true
     source: "п. 2 ст. 432 НК РФ"
 

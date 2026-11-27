@@ -44,6 +44,8 @@ class Company(Base):
     inn: Mapped[str] = mapped_column(String(12), unique=True)
     kpp: Mapped[str] = mapped_column(String(9), default="", server_default="")
     ogrn: Mapped[str] = mapped_column(String(15), default="", server_default="")
+    # дата регистрации ИП: с неё считаются взносы за себя
+    registration_date: Mapped[date | None]
     name: Mapped[str] = mapped_column(String(1000))
     short_name: Mapped[str] = mapped_column(String(500), default="", server_default="")
     address: Mapped[str] = mapped_column(String(1000), default="", server_default="")

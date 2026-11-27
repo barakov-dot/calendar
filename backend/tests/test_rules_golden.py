@@ -399,3 +399,44 @@ def test_task_screen_texts(target, code, period, action, label):
     )
 
     assert (item.action_title, item.period_label) == (action, label)
+
+
+@pytest.mark.parametrize(
+    ("registered", "kopecks"),
+    [
+        (None, 57_390_00),
+        (d(5, 3, 2020), 57_390_00),
+        (d(1, 1), 57_390_00),
+        # пример КонсультантПлюс: регистрация 23.03.2026
+        (d(23, 3), 44_430_97),
+        (d(1, 7), 28_695_00),
+        (d(31, 12), 154_27),
+    ],
+)
+def test_ip_fixed_contributions_from_registration(registered, kopecks):
+    items = schedule(company("ip", "usn6", registration_date=registered))
+
+    [item] = year_items(items, "ip_fixed_contrib")
+
+    assert (item.amount_kopecks, item.due_date) == (kopecks, d(28, 12))
+
+
+def test_ip_contributions_of_next_year_and_before_registration():
+    later = schedule(
+        company("ip", "usn6", registration_date=d(10, 2, 2027)),
+        date_to=d(31, 12, 2027),
+    )
+
+    own = {
+        item.period_key: item.amount_kopecks
+        for item in later
+        if item.rule_code == "ip_fixed_contrib"
+    }
+
+    # за 2026 год ИП ещё не было; 2027 — неполный
+    assert list(own) == ["2027"] and 0 < own["2027"] < 61_154_00
+    assert [item.period_key for item in later if item.rule_code == "ip_1pct"] == []
+    full = schedule(company("ip", "osno"), date_to=d(31, 12, 2027))
+    assert [
+        item.amount_kopecks for item in full if item.rule_code == "ip_fixed_contrib"
+    ] == [57_390_00, 61_154_00]

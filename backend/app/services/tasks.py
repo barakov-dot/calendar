@@ -144,7 +144,7 @@ async def generate_tasks(
             result.created += 1
             continue
         changed = False
-        texts = ("title", "action_title", "period_label", "source_ref")
+        texts = ("title", "action_title", "period_label", "source_ref", "description")
         for name in ("due_date", "original_due_date", "needs_amount", *texts):
             if name == "due_date" and task.due_overridden:
                 continue  # срок изменён вручную
@@ -152,8 +152,10 @@ async def generate_tasks(
                 setattr(task, name, getattr(item, name))
                 changed = True
         # Пустую сумму можно заполнить (стоимость патента), введённую — не трогаем.
+        # Сумма по закону следует за карточкой (например, исправили дату регистрации).
         if (
-            task.amount_kopecks is None
+            (task.amount_kopecks is None or item.fixed_amount)
+            and task.amount_kopecks != item.amount_kopecks
             and item.amount_kopecks is not None
             and not task.amount_overridden
             and task.status == TaskStatus.PLANNED

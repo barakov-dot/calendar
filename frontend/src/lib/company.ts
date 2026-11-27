@@ -23,6 +23,8 @@ export interface CompanyForm {
   inn: string
   kpp: string
   ogrn: string
+  /** Дата регистрации ИП: с неё считаются взносы за себя. */
+  registration_date: string | null
   name: string
   short_name: string
   address: string
@@ -52,6 +54,7 @@ export const EMPTY_COMPANY: CompanyForm = {
   inn: '',
   kpp: '',
   ogrn: '',
+  registration_date: null,
   name: '',
   short_name: '',
   address: '',

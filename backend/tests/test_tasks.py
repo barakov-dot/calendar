@@ -397,3 +397,26 @@ async def test_payroll_payments_do_not_ask_for_amounts(db, calendar, accountant)
     await generate(db, company)
     await db.refresh(old)
     assert old.needs_amount is False
+
+
+async def test_fixed_contribution_follows_registration_date_unless_edited(
+    db, calendar, accountant
+):
+    company = await make_company(
+        db, accountant, entity_type="ip", inn="000000000001", main_regime="usn6"
+    )
+    await generate(db, company)
+    key = ("ip_fixed_contrib", "2026", 1)
+    assert (await all_tasks(db))[key].amount_kopecks == 57_390_00
+
+    company.registration_date = date(2026, 7, 1)
+    await db.commit()
+    await generate(db, company)
+    task = (await all_tasks(db))[key]
+    assert task.amount_kopecks == 28_695_00 and "01.07.2026" in task.description
+
+    tasks.override_amount(task, 100)
+    company.registration_date = date(2026, 10, 1)
+    await db.commit()
+    await generate(db, company)
+    assert (await all_tasks(db))[key].amount_kopecks == 100

@@ -64,6 +64,8 @@ class Occurrence:
     needs_amount: bool
     client_visible: bool
     amount_kopecks: int | None = None
+    # сумма установлена законом: пересчитывается, пока её не изменили вручную
+    fixed_amount: bool = False
     # выплата по расписанию компании: перенос назад, прошедшие сроки не создаются задним числом
     payday: bool = False
     action_title: str = ""
@@ -177,6 +179,30 @@ def split_in_three(total: int) -> tuple[int, int, int]:
     return third, third, third
 
 
+def contribution(annual_rubles: int, registered: date | None, year: int) -> tuple[int, str]:
+    """Взносы за год в копейках и пояснение (п. 3 ст. 430 НК РФ).
+
+    С года регистрации платят пропорционально: полные месяцы целиком, месяц регистрации —
+    по календарным дням, включая день регистрации.
+    """
+    if registered is None:
+        return annual_rubles * 100, (
+            "Взята полная сумма за год: дата регистрации ИП в карточке не указана."
+        )
+    if registered <= date(year, 1, 1):
+        return annual_rubles * 100, "Полная сумма за год."
+    days_in_month = month_calendar.monthrange(year, registered.month)[1]
+    days = days_in_month - registered.day + 1
+    months = 12 - registered.month
+    numerator = annual_rubles * 100 * (months * days_in_month + days)
+    denominator = 12 * days_in_month
+    amount = (2 * numerator + denominator) // (2 * denominator)  # до копейки
+    return amount, (
+        f"За период с {registered:%d.%m.%Y} по 31.12.{year}: пропорционально дате "
+        "регистрации (п. 3 ст. 430 НК РФ)."
+    )
+
+
 def add_calendar_months(day: date, months: int) -> date:
     return day_of_month(*add_months(day.year, day.month, months), day.day)
 
@@ -241,6 +267,13 @@ def occurrences(
         for rule in file.rules:
             if not rule.applies.matches(company):
                 continue
+            registered = getattr(company, "registration_date", None)
+            if rule.from_registration and registered and registered.year > period_year:
+                continue
+            amount, note = None, ""
+            # сумма известна только за год самого файла
+            if rule.annual_amount and period_year == file.year:
+                amount, note = contribution(rule.annual_amount, registered, period_year)
             schedule = rule.schedule
             match schedule:
                 case Monthly():
@@ -285,13 +318,14 @@ def occurrences(
                         title=_text(rule, draft, "title", period_year),
                         action_title=rule.action,
                         period_label=_text(rule, draft, "period", period_year),
-                        description=rule.description,
+                        description=" ".join(filter(None, (rule.description, note))),
                         source_ref=rule.source,
                         original_due_date=draft.due,
                         due_date=due,
                         needs_amount=rule.needs_amount,
                         client_visible=rule.client_visible,
-                        amount_kopecks=draft.amount,
+                        amount_kopecks=draft.amount if amount is None else amount,
+                        fixed_amount=amount is not None,
                         payday=draft.backwards,
                     )
                 )
