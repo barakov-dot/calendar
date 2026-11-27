@@ -20,6 +20,7 @@ from app.api import (
     reminders,
     reports,
     signatures,
+    site_icon,
     substitutions,
     tasks,
     users,
@@ -79,7 +80,16 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.include_router(reminders.router, prefix="/api")
     app.include_router(me.router, prefix="/api")
     app.include_router(admin_calendar.router, prefix="/api")
-    modules = (attachments, declarations, demands, reports, signatures, substitutions, users)
+    modules = (
+        attachments,
+        declarations,
+        demands,
+        reports,
+        signatures,
+        site_icon,
+        substitutions,
+        users,
+    )
     for module in modules:
         app.include_router(module.router, prefix="/api")
     if config.is_dev:
