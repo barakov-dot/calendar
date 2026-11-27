@@ -16,6 +16,7 @@ import {
   ListIcon,
   ReportIcon,
   SendIcon,
+  UploadIcon,
   UsersIcon,
 } from './Icons'
 import TelegramBack from './TelegramBack'
@@ -34,7 +35,7 @@ interface Entry {
 /** Разделы, открываемые из «Настроек». */
 const INSIDE_MORE = ['/preferences', '/accountants', '/settings']
 /** На широком экране эти разделы есть в самом меню, на телефоне — в «Настройках». */
-const IN_SIDEBAR = ['/reminders', '/reports', '/users', '/broadcasts']
+const IN_SIDEBAR = ['/declarations', '/reminders', '/reports', '/users', '/broadcasts']
 
 function Badge({ count }: { count?: number }) {
   return count ? (
@@ -63,6 +64,9 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
   ]
   // на телефоне эти разделы открываются из «Настроек»
   const wide: Entry[] = [
+    ...(canEdit(user.role)
+      ? [{ to: '/declarations', title: 'Декларации', Symbol: UploadIcon }]
+      : []),
     { to: '/reminders', title: 'Напоминания', Symbol: BellIcon },
     { to: '/reports', title: 'Отчёты', Symbol: ReportIcon },
     ...(user.role === 'admin'

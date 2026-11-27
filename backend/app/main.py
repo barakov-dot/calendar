@@ -12,6 +12,7 @@ from app.api import (
     attachments,
     auth,
     companies,
+    declarations,
     dev,
     health,
     me,
@@ -77,7 +78,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.include_router(reminders.router, prefix="/api")
     app.include_router(me.router, prefix="/api")
     app.include_router(admin_calendar.router, prefix="/api")
-    for module in (attachments, reports, signatures, substitutions, users):
+    for module in (attachments, declarations, reports, signatures, substitutions, users):
         app.include_router(module.router, prefix="/api")
     if config.is_dev:
         app.include_router(dev.router, prefix="/api")

@@ -8,7 +8,7 @@ import { miniAppInitData, showBackButton } from '../lib/telegram'
 function parentOf(path: string, client: boolean): string {
   const list = /^\/(companies|users)\/./.exec(path)
   if (list) return `/${list[1]}`
-  const inMore = /^\/(preferences|reminders|reports|users|broadcasts|accountants|settings)\b/
+  const inMore = /^\/(declarations|preferences|reminders|reports|users|broadcasts|accountants|settings)\b/
   return !client && inMore.test(path) ? '/more' : '/'
 }
 

@@ -296,6 +296,9 @@ function NdsBlock({ task, editable }: { task: TaskDetail; editable: boolean }) {
       </ul>
       {editable && (
         <>
+          <Link to="/declarations" className="block text-sm text-blue-600 underline">
+            Взять сумму из декларации (XML)
+          </Link>
           <Field
             label="Сумма НДС за весь квартал, ₽"
             inputMode="decimal"

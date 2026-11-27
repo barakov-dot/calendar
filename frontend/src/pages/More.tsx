@@ -8,6 +8,7 @@ import {
   GearIcon,
   ReportIcon,
   SendIcon,
+  UploadIcon,
   UsersIcon,
 } from '../components/Icons'
 import ThemeToggle from '../components/ThemeToggle'
@@ -21,7 +22,10 @@ type Item = [string, string, string, ComponentType<{ className?: string }>]
 function items(user: User): Item[] {
   const list: Item[] = []
   if (canEdit(user.role)) {
-    list.push(['/preferences', 'Уведомления', 'Что и когда присылает бот', BellIcon])
+    list.push(
+      ['/declarations', 'Декларации', 'Суммы НДС из XML', UploadIcon],
+      ['/preferences', 'Уведомления', 'Что и когда присылает бот', BellIcon],
+    )
   }
   list.push(
     ['/reminders', 'Напоминания', 'Свои повторяющиеся задачи', BellIcon],

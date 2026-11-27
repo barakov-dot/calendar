@@ -9,6 +9,7 @@ import ClientHistory from './pages/client/ClientHistory'
 import ClientPayments from './pages/client/ClientPayments'
 import ClientTaskPage from './pages/client/ClientTaskPage'
 import Preferences from './pages/Preferences'
+import Declarations from './pages/declarations/Declarations'
 import CompaniesList from './pages/companies/CompaniesList'
 import CompanyCard from './pages/companies/CompanyCard'
 import NewCompany from './pages/companies/NewCompany'
@@ -83,6 +84,7 @@ export default function App() {
                 {canEdit(user.role) && (
                   <>
                     <Route path="my" element={<MyTasks />} />
+                    <Route path="declarations" element={<Declarations />} />
                     <Route path="tasks/new" element={<NewTask />} />
                     <Route path="companies/new" element={<NewCompany user={user} />} />
                   </>
