@@ -31,8 +31,9 @@ export default function SettingsPage() {
   const settings = query.data?.settings
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <nav className="flex gap-1 overflow-x-auto">
+    <div className="space-y-4">
+      {/* вкладки переносятся на новую строку, чтобы все были видны */}
+      <nav className="flex flex-wrap gap-1">
         {TABS.map(([path, title]) => (
           <NavLink key={path} to={`/settings/${path}`} className={navClass}>
             {title}
