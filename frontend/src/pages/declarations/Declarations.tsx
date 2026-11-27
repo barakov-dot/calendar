@@ -16,7 +16,7 @@ export interface Declaration {
   correction: number
   totals: { label: string; kopecks: number }[]
   parts: {
-    task_id: number
+    task_id: number | null
     title: string
     due_date: string
     current_kopecks: number | null
@@ -24,6 +24,7 @@ export interface Declaration {
     kept: string
   }[]
   warnings: string[]
+  switches_to_monthly: boolean
 }
 
 /** Загрузка декларации: суммы платежей берутся из XML и записываются после проверки. */
@@ -98,6 +99,13 @@ function Loaded({ id, file }: { id: number; file: File }) {
           </div>
         ))}
       </dl>
+      {data.switches_to_monthly && (
+        <Alert kind="warning">
+          {done
+            ? 'Организация переведена на «Ежемесячно по прибыли прошлого квартала». Появились помесячные платежи, в том числе за прошедшие месяцы: отметьте уже оплаченные.'
+            : 'В декларации есть ежемесячные авансы, а в карточке организации стоит «Поквартально». При записи порядок изменится на «Ежемесячно по прибыли прошлого квартала», появятся помесячные платежи, в том числе за прошедшие месяцы года.'}
+        </Alert>
+      )}
       {data.warnings.map((warning) => (
         <Alert key={warning} kind="warning">
           {warning}
@@ -105,10 +113,14 @@ function Loaded({ id, file }: { id: number; file: File }) {
       ))}
       <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
         {data.parts.map((part) => (
-          <li key={part.task_id} className="py-2">
-            <Link to={`/tasks/${part.task_id}`} className="font-medium text-blue-600 underline">
-              {part.title}
-            </Link>
+          <li key={`${part.title} ${part.due_date}`} className="py-2">
+            {part.task_id === null ? (
+              <span className="font-medium">{part.title} (новый)</span>
+            ) : (
+              <Link to={`/tasks/${part.task_id}`} className="font-medium text-blue-600 underline">
+                {part.title}
+              </Link>
+            )}
             <span className="block text-slate-500 dark:text-slate-400">
               срок {formatDate(part.due_date)}
             </span>

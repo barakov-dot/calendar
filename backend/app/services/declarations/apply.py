@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import accessible_company_ids_query
 from app.models import Company, Task, TaskStatus, User
 from app.models.company import ProfitAdvances
-from app.services import audit
-from app.services.declarations.parser import Declaration, DeclarationError, Item
+from app.services import audit, tasks
+from app.services.calendar.workdays import load_calendar
+from app.services.declarations.parser import Declaration, DeclarationError
 from app.services.notify.messages import money
 
 
@@ -19,6 +20,8 @@ class Part:
     new_kopecks: int
     # почему сумма не изменится; пусто — будет записана
     kept: str
+    # платежа ещё нет: появится вместе с переходом на ежемесячные авансы
+    created: bool = False
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,7 @@ class Plan:
     declaration: Declaration
     company: Company
     parts: list[Part]
+    switches_to_monthly: bool = False
 
 
 def _kept(task: Task) -> str:
@@ -39,27 +43,33 @@ def _kept(task: Task) -> str:
     return ""
 
 
-def _missing(company: Company, items: list[Item]) -> list[str]:
-    """Суммы, для которых нет платежа: чаще всего из-за настроек организации."""
-    warnings = []
-    monthly = [item for item in items if item.rule_code == "profit_monthly"]
-    if monthly and company.profit_advances_mode == ProfitAdvances.QUARTERLY:
-        listed = "; ".join(f"{item.label} — {money(item.amount_kopecks)}" for item in monthly)
-        warnings.append(
-            "В декларации есть ежемесячные авансы, а в карточке организации выбраны только "
-            "квартальные. Если организация платит ежемесячно, измените «Авансы по налогу на "
-            f"прибыль» и загрузите декларацию ещё раз. Не записано: {listed}."
-        )
-        items = [item for item in items if item not in monthly]
-    return warnings + [
-        f"Нет платежа «{item.label}»: {money(item.amount_kopecks)} записать некуда. "
-        "Проверьте настройки организации."
-        for item in items
-    ]
+async def _pay_monthly(db: AsyncSession, user: User, company: Company) -> set[int]:
+    """Переводит на ежемесячные авансы и создаёт платежи. Возвращает id прежних задач."""
+    before = set(await db.scalars(select(Task.id).where(Task.company_id == company.id)))
+    company.profit_advances_mode = ProfitAdvances.MONTHLY_BY_QUARTER
+    audit.record(
+        db,
+        user.id,
+        "company.update",
+        "company",
+        company.id,
+        {"profit_advances_mode": [ProfitAdvances.QUARTERLY, company.profit_advances_mode]},
+    )
+    await db.flush()
+    current = tasks.today()
+    await tasks.generate_tasks(
+        db, company.id, *tasks.horizon(current), await load_calendar(db), current
+    )
+    return before
 
 
 async def plan(db: AsyncSession, user: User, declaration: Declaration, lock: bool = False) -> Plan:
-    """Находит организацию по ИНН и платежи, к которым относятся суммы декларации."""
+    """Находит организацию по ИНН и платежи, к которым относятся суммы декларации.
+
+    Ежемесячные авансы в декларации означают, что организация платит помесячно. Если в
+    карточке стоят только квартальные, настройка меняется в текущей транзакции: apply её
+    сохраняет, а предпросмотр должен откатить.
+    """
     company = await db.scalar(
         select(Company).where(
             Company.inn == declaration.inn,
@@ -71,6 +81,10 @@ async def plan(db: AsyncSession, user: User, declaration: Declaration, lock: boo
         raise DeclarationError(f"Организации с ИНН {declaration.inn} нет среди ваших")
     if company.is_archived:
         raise DeclarationError("Организация в архиве")
+    switch = company.profit_advances_mode == ProfitAdvances.QUARTERLY and any(
+        item.rule_code == "profit_monthly" and item.amount_kopecks for item in declaration.items
+    )
+    before = await _pay_monthly(db, user, company) if switch else None
     keys = [(item.rule_code, item.period_key, item.part) for item in declaration.items]
     query = select(Task).where(
         Task.company_id == company.id,
@@ -86,20 +100,23 @@ async def plan(db: AsyncSession, user: User, declaration: Declaration, lock: boo
             "организации режим налогообложения, «Плательщик НДС» и порядок авансов по прибыли."
         )
 
-    parts, missing = [], []
+    parts, warnings = [], list(declaration.warnings)
     for item, key in zip(declaration.items, keys, strict=True):
         task = found.get(key)
-        if task is None:
-            missing.append(item)
-        else:
-            parts.append(Part(task, item.amount_kopecks, _kept(task)))
-    warnings = [*declaration.warnings, *_missing(company, missing)]
+        if task is not None:
+            created = before is not None and task.id not in before
+            parts.append(Part(task, item.amount_kopecks, _kept(task), created))
+        elif item.amount_kopecks:
+            warnings.append(
+                f"Нет платежа «{item.label}»: {money(item.amount_kopecks)} записать некуда. "
+                "Проверьте настройки организации."
+            )
     parts.sort(key=lambda part: part.task.due_date)
-    if any(part.kept and part.task.amount_kopecks != part.new_kopecks for part in parts):
+    if any(part.kept and (part.task.amount_kopecks or 0) != part.new_kopecks for part in parts):
         warnings.append(
             "Часть платежей не меняется, и их суммы отличаются от декларации. Проверьте разницу."
         )
-    return Plan(replace(declaration, warnings=tuple(warnings)), company, parts)
+    return Plan(replace(declaration, warnings=tuple(warnings)), company, parts, switch)
 
 
 async def apply(db: AsyncSession, user: User, found: Plan) -> None:

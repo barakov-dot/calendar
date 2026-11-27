@@ -14,6 +14,7 @@ const found: Declaration = {
   correction: 1,
   totals: [{ label: 'К уплате за квартал', kopecks: 30_000_00 }],
   warnings: ['Есть раздел 2 (налоговый агент).'],
+  switches_to_monthly: false,
   parts: [
     {
       task_id: 1,
@@ -83,6 +84,21 @@ describe('загрузка декларации', () => {
     await screen.findByText('Суммы записаны. Платежей изменено: 1.')
     expect(calls[1].url).toBe('/api/declarations/apply')
     expect(screen.queryByRole('button', { name: 'Вписать суммы' })).toBeNull()
+  })
+
+  it('предупреждает о переходе на ежемесячные авансы и не ведёт на несуществующий платёж', async () => {
+    const reply = {
+      ...found,
+      switches_to_monthly: true,
+      parts: [{ ...found.parts[1], task_id: null, title: 'Аванс за июль' }],
+    }
+    const { user } = setup(() => new Response(JSON.stringify(reply)))
+
+    await choose(user)
+
+    await screen.findByText(/При записи порядок изменится/)
+    screen.getByText('Аванс за июль (новый)')
+    expect(screen.queryByRole('link', { name: /Аванс за июль/ })).toBeNull()
   })
 
   it('объясняет, почему файл не подошёл', async () => {

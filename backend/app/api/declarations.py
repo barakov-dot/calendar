@@ -18,7 +18,8 @@ router = APIRouter(prefix="/declarations")
 
 
 class PartOut(BaseModel):
-    task_id: int
+    # пусто — платежа ещё нет, он появится при записи
+    task_id: int | None
     title: str
     due_date: date
     current_kopecks: int | None
@@ -41,6 +42,8 @@ class DeclarationOut(BaseModel):
     totals: list[TotalOut]
     parts: list[PartOut]
     warnings: list[str]
+    # при записи организация перейдёт на ежемесячные авансы по прибыли
+    switches_to_monthly: bool
 
 
 async def _body(request: Request) -> bytes:
@@ -62,9 +65,10 @@ def _out(found: declarations.Plan) -> DeclarationOut:
         correction=source.correction,
         totals=[TotalOut(label=label, kopecks=kopecks) for label, kopecks in source.totals],
         warnings=list(source.warnings),
+        switches_to_monthly=found.switches_to_monthly,
         parts=[
             PartOut(
-                task_id=part.task.id,
+                task_id=None if part.created else part.task.id,
                 title=part.task.title,
                 due_date=part.task.due_date,
                 current_kopecks=part.task.amount_kopecks,
@@ -87,7 +91,10 @@ async def _plan(
 
 @router.post("/preview")
 async def preview(request: Request, user: Staff, db: Database) -> DeclarationOut:
-    return _out(await _plan(request, user, db))
+    found = _out(await _plan(request, user, db))
+    # предпросмотр ничего не сохраняет, даже смену порядка авансов
+    await db.rollback()
+    return found
 
 
 @router.post("/apply")

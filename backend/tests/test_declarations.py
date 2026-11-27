@@ -5,7 +5,8 @@ from datetime import date
 import pytest
 from sqlalchemy import select
 
-from app.models import AuditLog
+from app.models import AuditLog, Task
+from app.services import tasks
 from app.services.declarations.parser import MAX_BYTES, DeclarationError, parse
 from tests.factories import auth, with_check_digits
 from tests.test_payments import fresh, make_task, world  # noqa: F401
@@ -254,17 +255,41 @@ async def test_profit_writes_to_matching_payments_and_names_missing_ones(client,
     assert len(missing) == 2 and "август 2026" in missing[0]
 
 
-async def test_one_warning_when_company_pays_only_quarterly(client, db, world):  # noqa: F811
+async def test_monthly_advances_switch_quarterly_company(client, db, world, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(tasks, "today", lambda: date(2026, 11, 27))
     company = world["company"]
-    company.profit_advances_mode = "quarterly"
+    company.main_regime, company.profit_advances_mode = "osno", "quarterly"
     await db.commit()
-    await payment(db, company, "profit_advance", "2026-Q2", date(2026, 7, 28))
+    await tasks.regenerate_company(db, company.id)
     data = profit(due(100, 200), monthly((10, 10, 10), (20, 20, 20)))
+    monthly_tasks = select(Task).where(
+        Task.company_id == company.id, Task.rule_code == "profit_monthly"
+    )
 
-    response = await send(client, world["accountant"], data)
+    preview = await send(client, world["accountant"], data)
 
-    [warning] = response.json()["warnings"]
-    assert "только квартальные" in warning and "сентябрь 2026" in warning
+    body = preview.json()
+    assert preview.status_code == 200, body
+    assert body["switches_to_monthly"] and body["warnings"] == []
+    new = [part for part in body["parts"] if part["task_id"] is None]
+    assert [part["new_kopecks"] for part in new] == [30_00] * 3
+    # предпросмотр не сохраняет ни настройку, ни платежи
+    await db.refresh(company)
+    assert company.profit_advances_mode == "quarterly"
+    assert (await db.scalars(monthly_tasks)).all() == []
+
+    applied = await send(client, world["accountant"], data, "apply")
+
+    assert applied.json()["switches_to_monthly"], applied.text
+    await db.refresh(company)
+    assert company.profit_advances_mode == "monthly_by_quarter"
+    written = {
+        task.period_key: task.amount_kopecks
+        for task in await db.scalars(monthly_tasks.execution_options(populate_existing=True))
+    }
+    assert [written[f"2026-{month:02d}"] for month in (7, 8, 9)] == [30_00] * 3
+    again = await send(client, world["accountant"], data)
+    assert again.json()["switches_to_monthly"] is False
 
 
 @pytest.mark.parametrize(
