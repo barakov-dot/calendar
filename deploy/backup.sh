@@ -40,7 +40,7 @@ trap cleanup EXIT
 
 $COMPOSE exec -T db sh -c 'pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > "$work/db.dump"
 test -s "$work/db.dump" || { echo "Пустой дамп базы" >&2; exit 1; }
-tar -czf "$work/archive.tar.gz" --exclude='*.lock' --exclude='*_status.json' \
+tar -czf "$work/archive.tar.gz" --exclude='*.lock' --exclude='*_status.json' --exclude='settings.example.json' \
     -C "$work" db.dump -C "$PWD" config
 # архив должен читаться, прежде чем считаться копией
 tar -tzf "$work/archive.tar.gz" > /dev/null

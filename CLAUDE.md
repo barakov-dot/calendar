@@ -107,5 +107,6 @@ make seed-dev     # тестовые пользователи и компани�
 make check-amd64  # docker buildx build --platform linux/amd64 для backend и frontend
 # на сервере:
 make prod         # docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-make backup       # pg_dump + копия config/
+make backup       # pg_dump + копия config/ в ./backups
+make restore file=backups/buh-....tar.gz   # восстановление с подтверждением
 ```
