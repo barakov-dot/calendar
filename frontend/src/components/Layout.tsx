@@ -15,6 +15,8 @@ import {
   GearIcon,
   ListIcon,
   ReportIcon,
+  SendIcon,
+  UsersIcon,
 } from './Icons'
 import ThemeToggle from './ThemeToggle'
 import { Button } from './ui'
@@ -30,6 +32,8 @@ interface Entry {
 
 /** Разделы, открываемые из «Настроек». */
 const INSIDE_MORE = ['/preferences', '/accountants', '/settings']
+/** На широком экране эти разделы есть в самом меню, на телефоне — в «Настройках». */
+const IN_SIDEBAR = ['/reminders', '/reports', '/users', '/broadcasts']
 
 function Badge({ count }: { count?: number }) {
   return count ? (
@@ -60,9 +64,15 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
   const wide: Entry[] = [
     { to: '/reminders', title: 'Напоминания', Symbol: BellIcon },
     { to: '/reports', title: 'Отчёты', Symbol: ReportIcon },
+    ...(user.role === 'admin'
+      ? [
+          { to: '/users', title: 'Пользователи', Symbol: UsersIcon, also: ['/users/'] },
+          { to: '/broadcasts', title: 'Рассылка', Symbol: SendIcon },
+        ]
+      : []),
   ]
   const more: Entry = { to: '/more', title: 'Настройки', Symbol: GearIcon, also: INSIDE_MORE }
-  const phone: Entry[] = [...main, { ...more, also: [...INSIDE_MORE, '/reminders', '/reports'] }]
+  const phone: Entry[] = [...main, { ...more, also: [...INSIDE_MORE, ...IN_SIDEBAR] }]
 
   const inside = (entry: Entry) => entry.also?.some((prefix) => path.startsWith(prefix)) ?? false
 

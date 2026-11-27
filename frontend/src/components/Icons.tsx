@@ -67,3 +67,14 @@ export const ChevronIcon = (props: Props) => (
     <path d="m9 6 6 6-6 6" />
   </Icon>
 )
+export const UsersIcon = (props: Props) => (
+  <Icon {...props}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.3a6.5 6.5 0 0 1 3.5 5.7" />
+  </Icon>
+)
+export const SendIcon = (props: Props) => (
+  <Icon {...props}>
+    <path d="M21 3 3 10.5l7 3 3 7zM10 13.5 21 3" />
+  </Icon>
+)

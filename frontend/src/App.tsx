@@ -18,6 +18,9 @@ import Reminders from './pages/reminders/Reminders'
 import Reports from './pages/reports/Reports'
 import More from './pages/More'
 import CalendarPage from './pages/tasks/CalendarPage'
+import Broadcasts from './pages/users/Broadcasts'
+import UserCard from './pages/users/UserCard'
+import UsersList from './pages/users/UsersList'
 import MyTasks from './pages/tasks/MyTasks'
 import NewTask from './pages/tasks/NewTask'
 import TaskPage from './pages/tasks/TaskPage'
@@ -89,6 +92,9 @@ export default function App() {
             {user.role === 'admin' && (
               <>
                 <Route path="accountants" element={<Accountants />} />
+                <Route path="users" element={<UsersList />} />
+                <Route path="users/:id" element={<UserCard />} />
+                <Route path="broadcasts" element={<Broadcasts />} />
                 <Route path="settings/*" element={<SettingsPage />} />
               </>
             )}

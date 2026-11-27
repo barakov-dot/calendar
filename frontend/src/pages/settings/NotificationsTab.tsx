@@ -73,6 +73,15 @@ export default function NotificationsTab({
         checked={showNotices}
         onChange={setShowNotices}
       />
+      <Checkbox
+        label="Напоминать мне, если нет свежей резервной копии"
+        checked={form.backup_alert}
+        onChange={(backup_alert) => change({ backup_alert })}
+      />
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Сервис видит только копии, созданные командой make backup. Если вы копируете весь
+        сервер другим способом, выключите.
+      </p>
       <ErrorText error={save.error} />
       <Button
         disabled={days === null || signatureDays === null || save.isPending}

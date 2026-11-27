@@ -1,7 +1,15 @@
 import type { ComponentType } from 'react'
 import { Link } from 'react-router'
 
-import { BellIcon, BuildingIcon, ChevronIcon, GearIcon, ReportIcon } from '../components/Icons'
+import {
+  BellIcon,
+  BuildingIcon,
+  ChevronIcon,
+  GearIcon,
+  ReportIcon,
+  SendIcon,
+  UsersIcon,
+} from '../components/Icons'
 import ThemeToggle from '../components/ThemeToggle'
 import { Button } from '../components/ui'
 import { fullName } from '../lib/format'
@@ -21,6 +29,8 @@ function items(user: User): Item[] {
   )
   if (user.role === 'admin') {
     list.push(
+      ['/users', 'Пользователи', 'Все, кто подключён: карточки и имена', UsersIcon],
+      ['/broadcasts', 'Рассылка', 'Сообщение от бота выбранным людям', SendIcon],
       ['/accountants', 'Команда', 'Сотрудники, приглашения, замещения', BuildingIcon],
       ['/settings', 'Настройки сервиса', 'Telegram, DaData, сроки, копии', GearIcon],
     )

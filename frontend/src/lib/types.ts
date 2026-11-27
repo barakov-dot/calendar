@@ -60,6 +60,7 @@ export interface AppSettings {
     fill_amount_workdays_before: number
     overdue_notify: boolean
     signature_offsets_days: number[]
+    backup_alert: boolean
   }
 }
 

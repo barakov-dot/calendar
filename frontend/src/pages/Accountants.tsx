@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router'
 
 import InviteList from '../components/InviteList'
 import { SubstitutionsCard } from '../components/Substitutions'
@@ -47,7 +48,12 @@ export default function Accountants() {
           {accountants.data?.map((user) => (
             <li key={user.id} className="flex items-center justify-between gap-2 py-2">
               <span>
-                {fullName(user)}
+                <Link
+                  to={`/users/${user.id}`}
+                  className="text-blue-700 underline dark:text-blue-300"
+                >
+                  {fullName(user)}
+                </Link>
                 <span className="text-slate-500 dark:text-slate-400">
                   {' '}
                   · {ROLE_NAMES[user.role]}

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Link } from 'react-router'
 
 import InviteList from '../../components/InviteList'
 import { Badge, Button, Card, Checkbox, ErrorText } from '../../components/ui'
@@ -57,7 +58,16 @@ export default function ClientsBlock({ company, user }: { company: Company; user
           <li key={member.user_id} className="space-y-2 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span>
-                {fullName(member)}{' '}
+                {canInvite ? (
+                  <Link
+                    to={`/users/${member.user_id}`}
+                    className="text-blue-700 underline dark:text-blue-300"
+                  >
+                    {fullName(member)}
+                  </Link>
+                ) : (
+                  fullName(member)
+                )}{' '}
                 {member.bot_blocked && <Badge kind="warning">заблокировал бота</Badge>}
               </span>
               {editable && (
