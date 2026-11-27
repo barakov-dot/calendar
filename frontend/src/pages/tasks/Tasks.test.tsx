@@ -32,6 +32,8 @@ const late = task(1, '2026-11-25', {
 })
 const payment = task(2, '2026-11-30', { kind: 'payment', action_title: 'Уплатить НДФЛ' })
 const later = task(3, '2026-12-20')
+const filed = task(4, '2026-10-26', { status: 'done', action_title: 'Сдать декларацию по НДС' })
+const asked: string[] = []
 
 function setup(role: Role = 'accountant') {
   const bulk: { ids: number[]; status: string }[] = []
@@ -43,7 +45,14 @@ function setup(role: Role = 'accountant') {
         return new Response(JSON.stringify({ updated: 1, skipped: 0 }))
       }
       if (url.startsWith('/api/tasks?')) {
-        const overdue = new URL(url, 'http://x').searchParams.has('to')
+        const query = new URL(url, 'http://x').searchParams
+        if (query.get('status') === 'done') {
+          asked.push(url)
+          return new Response(
+            JSON.stringify({ items: [filed], total: 1, today: '2026-11-27' }),
+          )
+        }
+        const overdue = query.has('to')
         const to = new URL(url, 'http://x').searchParams.get('to')!
         const items = overdue && to < '2026-11-27' ? [late] : [payment, later]
         return new Response(
@@ -97,6 +106,33 @@ describe('экран задач', () => {
 
     await user.click(tab(/Месяц/))
     await screen.findByText('Задача 3')
+  })
+
+  it('сданные отчёты открываются отдельной кнопкой и не зачёркнуты', async () => {
+    const { bulk, user } = setup()
+    expect(screen.queryByText('Сдать декларацию по НДС')).toBeNull()
+
+    await user.click(await screen.findByRole('button', { name: /Сданные отчёты1/ }))
+
+    const row = await screen.findByText('Сдать декларацию по НДС')
+    expect(row.className).not.toContain('line-through')
+    expect(screen.queryByText('Уплатить НДФЛ')).toBeNull()
+    const query = new URL(asked[0], 'http://x').searchParams
+    expect(query.getAll('kind')).toEqual(['report', 'notice'])
+    expect(query.get('newest_first')).toBe('true')
+    await user.click(screen.getByRole('checkbox', { name: /Вернуть в план/ }))
+    await waitFor(() => expect(bulk).toEqual([{ ids: [4], status: 'planned' }]))
+
+    await user.click(screen.getByRole('button', { name: '← К задачам' }))
+    await screen.findByText('Уплатить НДФЛ')
+  })
+
+  it('помощник видит у сданного отчёта зелёную галочку', async () => {
+    const { user } = setup('assistant')
+
+    await user.click(await screen.findByRole('button', { name: /Сданные отчёты/ }))
+
+    await screen.findByRole('img', { name: 'Сдано' })
   })
 
   it('показывает и снова прячет прошедшие сроки по нажатию', async () => {

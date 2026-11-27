@@ -402,7 +402,7 @@ rules:
     kind: payment
     applies: { main_regime: [ausn_income, ausn_income_expense], has_employees: true }
     schedule: { type: monthly, day: 15, month_offset: 1 }
-    needs_amount: true
+    needs_amount: false
     client_visible: true
     source: "п. 4 и 4.1 ст. 22 Федерального закона № 125-ФЗ"
 
@@ -448,7 +448,7 @@ rules:
     kind: payment
     applies: { has_employees: true, ausn_ndfl_tasks: true }
     schedule: { type: monthly, day: 28, month_offset: 0 }
-    needs_amount: true
+    needs_amount: false
     client_visible: true
     source: "п. 6 ст. 226 НК РФ"
 
@@ -470,7 +470,7 @@ rules:
     kind: payment
     applies: { has_employees: true, ausn_ndfl_tasks: true }
     schedule: { type: monthly, day: 5, month_offset: 1, months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }
-    needs_amount: true
+    needs_amount: false
     client_visible: true
     source: "п. 6 ст. 226 НК РФ"
 
@@ -490,7 +490,7 @@ rules:
     kind: payment
     applies: { has_employees: true, ausn_ndfl_tasks: true }
     schedule: { type: handler, name: ndfl_december }
-    needs_amount: true
+    needs_amount: false
     client_visible: true
     source: "п. 6 ст. 226 НК РФ"
 
@@ -533,7 +533,7 @@ rules:
     kind: payment
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: monthly, day: 28, month_offset: 1 }
-    needs_amount: true
+    needs_amount: false
     client_visible: true
     source: "п. 3 ст. 431 НК РФ"
 
@@ -574,7 +574,7 @@ rules:
     kind: payment
     applies: { has_employees: true, main_regime: [osno, usn6, usn15] }
     schedule: { type: monthly, day: 15, month_offset: 1 }
-    needs_amount: true
+    needs_amount: false
     client_visible: true
     source: "п. 4 ст. 22 Федерального закона № 125-ФЗ"
     description: "По действующей редакции 125-ФЗ. Госдума приняла законопроекты о передаче взносов на травматизм в ФНС с 2027 года: после опубликования закона сроки и отчётность проверить."

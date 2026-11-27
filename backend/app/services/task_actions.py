@@ -99,6 +99,7 @@ async def search(
     kinds: list[str] | None = None,
     statuses: list[str] | None = None,
     missing_amount: bool = False,
+    newest_first: bool = False,
     limit: int = 500,
     offset: int = 0,
 ) -> tuple[list, int]:
@@ -125,7 +126,13 @@ async def search(
         query = query.where(Task.needs_amount.is_(True), Task.amount_kopecks.is_(None))
     total = await db.scalar(select(func.count()).select_from(query.subquery()))
     rows = await db.execute(
-        query.order_by(Task.due_date, func.lower(Company.name), Task.title, Task.part, Task.id)
+        query.order_by(
+            Task.due_date.desc() if newest_first else Task.due_date,
+            func.lower(Company.name),
+            Task.title,
+            Task.part,
+            Task.id,
+        )
         .limit(limit)
         .offset(offset)
     )

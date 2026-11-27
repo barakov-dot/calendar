@@ -145,7 +145,7 @@ async def generate_tasks(
             continue
         changed = False
         texts = ("title", "action_title", "period_label", "source_ref")
-        for name in ("due_date", "original_due_date", *texts):
+        for name in ("due_date", "original_due_date", "needs_amount", *texts):
             if name == "due_date" and task.due_overridden:
                 continue  # срок изменён вручную
             if getattr(task, name) != getattr(item, name):

@@ -141,9 +141,12 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
         <EditForm key={JSON.stringify(editableFields(task))} task={task} />
       ) : (
         <Card title="Сумма и комментарии">
-          <p className="text-sm">
-            Сумма: {task.amount_kopecks == null ? 'не указана' : formatKopecks(task.amount_kopecks)}
-          </p>
+          {usesAmount(task) && (
+            <p className="text-sm">
+              Сумма:{' '}
+              {task.amount_kopecks == null ? 'не указана' : formatKopecks(task.amount_kopecks)}
+            </p>
+          )}
           <p className="text-sm">Внутренний комментарий: {task.comment || '—'}</p>
           <p className="text-sm">Комментарий для клиента: {task.client_note || '—'}</p>
           <p className="text-sm">
@@ -167,6 +170,11 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
   )
 }
 
+/** У платежей по правилам без суммы (НДФЛ, взносы, зарплата) сумму не заполняют. */
+function usesAmount(task: TaskDetail) {
+  return task.source !== 'rule' || task.needs_amount || task.amount_kopecks != null
+}
+
 function editableFields(task: TaskDetail) {
   return {
     title: task.title,
@@ -184,7 +192,7 @@ function EditForm({ task }: { task: TaskDetail }) {
   const [form, setForm] = useState(initial)
   const refresh = useRefreshTasks()
   const change = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
-  const hasAmount = task.kind === 'payment' || task.kind === 'other'
+  const hasAmount = (task.kind === 'payment' || task.kind === 'other') && usesAmount(task)
   const kopecks = parseRubles(form.amount)
   // отправляются только изменённые поля: сумма и срок иначе стали бы «ручными»
   const changed = Object.fromEntries(

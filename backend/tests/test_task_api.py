@@ -375,3 +375,12 @@ async def test_mine_returns_only_own_personal_tasks(client, db, world):
     assert await titles(world["admin"], "personal=true") == ["дело админа", "дело бухгалтера"]
     assert await titles(world["admin"], "mine=true") == ["дело админа"]
     assert await titles(world["first"], "mine=true") == ["дело бухгалтера"]
+
+
+async def test_newest_first_reverses_dates(client, world):
+    dates = [
+        item["due_date"]
+        for item in (await listed(client, world["first"], newest_first=True, limit=2000))["items"]
+    ]
+
+    assert dates == sorted(dates, reverse=True) and len(set(dates)) > 1

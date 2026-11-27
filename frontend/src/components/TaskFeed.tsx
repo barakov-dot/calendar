@@ -124,6 +124,8 @@ function Row({
 }) {
   const open = task.status === 'planned'
   const overdue = open && task.due_date < today
+  // сданные отчёты и уведомления читаются как обычные строки, выполненность видна по галочке
+  const submitted = task.status === 'done' && (task.kind === 'report' || task.kind === 'notice')
   const details = [
     task.period_label || KIND_NAMES[task.kind],
     task.company_name,
@@ -138,13 +140,18 @@ function Row({
   return (
     <li className="flex items-center">
       {editable && <Mark task={task} disabled={pending} onClick={onMark} />}
+      {!editable && submitted && (
+        <span role="img" aria-label="Сдано" className="shrink-0 pl-3 text-lg font-bold text-green-600">
+          ✓
+        </span>
+      )}
       <Link
         to={`/tasks/${task.id}`}
         className="flex min-w-0 flex-1 items-center gap-2 py-3 pr-2 pl-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
       >
         <span className="min-w-0 flex-1">
           <span
-            className={`block font-medium break-words ${open ? '' : 'text-slate-500 line-through dark:text-slate-400'}`}
+            className={`block font-medium break-words ${open || submitted ? '' : 'text-slate-500 line-through dark:text-slate-400'}`}
           >
             {task.action_title || task.title}
             {task.has_files && (

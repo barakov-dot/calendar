@@ -377,3 +377,23 @@ async def test_paydays_are_not_created_backdated_and_done_ones_do_not_move(
     items = await all_tasks(db)
     assert ("salary_advance", "2026-07", 1) not in items
     assert ("salary_advance", "2026-06", 1) in items
+
+
+async def test_payroll_payments_do_not_ask_for_amounts(db, calendar, accountant):
+    company = await make_company(
+        db, accountant, main_regime="osno", nds_payer=True, has_employees=True
+    )
+    await generate(db, company)
+    items = await all_tasks(db)
+    payroll = ("ndfl_payment", "ndfl_end_payment", "insurance_payment", "injury_contrib")
+    asked = {key[0]: task.needs_amount for key, task in items.items() if task.kind == "payment"}
+
+    assert [asked[code] for code in payroll] == [False] * 4
+    assert asked["nds_payment"] is True
+    # прежние задачи с пометкой «нужна сумма» исправляются пересчётом
+    old = next(task for key, task in items.items() if key[0] == "insurance_payment")
+    old.needs_amount = True
+    await db.commit()
+    await generate(db, company)
+    await db.refresh(old)
+    assert old.needs_amount is False

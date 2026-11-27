@@ -65,6 +65,7 @@ async def list_tasks(
     kind: Annotated[list[TaskKind] | None, Query()] = None,
     task_status: Annotated[list[TaskStatus] | None, Query(alias="status")] = None,
     missing_amount: bool = False,
+    newest_first: bool = False,
     limit: Annotated[int, Query(ge=1, le=2000)] = 500,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> TaskList:
@@ -80,6 +81,7 @@ async def list_tasks(
         kinds=kind,
         statuses=task_status,
         missing_amount=missing_amount,
+        newest_first=newest_first,
         limit=limit,
         offset=offset,
     )

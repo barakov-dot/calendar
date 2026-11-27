@@ -57,6 +57,7 @@ export default function Tasks({ user }: { user: User }) {
   const filtered = kind !== '' || params.get('status') !== null
   // прошедшие сроки открываются по нажатию, иначе они заслоняют ближайшие дела
   const showLate = params.get('late') === '1'
+  const showSubmitted = params.get('submitted') === '1'
 
   const companies = useCompanies()
   const base = { company_id, kind }
@@ -71,6 +72,13 @@ export default function Tasks({ user }: { user: User }) {
     { ...base, status: statusParam, from: status === 'planned' ? today : undefined },
     tab === 'all',
   )
+  const submitted = useTasks({
+    company_id,
+    // два вида: отчёты и уведомления сдаются, платежи оплачиваются
+    kind: ['report', 'notice'],
+    status: 'done',
+    newest_first: true,
+  })
   const editable = canEdit(user.role)
 
   const late = withOverdue ? (overdue.data?.items ?? []) : []
@@ -92,7 +100,49 @@ export default function Tasks({ user }: { user: User }) {
     (source.data?.total ?? 0) > (source.data?.items.length ?? 0) ||
     (showLate && lateTotal > late.length)
 
-  const error = overdue.error ?? soon.error ?? everything.error
+  const error = overdue.error ?? soon.error ?? everything.error ?? submitted.error
+  const organisation = (
+    <select
+      aria-label="Организация"
+      value={company_id}
+      onChange={(event) => set({ company: event.target.value || null })}
+      className={`${CONTROL} min-w-0 flex-1 truncate`}
+    >
+      <option value="">Все организации</option>
+      {companies.data?.map((company) => (
+        <option key={company.id} value={company.id}>
+          {company.short_name || company.name}
+        </option>
+      ))}
+    </select>
+  )
+
+  if (showSubmitted) {
+    const done = submitted.data?.items ?? []
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold">Сданные отчёты</h1>
+        <Button variant="secondary" onClick={() => set({ submitted: null })}>
+          ← К задачам
+        </Button>
+        <div className="flex gap-2">{organisation}</div>
+        <ErrorText error={error} />
+        {submitted.data && submitted.data.total > done.length && (
+          <Alert kind="warning">Показаны последние. Выберите организацию.</Alert>
+        )}
+        {submitted.data && (
+          <TaskFeed
+            key={`submitted|${company_id}`}
+            // лента сама разворачивает порядок: новые окажутся сверху
+            tasks={[...done].reverse()}
+            today={today}
+            editable={editable}
+            newestFirst
+          />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 pb-20">
@@ -116,6 +166,17 @@ export default function Tasks({ user }: { user: User }) {
         </div>
       )}
       {editable && <SubstitutionNotice userId={user.id} />}
+      <button
+        type="button"
+        onClick={() => set({ submitted: '1' })}
+        className={`${CONTROL} flex w-full cursor-pointer items-center gap-2 font-medium`}
+      >
+        <span aria-hidden="true" className="font-bold text-green-600">
+          ✓
+        </span>
+        Сданные отчёты
+        {submitted.data && <span className="ml-auto">{submitted.data.total}</span>}
+      </button>
       <div
         role="tablist"
         aria-label="Период"
@@ -148,19 +209,7 @@ export default function Tasks({ user }: { user: User }) {
         })}
       </div>
       <div className="flex gap-2">
-        <select
-          aria-label="Организация"
-          value={company_id}
-          onChange={(event) => set({ company: event.target.value || null })}
-          className={`${CONTROL} min-w-0 flex-1 truncate`}
-        >
-          <option value="">Все организации</option>
-          {companies.data?.map((company) => (
-            <option key={company.id} value={company.id}>
-              {company.short_name || company.name}
-            </option>
-          ))}
-        </select>
+        {organisation}
         <button
           type="button"
           aria-expanded={filtersOpen}

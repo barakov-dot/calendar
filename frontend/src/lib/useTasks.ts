@@ -5,12 +5,16 @@ import type { TaskListResponse, TaskStatus } from './tasks'
 
 export const PAGE_LIMIT = 2000
 
-export type TaskFilters = Record<string, string | number | boolean | undefined | null>
+export type TaskFilters = Record<
+  string,
+  string | number | boolean | string[] | undefined | null
+>
 
 export function useTasks(filters: TaskFilters, enabled = true) {
   const params = new URLSearchParams({ limit: String(PAGE_LIMIT) })
   for (const [key, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== null && value !== '') params.set(key, String(value))
+    if (Array.isArray(value)) value.forEach((item) => params.append(key, item))
+    else if (value !== undefined && value !== null && value !== '') params.set(key, String(value))
   }
   return useQuery({
     queryKey: ['tasks', params.toString()],
