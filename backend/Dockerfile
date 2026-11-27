@@ -13,6 +13,10 @@ ARG APP_GID=1000
 RUN (getent group "$APP_GID" >/dev/null || groupadd --gid "$APP_GID" app) \
     && useradd --non-unique --no-log-init --create-home --uid "$APP_UID" --gid "$APP_GID" app
 
+# шрифт с кириллицей для отчётов в PDF
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 RUN chown "$APP_UID:$APP_GID" /app
 

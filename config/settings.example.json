@@ -9,6 +9,7 @@
   "telegram": {
     "bot_username": "my_buh_calendar_bot",
     "mini_app_url": "https://calendar.example.ru/",
+    "login_widget": false,
     "proxy": {
       "enabled": false,
       "type": "socks5",
@@ -31,7 +32,8 @@
     "default_client_offsets_days": [7, 3, 1],
     "remind_on_due_day": true,
     "fill_amount_workdays_before": 5,
-    "overdue_notify": true
+    "overdue_notify": true,
+    "signature_offsets_days": [30, 14, 7, 1]
   },
   "tasks": {
     "generation_horizon_months_ahead": 15,

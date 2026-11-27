@@ -9,12 +9,16 @@ from app.api import (
     admin_calendar,
     admin_settings,
     admin_users,
+    attachments,
     auth,
     companies,
     dev,
     health,
     me,
     reminders,
+    reports,
+    signatures,
+    substitutions,
     tasks,
 )
 from app.core.config import Config, get_config
@@ -72,6 +76,8 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.include_router(reminders.router, prefix="/api")
     app.include_router(me.router, prefix="/api")
     app.include_router(admin_calendar.router, prefix="/api")
+    for module in (attachments, reports, signatures, substitutions):
+        app.include_router(module.router, prefix="/api")
     if config.is_dev:
         app.include_router(dev.router, prefix="/api")
     return app

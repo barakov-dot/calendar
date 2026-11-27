@@ -81,6 +81,10 @@ class Task(Base):
     recurring_reminder_id: Mapped[int | None] = mapped_column(
         ForeignKey("recurring_reminders.id", ondelete="SET NULL")
     )
+    # напоминание о сроке электронной подписи; меняется только через неё
+    signature_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signatures.id", ondelete="CASCADE"), unique=True
+    )
     source: Mapped[str] = mapped_column(String(16))
     rule_code: Mapped[str | None] = mapped_column(String(64))
     period_key: Mapped[str | None] = mapped_column(String(32))

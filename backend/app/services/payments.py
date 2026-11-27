@@ -17,7 +17,7 @@ from app.models import (
     TaskStatus,
     User,
 )
-from app.services import audit, tasks
+from app.services import audit, substitutions, tasks
 from app.services.notify.queue import enqueue
 
 
@@ -82,13 +82,17 @@ def _change(task: Task, status: str, user: User) -> None:
     task.status_changed_at = datetime.now(UTC)
 
 
-async def _responsible(db: AsyncSession, company_id: int) -> list[User]:
-    """Бухгалтер компании, а если его нет или он отключён — администраторы."""
+async def responsible(db: AsyncSession, company_id: int) -> list[User]:
+    """Кому писать по компании: замещающие или бухгалтер, а если никого — администраторы."""
     company = await db.get(Company, company_id)
     if company.accountant_id is not None:
-        accountant = await db.get(User, company.accountant_id)
-        if accountant.is_active:
-            return [accountant]
+        replaced = await substitutions.active(db, tasks.today())
+        found = [
+            await db.get(User, user_id)
+            for user_id in substitutions.recipients(replaced, company.accountant_id)
+        ]
+        if active := [user for user in found if user.is_active]:
+            return active
     return list(
         await db.scalars(select(User).where(User.role == Role.ADMIN, User.is_active.is_(True)))
     )
@@ -102,7 +106,7 @@ async def mark_paid(db: AsyncSession, user: User, task_id: int) -> Task:
         raise PaymentError("Статус уже изменён: обновите список", 409)
     _change(task, TaskStatus.PAID, user)
     audit.record(db, user.id, "task.mark_paid", "task", task.id)
-    for recipient in await _responsible(db, task.company_id):
+    for recipient in await responsible(db, task.company_id):
         await enqueue(
             db,
             recipient.id,

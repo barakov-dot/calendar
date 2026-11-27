@@ -29,6 +29,25 @@ class RefreshIn(BaseModel):
     refresh_token: str = Field(max_length=4096)
 
 
+class WidgetIn(BaseModel):
+    """Поля, которые виджет Telegram передаёт странице; подпись покрывает все."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    auth_date: int
+    hash: str = Field(max_length=128)
+    first_name: str | None = Field(None, max_length=256)
+    last_name: str | None = Field(None, max_length=256)
+    username: str | None = Field(None, max_length=256)
+    photo_url: str | None = Field(None, max_length=1024)
+
+
+class AuthOptionsOut(BaseModel):
+    # имя бота для кнопки входа; null — вход через виджет выключен
+    widget_bot: str | None
+
+
 class LoginRequestOut(BaseModel):
     nonce: str
     code: str

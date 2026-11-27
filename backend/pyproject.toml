@@ -9,6 +9,7 @@ dependencies = [
     "apscheduler>=3,<4",
     "asyncpg",
     "fastapi",
+    "fpdf2",
     "openpyxl",
     "httpx",
     "pyjwt",

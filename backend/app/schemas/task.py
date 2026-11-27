@@ -26,6 +26,7 @@ class ClientTaskOut(BaseModel):
     status: str
     client_note: str
     source_ref: str
+    has_files: bool = False
     # доступные клиенту действия; у сотрудников всегда false
     can_mark_paid: bool = False
     can_unmark_paid: bool = False
@@ -47,6 +48,7 @@ class TaskOut(ClientTaskOut):
     status_changed_by_name: str
     status_changed_by_role: str | None
     recurring_reminder_id: int | None
+    signature_id: int | None
 
 
 class NdsPart(BaseModel):

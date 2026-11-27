@@ -1,21 +1,40 @@
 """Права доступа к компаниям. Каждый эндпоинт проверяет их через этот модуль."""
 
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
 from sqlalchemy import ColumnElement, Select, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Company, CompanyMember, Role, Task, TaskKind, User
+from app.core.settings_store import get_settings
+from app.models import Company, CompanyMember, Role, Substitution, Task, TaskKind, User
 
 
-def accessible_company_ids_query(user: User) -> Select[tuple[int]]:
+def business_today() -> date:
+    return datetime.now(ZoneInfo(get_settings().company.timezone)).date()
+
+
+def _accountant_condition(user: User, on: date | None) -> ColumnElement[bool]:
+    """Свои компании и компании тех, кого бухгалтер замещает в этот день."""
+    day = on or business_today()
+    replaced = select(Substitution.accountant_id).where(
+        Substitution.substitute_id == user.id,
+        Substitution.date_from <= day,
+        Substitution.date_to >= day,
+    )
+    return or_(Company.accountant_id == user.id, Company.accountant_id.in_(replaced))
+
+
+def accessible_company_ids_query(user: User, on: date | None = None) -> Select[tuple[int]]:
     """Подзапрос с id доступных пользователю компаний.
 
-    admin и assistant — все (помощник только читает); accountant — где он ответственный;
-    client — к которым привязан (архивные клиенту не видны).
+    admin и assistant — все (помощник только читает); accountant — где он ответственный
+    или замещает ответственного; client — к которым привязан (архивные клиенту не видны).
     """
     if user.role in (Role.ADMIN, Role.ASSISTANT):
         return select(Company.id)
     if user.role == Role.ACCOUNTANT:
-        return select(Company.id).where(Company.accountant_id == user.id)
+        return select(Company.id).where(_accountant_condition(user, on))
     if user.role == Role.CLIENT:
         return (
             select(Company.id)
@@ -48,9 +67,11 @@ def client_task_condition(show_notices: bool) -> ColumnElement[bool]:
     return visible if show_notices else and_(visible, Task.kind != TaskKind.NOTICE)
 
 
-def visible_task_condition(user: User, show_notices: bool) -> ColumnElement[bool]:
+def visible_task_condition(
+    user: User, show_notices: bool, on: date | None = None
+) -> ColumnElement[bool]:
     """Какие задачи пользователь вправе читать, включая личные напоминания."""
-    company_task = Task.company_id.in_(accessible_company_ids_query(user))
+    company_task = Task.company_id.in_(accessible_company_ids_query(user, on))
     if user.role == Role.CLIENT:
         return and_(company_task, client_task_condition(show_notices))
     if user.role in (Role.ADMIN, Role.ASSISTANT):
@@ -58,7 +79,7 @@ def visible_task_condition(user: User, show_notices: bool) -> ColumnElement[bool
     return or_(company_task, Task.owner_id == user.id)
 
 
-def editable_task_condition(user: User) -> ColumnElement[bool]:
+def editable_task_condition(user: User, on: date | None = None) -> ColumnElement[bool]:
     """Какие задачи пользователь вправе менять. Помощник и клиент — никакие."""
     if user.role == Role.ADMIN:
         return or_(
@@ -66,6 +87,6 @@ def editable_task_condition(user: User) -> ColumnElement[bool]:
         )
     if user.role == Role.ACCOUNTANT:
         return or_(
-            Task.company_id.in_(accessible_company_ids_query(user)), Task.owner_id == user.id
+            Task.company_id.in_(accessible_company_ids_query(user, on)), Task.owner_id == user.id
         )
     raise ValueError(f"роль без права изменения задач: {user.role}")

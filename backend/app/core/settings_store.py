@@ -86,6 +86,8 @@ class ProxySettings(Section):
 class TelegramSettings(Section):
     bot_username: str = ""
     mini_app_url: str = ""
+    # кнопка входа Telegram на сайте; домен нужно указать боту в @BotFather (/setdomain)
+    login_widget: bool = False
     proxy: ProxySettings = Field(default_factory=ProxySettings)
 
 
@@ -103,8 +105,9 @@ class NotificationSettings(Section):
     remind_on_due_day: bool = True
     fill_amount_workdays_before: int = Field(5, ge=0, le=60)
     overdue_notify: bool = True
+    signature_offsets_days: list[int] = Field(default_factory=lambda: [30, 14, 7, 1])
 
-    @field_validator("default_client_offsets_days")
+    @field_validator("default_client_offsets_days", "signature_offsets_days")
     @classmethod
     def positive_offsets(cls, value: list[int]) -> list[int]:
         if any(days < 1 or days > 365 for days in value):

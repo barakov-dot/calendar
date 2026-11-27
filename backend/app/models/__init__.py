@@ -9,6 +9,7 @@ from app.models.company import (
     ProfitAdvances,
     Regime,
 )
+from app.models.extras import Attachment, Signature, Substitution
 from app.models.notification import (
     Notification,
     NotificationSettings,
@@ -29,6 +30,7 @@ from app.models.task import (
 from app.models.user import AuditLog, Invite, InviteKind, LoginRequest, Role, User
 
 __all__ = [
+    "Attachment",
     "Audience",
     "AuditLog",
     "Base",
@@ -49,6 +51,8 @@ __all__ = [
     "Regime",
     "Role",
     "ShiftRule",
+    "Signature",
+    "Substitution",
     "Task",
     "TaskKind",
     "TaskSource",

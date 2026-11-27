@@ -7,9 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, Database
-from app.core.permissions import accessible_company_ids_query
+from app.core.permissions import accessible_company_ids_query, business_today
 from app.core.settings_store import get_settings
 from app.models import Company, NotificationSettings, Role, User
+from app.services import substitutions
 from app.services.companies import person_name
 
 router = APIRouter(prefix="/me")
@@ -42,6 +43,8 @@ class Contact(BaseModel):
     company: str
     accountant: str
     username: str
+    # временно замещает ответственного бухгалтера
+    substitute: bool = False
 
 
 class ContactsOut(BaseModel):
@@ -94,14 +97,22 @@ async def contacts(user: CurrentUser, db: Database) -> ContactsOut:
             .where(Company.id.in_(accessible_company_ids_query(user)), User.is_active.is_(True))
             .order_by(Company.id)
         )
-        accountants = [
-            Contact(
-                company=company.short_name or company.name,
-                accountant=person_name(accountant),
-                username=accountant.username,
-            )
-            for company, accountant in rows
-        ]
+        replaced = await substitutions.active(db, business_today())
+        accountants = []
+        for company, accountant in rows:
+            name = company.short_name or company.name
+            # пока бухгалтера замещают, клиенту показываем, к кому обращаться
+            substitute_ids = replaced.get(accountant.id, [])
+            people = [await db.get(User, user_id) for user_id in substitute_ids] or [accountant]
+            accountants += [
+                Contact(
+                    company=name,
+                    accountant=person_name(person),
+                    username=person.username,
+                    substitute=bool(substitute_ids),
+                )
+                for person in people
+            ]
     return ContactsOut(
         support_contact=get_settings().company.support_contact, accountants=accountants
     )

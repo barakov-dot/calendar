@@ -44,6 +44,7 @@ class FakeTelegram:
         self.sent: list[tuple[int, str]] = []
         self.keyboards: list[list[dict]] = []  # кнопки каждого отправленного сообщения
         self.edited: list[str] = []
+        self.documents: list[tuple[int, str, bytes]] = []  # (чат, имя, содержимое)
         self.answers: list[str] = []  # ответы на нажатия кнопок
         self.menu_urls: list[str | None] = []
         # chat_id → (код ошибки, описание, параметры) для sendMessage
@@ -141,6 +142,16 @@ class FakeTelegram:
                 },
                 status=code,
             )
+        elif method == "sendDocument":
+            upload = data["document"]
+            if isinstance(upload, str):  # aiogram: "attach://<имя поля>"
+                upload = data[upload.removeprefix("attach://")]
+            self.documents.append((int(data["chat_id"]), upload.filename, upload.file.read()))
+            result = {
+                "message_id": len(self.documents),
+                "date": 1_700_000_000,
+                "chat": {"id": int(data["chat_id"]), "type": "private"},
+            }
         elif method == "editMessageText":
             self.edited.append(data["text"])
         elif method == "sendMessage":

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import editable_task_condition, visible_task_condition
 from app.core.settings_store import AppSettings
 from app.models import (
+    Attachment,
     Company,
     CompanyMember,
     Notification,
@@ -33,8 +34,9 @@ from app.models import (
     TaskStatus,
     User,
 )
+from app.services import substitutions
 from app.services.notify import messages
-from app.services.notify.planner import local_now
+from app.services.notify.planner import local_now, reachable
 from app.services.telegram.connect import REQUEST_TIMEOUT
 
 logger = logging.getLogger(__name__)
@@ -58,7 +60,12 @@ class Message:
 async def digest_tasks(
     db: AsyncSession, user: User, current: date
 ) -> list[tuple[Task, Company | None]]:
-    """Открытые задачи компаний, за которые отвечает пользователь, и личные."""
+    """Открытые задачи компаний, за которые отвечает пользователь, и личные.
+
+    Пока пользователя замещают, его компании получает замещающий.
+    """
+    replaced = await substitutions.active(db, current, *reachable())
+    accountants = substitutions.answers_for(replaced, user.id)
     rows = await db.execute(
         select(Task, Company)
         .outerjoin(Company, Company.id == Task.company_id)
@@ -67,7 +74,7 @@ async def digest_tasks(
             Task.due_date <= current + timedelta(days=7),
             or_(
                 Task.owner_id == user.id,
-                (Company.accountant_id == user.id) & Company.is_archived.is_(False),
+                Company.accountant_id.in_(accountants) & Company.is_archived.is_(False),
             ),
         )
         .order_by(Task.due_date, Company.name, Task.title, Task.id)
@@ -76,13 +83,13 @@ async def digest_tasks(
 
 
 async def _task_for(
-    db: AsyncSession, settings: AppSettings, user: User, task_id: int
+    db: AsyncSession, settings: AppSettings, user: User, task_id: int, current: date
 ) -> tuple[Task, Company, CompanyMember | None] | None:
     """Задача, если получатель всё ещё вправе её видеть."""
     if user.role == Role.CLIENT:
-        condition = visible_task_condition(user, settings.tasks.show_notices_to_clients)
+        condition = visible_task_condition(user, settings.tasks.show_notices_to_clients, current)
     elif user.role in (Role.ADMIN, Role.ACCOUNTANT):
-        condition = editable_task_condition(user)
+        condition = editable_task_condition(user, current)
     else:
         return None
     row = (
@@ -119,7 +126,7 @@ async def _grouped(
     kind = rows[0].type
     actual, found = [], []
     for row in rows:
-        item = await _task_for(db, settings, user, row.task_id)
+        item = await _task_for(db, settings, user, row.task_id, current)
         if item is None or item[0].status != TaskStatus.PLANNED:
             continue
         task = item[0]
@@ -145,22 +152,41 @@ async def _grouped(
 async def _single(
     db: AsyncSession, settings: AppSettings, user: User, row: Notification, current: date
 ) -> Message | None:
-    item = await _task_for(db, settings, user, row.task_id)
+    item = await _task_for(db, settings, user, row.task_id, current)
     if item is None:
         return None
     task, company, member = item
+    if row.type == NotificationType.SIGNATURE:
+        if task.status != TaskStatus.PLANNED or task.due_date < current:
+            return None
+        if user.role == Role.CLIENT and (member is None or not member.receive_reminders):
+            return None
+        buttons = messages.keyboard(
+            messages.calendar_button(settings, "Открыть", f"tasks/{task.id}")
+        )
+        return Message(messages.signature_reminder(task, company, current), buttons, [row])
+    if row.type == NotificationType.ATTACHMENT:
+        author = await db.scalar(
+            select(User)
+            .join(Attachment, Attachment.uploaded_by == User.id)
+            .where(Attachment.task_id == task.id, User.role == Role.CLIENT)
+            .order_by(Attachment.id.desc())
+            .limit(1)
+        )
+        if author is None or user.role == Role.CLIENT:
+            return None  # файл уже удалили
+        name = f"{author.first_name} {author.last_name}".strip() or "Клиент"
+        text = f"{name} приложил(а) файл к платежу\n{messages.plain_line(task, company)}"
+        buttons = messages.keyboard(
+            messages.calendar_button(settings, "Открыть", f"tasks/{task.id}")
+        )
+        return Message(messages.clip(text), buttons, [row])
     if row.type == NotificationType.CLIENT_MARKED_PAID:
         if task.status != TaskStatus.PAID or task.status_changed_by_role != Role.CLIENT:
             return None
         payer = await db.get(User, task.status_changed_by)
         name = f"{payer.first_name} {payer.last_name}".strip() or "Клиент"
-        # оплата уже отмечена, поэтому без цветного кружка срочности
-        line = (
-            f"{messages.company_name(company)}: {task.title} (до {messages.short(task.due_date)})"
-        )
-        if task.amount_kopecks is not None:
-            line += f" — {messages.money(task.amount_kopecks)}"
-        text = f"{name} отметил(а) оплату\n{line}"
+        text = f"{name} отметил(а) оплату\n{messages.plain_line(task, company)}"
         buttons = messages.keyboard(
             messages.calendar_button(settings, "Открыть", f"tasks/{task.id}"),
             messages.unpaid_button(task.id),

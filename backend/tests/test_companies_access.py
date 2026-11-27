@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.core.permissions import get_accessible_company_ids
 from app.core.settings_store import get_store
 from app.main import app
-from app.models import Company, CompanyMember, Patent, Role
+from app.models import Company, CompanyMember, Patent, Role, Signature
 from app.services.inn import with_check_digits
 from tests.factories import auth, link_client, make_company, make_user
 
@@ -31,7 +31,8 @@ async def world(db):
     await link_client(db, other, client_b, can_mark_paid=True)
     await link_client(db, archived, client_a)
     patent = Patent(company_id=other.id, date_start=date(2026, 1, 1), date_end=date(2026, 2, 1))
-    db.add(patent)
+    signature = Signature(company_id=other.id, holder="Директор", expires_on=date(2027, 1, 1))
+    db.add_all([patent, signature])
     await db.commit()
     return locals()
 
@@ -73,6 +74,18 @@ COMPANY_ENDPOINTS = [
     ("GET", "/api/companies/{company_id}/invites", None),
     ("POST", "/api/companies/{company_id}/invites", {}),
     ("DELETE", "/api/companies/{company_id}/invites/{invite_id}", None),
+    ("GET", "/api/companies/{company_id}/signatures", None),
+    (
+        "POST",
+        "/api/companies/{company_id}/signatures",
+        {"holder": "Чужой", "expires_on": "2027-01-01"},
+    ),
+    (
+        "PATCH",
+        "/api/companies/{company_id}/signatures/{signature_id}",
+        {"holder": "Чужой", "expires_on": "2027-01-01"},
+    ),
+    ("DELETE", "/api/companies/{company_id}/signatures/{signature_id}", None),
 ]
 
 
@@ -89,7 +102,7 @@ def test_every_company_endpoint_is_covered():
 
 async def snapshot(db) -> list:
     result = []
-    for model in (Company, CompanyMember, Patent):
+    for model in (Company, CompanyMember, Patent, Signature):
         rows = await db.execute(select(model.__table__).order_by(*model.__table__.primary_key))
         result.append([tuple(row) for row in rows])
     return result
@@ -102,6 +115,7 @@ async def test_foreign_company_is_not_available(client, db, world, method, path,
         patent_id=world["patent"].id,
         user_id=world["client_b"].id,
         invite_id=1,
+        signature_id=world["signature"].id,
     )
     strangers = [auth(world["first"]), auth(world["client_a"])]
     own_client = auth(world["client_b"])
@@ -117,23 +131,32 @@ async def test_foreign_company_is_not_available(client, db, world, method, path,
         # клиент своей компании только смотрит
         response = await client.request(method, url, json=body, headers=own_client)
         assert response.status_code == 403
-        # помощник тоже только читает
+        # помощник тоже только читает: изменить ничего не может
         response = await client.request(method, url, json=body, headers=auth(world["helper"]))
-        assert response.status_code == 403
+        reads_signatures = method == "GET" and path.endswith("/signatures")
+        assert response.status_code == (200 if reads_signatures else 403)
 
     assert await snapshot(db) == before
 
 
 @pytest.mark.parametrize(
     "path",
-    ["/patents/{patent_id}", "/members/{user_id}", "/invites/{invite_id}"],
+    [
+        "/patents/{patent_id}",
+        "/members/{user_id}",
+        "/invites/{invite_id}",
+        "/signatures/{signature_id}",
+    ],
 )
 async def test_nested_object_of_foreign_company_via_own(client, db, world, path):
     invite = await client.post(
         f"/api/companies/{world['other'].id}/invites", json={}, headers=auth(world["admin"])
     )
     url = f"/api/companies/{world['own'].id}" + path.format(
-        patent_id=world["patent"].id, user_id=world["client_b"].id, invite_id=invite.json()["id"]
+        patent_id=world["patent"].id,
+        user_id=world["client_b"].id,
+        invite_id=invite.json()["id"],
+        signature_id=world["signature"].id,
     )
     before = await snapshot(db)
 

@@ -4,9 +4,18 @@ from app.api.deps import AppConfig, CurrentUser, Database, JwtSecret, unauthoriz
 from app.core import security
 from app.core.settings_store import get_settings
 from app.models import User
-from app.schemas.auth import InitDataIn, LoginRequestOut, PollOut, RefreshIn, Tokens, UserOut
+from app.schemas.auth import (
+    AuthOptionsOut,
+    InitDataIn,
+    LoginRequestOut,
+    PollOut,
+    RefreshIn,
+    Tokens,
+    UserOut,
+    WidgetIn,
+)
 from app.services import login
-from app.services.telegram.link import bot_link
+from app.services.telegram.link import bot_link, bot_username
 from app.services.users import can_sign_in, get_by_telegram_id
 
 router = APIRouter()
@@ -44,6 +53,30 @@ async def telegram_webapp(
         raise unauthorized(str(error)) from None
     user = ensure_allowed(await get_by_telegram_id(db, telegram_user["id"]))
     return issue_tokens(user, secret)
+
+
+@router.get("/auth/options")
+async def options() -> AuthOptionsOut:
+    settings = get_settings()
+    enabled = settings.telegram.login_widget
+    return AuthOptionsOut(widget_bot=bot_username(settings) if enabled else None)
+
+
+@router.post("/auth/telegram-widget")
+async def telegram_widget(
+    body: WidgetIn, db: Database, config: AppConfig, secret: JwtSecret
+) -> Tokens:
+    if not get_settings().telegram.login_widget:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Вход через виджет выключен")
+    if config.bot_token is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "BOT_TOKEN не задан")
+    try:
+        telegram_id = security.validate_widget_data(
+            body.model_dump(exclude_none=True), config.bot_token.get_secret_value()
+        )
+    except security.AuthError as error:
+        raise unauthorized(str(error)) from None
+    return issue_tokens(ensure_allowed(await get_by_telegram_id(db, telegram_id)), secret)
 
 
 @router.post("/auth/login-request")

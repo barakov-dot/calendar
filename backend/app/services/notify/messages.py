@@ -44,6 +44,31 @@ def task_line(task: Task, company: Company | None, current: date) -> str:
     return " — ".join(parts)
 
 
+def plain_line(task: Task, company: Company) -> str:
+    """Без кружка срочности: для сообщений о том, что уже сделано."""
+    line = f"{company_name(company)}: {task.title} (до {short(task.due_date)})"
+    if task.amount_kopecks is not None:
+        line += f" — {money(task.amount_kopecks)}"
+    return line
+
+
+def days_word(count: int) -> str:
+    if count % 10 == 1 and count % 100 != 11:
+        return "день"
+    if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        return "дня"
+    return "дней"
+
+
+def signature_reminder(task: Task, company: Company, current: date) -> str:
+    left = (task.due_date - current).days
+    rest = "истекает сегодня" if left == 0 else f"осталось {left} {days_word(left)}"
+    return clip(
+        f"{marker(task.due_date, current)} {company_name(company)}: {task.title} — "
+        f"действует до {task.due_date:%d.%m.%Y}, {rest}"
+    )
+
+
 def section(title: str, rows: Iterable[tuple[Task, Company | None]], current: date) -> str:
     rows = list(rows)
     lines = [task_line(task, company, current) for task, company in rows[:LINES_PER_SECTION]]

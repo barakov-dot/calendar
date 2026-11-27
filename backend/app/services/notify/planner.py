@@ -3,6 +3,7 @@
 Повторные запуски безопасны: ключ в журнале не даёт создать дубль.
 """
 
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -22,6 +23,7 @@ from app.models import (
     TaskStatus,
     User,
 )
+from app.services import substitutions
 from app.services.calendar.workdays import WorkCalendar, load_calendar
 from app.services.notify.queue import enqueue
 from app.services.task_state import PAYDAY_RULES
@@ -74,27 +76,48 @@ def _open_company_tasks():
     )
 
 
+@dataclass
+class _Staff:
+    """Кто из сотрудников получает уведомления по компаниям сегодня."""
+
+    substitutes: dict[int, list[int]]
+    reachable: set[int]
+
+    def recipients(self, accountant_id: int | None) -> list[int]:
+        if accountant_id is None:
+            return []
+        found = substitutions.recipients(self.substitutes, accountant_id)
+        return [user_id for user_id in found if user_id in self.reachable]
+
+
+async def _staff(db: AsyncSession, current: date) -> _Staff:
+    ids = await db.scalars(select(User.id).where(User.role.in_(substitutions.STAFF), *reachable()))
+    # недоступный замещающий не отнимает сообщения у бухгалтера
+    replaced = await substitutions.active(db, current, *reachable())
+    return _Staff(replaced, set(ids))
+
+
 async def _fill_amount(
-    db: AsyncSession, settings: AppSettings, calendar: WorkCalendar, current: date
+    db: AsyncSession,
+    settings: AppSettings,
+    staff: _Staff,
+    calendar: WorkCalendar,
+    current: date,
 ) -> None:
     ahead = settings.notifications.fill_amount_workdays_before
     rows = await db.execute(
-        _open_company_tasks()
-        .join(User, User.id == Company.accountant_id)
-        .where(
+        _open_company_tasks().where(
             Task.kind == TaskKind.PAYMENT,
             Task.needs_amount.is_(True),
             Task.amount_kopecks.is_(None),
             # с запасом на длинные праздники; точный отбор — по рабочим дням ниже
             Task.due_date.between(current, current + timedelta(days=ahead * 2 + 20)),
-            *reachable(),
         )
     )
     for task, company in rows.all():
         if workdays_until(calendar, current, task.due_date) <= ahead:
-            await enqueue(
-                db, company.accountant_id, NotificationType.FILL_AMOUNT, task.due_date, task.id
-            )
+            for user_id in staff.recipients(company.accountant_id):
+                await enqueue(db, user_id, NotificationType.FILL_AMOUNT, task.due_date, task.id)
 
 
 def _client_tasks(settings: AppSettings):
@@ -142,18 +165,54 @@ async def _reminders(db: AsyncSession, settings: AppSettings, current: date) -> 
             await enqueue(db, member.user_id, NotificationType.REMINDER, current, task.id)
 
 
-async def _overdue(db: AsyncSession, settings: AppSettings, current: date) -> None:
+async def _signatures(
+    db: AsyncSession, settings: AppSettings, staff: _Staff, current: date
+) -> None:
+    """Напоминания об окончании ЭЦП: за каждый из порогов по одному разу.
+
+    Если пройдено несколько порогов (подпись внесли поздно), берётся ближайший.
+    """
+    thresholds = sorted({0, *settings.notifications.signature_offsets_days})
+    rows = await db.execute(
+        _open_company_tasks().where(
+            Task.signature_id.is_not(None),
+            Task.due_date.between(current, current + timedelta(days=thresholds[-1])),
+        )
+    )
+    for task, company in rows.all():
+        left = (task.due_date - current).days
+        threshold = next(days for days in thresholds if days >= left)
+        users = staff.recipients(company.accountant_id)
+        if task.client_visible:
+            users += await db.scalars(
+                select(User.id)
+                .join(CompanyMember, CompanyMember.user_id == User.id)
+                .where(
+                    CompanyMember.company_id == company.id,
+                    CompanyMember.receive_reminders.is_(True),
+                    User.role == Role.CLIENT,
+                    *reachable(),
+                )
+            )
+        for user_id in users:
+            await enqueue(
+                db,
+                user_id,
+                NotificationType.SIGNATURE,
+                task.due_date - timedelta(days=threshold),
+                task.id,
+            )
+
+
+async def _overdue(db: AsyncSession, settings: AppSettings, staff: _Staff, current: date) -> None:
     window = Task.due_date.between(
         current - timedelta(days=OVERDUE_WINDOW_DAYS), current - timedelta(days=1)
     )
     # бухгалтеру — всегда, по всем задачам его компаний
-    rows = await db.execute(
-        _open_company_tasks()
-        .join(User, User.id == Company.accountant_id)
-        .where(window, *reachable())
-    )
+    rows = await db.execute(_open_company_tasks().where(window))
     for task, company in rows.all():
-        await enqueue(db, company.accountant_id, NotificationType.OVERDUE, task.due_date, task.id)
+        for user_id in staff.recipients(company.accountant_id):
+            await enqueue(db, user_id, NotificationType.OVERDUE, task.due_date, task.id)
     # клиенту — только если он платит сам
     rows = await db.execute(
         _client_tasks(settings).where(
@@ -173,8 +232,10 @@ async def plan(db: AsyncSession, settings: AppSettings, now: datetime) -> None:
     await _digests(db, settings, current, clock, calendar.is_workday(current))
     # остальное — не раньше общего времени дайджеста, чтобы не писать ночью
     if clock >= settings.notifications.digest_time:
-        await _fill_amount(db, settings, calendar, current)
+        staff = await _staff(db, current)
+        await _fill_amount(db, settings, staff, calendar, current)
         await _reminders(db, settings, current)
+        await _signatures(db, settings, staff, current)
         if settings.notifications.overdue_notify:
-            await _overdue(db, settings, current)
+            await _overdue(db, settings, staff, current)
     await db.commit()

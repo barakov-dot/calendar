@@ -25,6 +25,8 @@ class NotificationType(StrEnum):
     OVERDUE = "overdue"
     CLIENT_MARKED_PAID = "client_marked_paid"
     FILL_AMOUNT = "fill_amount"
+    ATTACHMENT = "attachment"  # клиент приложил файл
+    SIGNATURE = "signature"  # заканчивается срок электронной подписи
 
 
 class NotificationStatus(StrEnum):

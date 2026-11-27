@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import editable_task_condition, visible_task_condition
 from app.models import (
+    Attachment,
     Company,
     RecurringReminder,
     Role,
@@ -125,7 +126,21 @@ async def search(
         .offset(offset)
     )
     payer_ids = await _payer_ids(db, user)
-    return [_view(user, *row, payer_ids) for row in rows], total
+    items = [_view(user, *row, payer_ids) for row in rows]
+    await _mark_files(db, items)
+    return items, total
+
+
+async def _mark_files(db: AsyncSession, items: list) -> None:
+    if not items:
+        return
+    with_files = set(
+        await db.scalars(
+            select(Attachment.task_id).where(Attachment.task_id.in_([item.id for item in items]))
+        )
+    )
+    for item in items:
+        item.has_files = item.id in with_files
 
 
 async def read(db: AsyncSession, user: User, show_notices: bool, task_id: int):
@@ -133,6 +148,7 @@ async def read(db: AsyncSession, user: User, show_notices: bool, task_id: int):
     if row is None:
         return None
     view = _view(user, *row, await _payer_ids(db, user))
+    await _mark_files(db, [view])
     if user.role == Role.CLIENT:
         return view
     task = row[0]
@@ -169,6 +185,9 @@ async def patch(db: AsyncSession, actor: User, task: Task, body: TaskPatch) -> N
     reset_due = values.pop("reset_due", False)
     if empty := [name for name, v in values.items() if v is None and name != "amount_kopecks"]:
         raise TaskError(f"Поле нельзя очистить: {', '.join(empty)}")
+    locked = {"title", "description", "due_date", "reset_due", "client_visible"}
+    if task.signature_id and sent & locked:
+        raise TaskError("Это напоминание об ЭЦП: измените подпись в карточке компании")
     if task.source != TaskSource.CUSTOM and sent & {"title", "description"}:
         raise TaskError("Название и описание задачи из налоговых правил менять нельзя")
     if values.get("amount_kopecks") is not None and task.kind not in AMOUNT_KINDS:
@@ -257,6 +276,8 @@ async def create(db: AsyncSession, actor: User, body: TaskCreate) -> Task:
 
 
 async def delete(db: AsyncSession, actor: User, task: Task) -> None:
+    if task.signature_id:
+        raise TaskError("Это напоминание об ЭЦП: удалите подпись в карточке компании")
     if task.source != TaskSource.CUSTOM:
         raise TaskError("Задачу из налоговых правил удалить нельзя: отметьте «Не требуется»")
     if task.recurring_reminder_id:
