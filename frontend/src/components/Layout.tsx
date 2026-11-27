@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { NavLink, Outlet } from 'react-router'
 
 import { fullName } from '../lib/format'
 import { navClass } from '../lib/navClass'
@@ -31,9 +31,6 @@ function links(user: User): [string, string][] {
 
 /** На широком экране меню слева, на телефоне — сверху. */
 export default function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
-  // клиенту хватает узкой колонки, сотрудникам нужна ширина, настройкам — вся
-  const settings = useLocation().pathname.startsWith('/settings')
-  const width = user.role === 'client' ? 'max-w-3xl' : settings ? '' : 'max-w-6xl'
   return (
     <div className="min-h-screen lg:flex">
       <header className="border-b border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-b-0 dark:border-slate-800 dark:bg-slate-900">
@@ -62,7 +59,7 @@ export default function Layout({ user, onLogout }: { user: User; onLogout: () =>
           </div>
         </div>
       </header>
-      <main className={`mx-auto w-full min-w-0 flex-1 p-3 sm:p-5 ${width}`}>
+      <main className="w-full min-w-0 flex-1 p-3 sm:p-5">
         <Outlet />
       </main>
     </div>
