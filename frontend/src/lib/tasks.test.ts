@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
-import { addDays, addMonths, monthEnd, monthGrid, statusesFor, todayIso, toneOf } from './tasks'
+import {
+  addDays,
+  addMonths,
+  dayTitle,
+  monthEnd,
+  monthGrid,
+  relativeDay,
+  statusesFor,
+  tasksWord,
+  todayIso,
+  toneOf,
+} from './tasks'
 
 describe('статусы', () => {
   it('платёж отмечается оплаченным, остальное — сданным', () => {
@@ -38,5 +49,33 @@ describe('даты', () => {
     expect(grid.at(-1)?.[0]).toBe('2026-11-30')
     expect(grid.flat().filter(Boolean)).toHaveLength(30)
     expect(grid.every((week) => week.length === 7)).toBe(true)
+  })
+})
+
+describe('подписи дней', () => {
+  it.each([
+    ['2026-11-27', 'сегодня'],
+    ['2026-11-28', 'завтра'],
+    ['2026-11-30', 'через 3 дня'],
+    ['2026-12-02', 'через 5 дней'],
+    ['2026-11-26', 'вчера'],
+    ['2026-11-06', '21 день назад'],
+  ])('%s — %s', (date, text) => {
+    expect(relativeDay(date, '2026-11-27')).toBe(text)
+  })
+
+  it('склоняет слово «задача»', () => {
+    expect([1, 3, 5, 11, 22].map(tasksWord)).toEqual([
+      'задача',
+      'задачи',
+      'задач',
+      'задач',
+      'задачи',
+    ])
+  })
+
+  it('год показывает, только если он не текущий', () => {
+    expect(dayTitle('2026-11-30', '2026-11-27')).toBe('Пн, 30 ноября')
+    expect(dayTitle('2027-01-11', '2026-11-27')).toContain('2027')
   })
 })

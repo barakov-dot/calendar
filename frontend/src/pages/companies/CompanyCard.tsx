@@ -28,7 +28,7 @@ export default function CompanyCard({ user }: { user: User }) {
   return (
     <div className="space-y-4">
       <Link to="/companies" className="text-sm text-blue-600 underline">
-        ← Все компании
+        ← Все организации
       </Link>
       <ErrorText error={company.error} />
       {company.data && <Loaded key={id} company={company.data} user={user} />}

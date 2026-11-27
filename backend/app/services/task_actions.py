@@ -95,6 +95,7 @@ async def search(
     date_to: date | None = None,
     company_id: int | None = None,
     personal: bool = False,
+    mine: bool = False,
     kinds: list[str] | None = None,
     statuses: list[str] | None = None,
     missing_amount: bool = False,
@@ -109,6 +110,9 @@ async def search(
         query = query.where(or_(Task.company_id.is_(None), Company.is_archived.is_(False)))
     if personal:
         query = query.where(Task.company_id.is_(None))
+    if mine:
+        # личные задачи самого пользователя: админ видит и чужие, но это не «мои дела»
+        query = query.where(Task.owner_id == user.id)
     if date_from:
         query = query.where(Task.due_date >= date_from)
     if date_to:

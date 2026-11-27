@@ -1,5 +1,5 @@
 // legacy-сборка работает и в старых встроенных браузерах телефонов
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { getDocument, PDFWorker } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import PdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?worker'
 import { useEffect, useRef, useState } from 'react'
 
@@ -21,10 +21,13 @@ export default function PdfView({ file }: { file: Blob }) {
   useEffect(() => {
     let cancelled = false
     const box = holder.current!
-    GlobalWorkerOptions.workerPort ??= new PdfWorker()
-
+    // свой поток на каждый просмотр: закрытие одного не мешает другому
     const render = async () => {
-      const task = getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
+      const data = new Uint8Array(await file.arrayBuffer())
+      if (cancelled) return
+      const port = new PdfWorker()
+      const worker = PDFWorker.create({ port })
+      const task = getDocument({ data, worker })
       try {
         const pdf = await task.promise
         const width = box.clientWidth || 800
@@ -42,10 +45,14 @@ export default function PdfView({ file }: { file: Blob }) {
           await page.render({ canvas, viewport }).promise
           if (cancelled) return
           box.append(canvas)
+          // первая страница уже видна, остальные дорисовываются ниже
+          setState({ loading: false })
         }
         setState({ loading: false, hidden: Math.max(0, pdf.numPages - MAX_PAGES) })
       } finally {
         await task.destroy()
+        worker.destroy()
+        port.terminate()
       }
     }
 

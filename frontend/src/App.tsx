@@ -16,10 +16,11 @@ import Login from './pages/Login'
 import SettingsPage from './pages/settings/SettingsPage'
 import Reminders from './pages/reminders/Reminders'
 import Reports from './pages/reports/Reports'
-import CalendarPage from './pages/tasks/CalendarPage'
+import More from './pages/More'
+import MyTasks from './pages/tasks/MyTasks'
 import NewTask from './pages/tasks/NewTask'
 import TaskPage from './pages/tasks/TaskPage'
-import Today from './pages/tasks/Today'
+import Tasks from './pages/tasks/Tasks'
 import { canEdit } from './lib/roles'
 import { useAuth } from './useAuth'
 
@@ -54,7 +55,7 @@ export default function App() {
           <Route element={<Layout user={user} onLogout={logout} />}>
             <Route
               index
-              element={user.role === 'client' ? <ClientPayments /> : <Today user={user} />}
+              element={user.role === 'client' ? <ClientPayments /> : <Tasks user={user} />}
             />
             {user.role !== 'assistant' && (
               <Route path="preferences" element={<Preferences user={user} />} />
@@ -68,7 +69,9 @@ export default function App() {
             )}
             {user.role !== 'client' && (
               <>
-                <Route path="calendar" element={<CalendarPage user={user} />} />
+                {/* прежний адрес календаря */}
+                <Route path="calendar" element={<Navigate to="/?view=calendar" replace />} />
+                <Route path="more" element={<More user={user} onLogout={logout} />} />
                 <Route path="reminders" element={<Reminders user={user} />} />
                 <Route path="reports" element={<Reports user={user} />} />
                 <Route path="tasks/:id" element={<TaskPage user={user} />} />
@@ -76,6 +79,7 @@ export default function App() {
                 <Route path="companies/:id" element={<CompanyCard user={user} />} />
                 {canEdit(user.role) && (
                   <>
+                    <Route path="my" element={<MyTasks />} />
                     <Route path="tasks/new" element={<NewTask />} />
                     <Route path="companies/new" element={<NewCompany user={user} />} />
                   </>

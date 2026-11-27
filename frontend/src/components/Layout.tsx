@@ -1,36 +1,148 @@
-import { NavLink, Outlet } from 'react-router'
+import type { ComponentType } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router'
 
 import { fullName } from '../lib/format'
 import { navClass } from '../lib/navClass'
-import { ROLE_NAMES } from '../lib/roles'
+import { canEdit, ROLE_NAMES } from '../lib/roles'
+import { dayTitle, todayIso } from '../lib/tasks'
 import type { User } from '../lib/types'
+import { needsAttention, useCompanies } from '../lib/useCompanies'
+import { BellIcon, BuildingIcon, CalendarIcon, CheckSquareIcon, GearIcon, ReportIcon } from './Icons'
 import ThemeToggle from './ThemeToggle'
 import { Button } from './ui'
 
-function links(user: User): [string, string][] {
-  if (user.role === 'client') {
-    return [
-      ['/', 'Платежи'],
-      ['/calendar', 'Календарь'],
-      ['/history', 'История'],
-      ['/preferences', 'Настройки'],
-    ]
-  }
-  const staff: [string, string][] = [
-    ['/', 'Сегодня'],
-    ['/calendar', 'Календарь'],
-    ['/companies', 'Компании'],
-    ['/reminders', 'Напоминания'],
-    ['/reports', 'Отчёты'],
-  ]
-  if (user.role === 'assistant') return staff
-  staff.push(['/preferences', 'Уведомления'])
-  if (user.role !== 'admin') return staff
-  return [...staff, ['/accountants', 'Команда'], ['/settings', 'Настройки']]
+interface Entry {
+  to: string
+  title: string
+  Symbol: ComponentType<{ className?: string }>
+  badge?: number
+  /** Другие адреса, на которых пункт тоже подсвечен. */
+  also?: string[]
 }
 
-/** На широком экране меню слева, на телефоне — сверху. */
-export default function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
+/** Разделы, открываемые из «Настроек». */
+const INSIDE_MORE = ['/preferences', '/accountants', '/settings']
+
+function Badge({ count }: { count?: number }) {
+  return count ? (
+    <span
+      aria-label={`требуют внимания: ${count}`}
+      className="min-w-5 rounded-full bg-orange-600 px-1.5 text-center text-xs font-semibold text-white"
+    >
+      {count}
+    </span>
+  ) : null
+}
+
+/** Сотрудник: на широком экране меню слева, на телефоне — снизу. */
+function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
+  const path = useLocation().pathname
+  const companies = useCompanies()
+  const today = todayIso()
+  const attention = companies.data?.filter(needsAttention).length
+
+  const main: Entry[] = [
+    { to: '/', title: 'Задачи', Symbol: CalendarIcon },
+    // помощник ничего не создаёт, личных дел у него нет
+    ...(canEdit(user.role) ? [{ to: '/my', title: 'Мои дела', Symbol: CheckSquareIcon }] : []),
+    { to: '/companies', title: 'Организации', Symbol: BuildingIcon, badge: attention },
+  ]
+  // на телефоне эти разделы открываются из «Настроек»
+  const wide: Entry[] = [
+    { to: '/reminders', title: 'Напоминания', Symbol: BellIcon },
+    { to: '/reports', title: 'Отчёты', Symbol: ReportIcon },
+  ]
+  const more: Entry = { to: '/more', title: 'Настройки', Symbol: GearIcon, also: INSIDE_MORE }
+  const phone: Entry[] = [...main, { ...more, also: [...INSIDE_MORE, '/reminders', '/reports'] }]
+
+  const inside = (entry: Entry) => entry.also?.some((prefix) => path.startsWith(prefix)) ?? false
+
+  return (
+    <div className="min-h-screen lg:flex">
+      <aside className="hidden border-r border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col dark:border-slate-800 dark:bg-slate-900">
+        <div className="px-4 pt-5 pb-2 text-sm font-semibold">Платёжный календарь</div>
+        <nav aria-label="Разделы" className="flex flex-col gap-1 p-2">
+          {[...main, ...wide, more].map((entry) => (
+            <NavLink
+              key={entry.to}
+              to={entry.to}
+              end={entry.to === '/'}
+              className={({ isActive }) =>
+                `${navClass({ isActive: isActive || inside(entry) })} !flex items-center gap-2`
+              }
+            >
+              <entry.Symbol className="size-5" />
+              <span className="flex-1">{entry.title}</span>
+              <Badge count={entry.badge} />
+            </NavLink>
+          ))}
+        </nav>
+        <div className="mt-auto flex flex-col items-start gap-2 border-t border-slate-200 px-3 py-3 text-sm dark:border-slate-800">
+          <div className="min-w-0">
+            <div className="truncate font-medium">{fullName(user)}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              {ROLE_NAMES[user.role]}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="secondary" onClick={onLogout}>
+              Выйти
+            </Button>
+          </div>
+        </div>
+      </aside>
+      <div className="min-w-0 flex-1">
+        <header className="flex flex-wrap items-baseline gap-x-3 px-4 pt-3 lg:hidden">
+          <span className="font-bold">Платёжный календарь</span>
+          <span className="text-sm text-slate-500 dark:text-slate-400">
+            {dayTitle(today, today)}
+          </span>
+        </header>
+        <main className="w-full min-w-0 p-3 pb-24 sm:p-5 sm:pb-24 lg:pb-5">
+          <Outlet />
+        </main>
+      </div>
+      <nav
+        aria-label="Нижнее меню"
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-slate-800 dark:bg-slate-900"
+      >
+        {phone.map((entry) => (
+          <NavLink
+            key={entry.to}
+            to={entry.to}
+            end={entry.to === '/'}
+            className={({ isActive }) =>
+              `flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium ${
+                isActive || inside(entry)
+                  ? 'text-blue-700 dark:text-blue-300'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`
+            }
+          >
+            <span className="relative">
+              <entry.Symbol />
+              <span className="absolute -top-1 left-4">
+                <Badge count={entry.badge} />
+              </span>
+            </span>
+            {entry.title}
+          </NavLink>
+        ))}
+      </nav>
+    </div>
+  )
+}
+
+const CLIENT_LINKS: [string, string][] = [
+  ['/', 'Платежи'],
+  ['/calendar', 'Календарь'],
+  ['/history', 'История'],
+  ['/preferences', 'Настройки'],
+]
+
+/** Клиент: короткое меню сверху, на широком экране — слева. */
+function ClientLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
   return (
     <div className="min-h-screen lg:flex">
       <header className="border-b border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-b-0 dark:border-slate-800 dark:bg-slate-900">
@@ -38,7 +150,7 @@ export default function Layout({ user, onLogout }: { user: User; onLogout: () =>
           Платёжный календарь
         </div>
         <nav className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:overflow-visible">
-          {links(user).map(([to, title]) => (
+          {CLIENT_LINKS.map(([to, title]) => (
             <NavLink key={to} to={to} end={to === '/'} className={navClass}>
               {title}
             </NavLink>
@@ -64,4 +176,8 @@ export default function Layout({ user, onLogout }: { user: User; onLogout: () =>
       </main>
     </div>
   )
+}
+
+export default function Layout(props: { user: User; onLogout: () => void }) {
+  return props.user.role === 'client' ? <ClientLayout {...props} /> : <StaffLayout {...props} />
 }

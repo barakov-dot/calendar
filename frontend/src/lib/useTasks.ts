@@ -7,7 +7,7 @@ export const PAGE_LIMIT = 2000
 
 export type TaskFilters = Record<string, string | number | boolean | undefined | null>
 
-export function useTasks(filters: TaskFilters) {
+export function useTasks(filters: TaskFilters, enabled = true) {
   const params = new URLSearchParams({ limit: String(PAGE_LIMIT) })
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== null && value !== '') params.set(key, String(value))
@@ -16,6 +16,7 @@ export function useTasks(filters: TaskFilters) {
     queryKey: ['tasks', params.toString()],
     queryFn: () => api<TaskListResponse>(`/tasks?${params}`),
     refetchOnMount: 'always',
+    enabled,
   })
 }
 

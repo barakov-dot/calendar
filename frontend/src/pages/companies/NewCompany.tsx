@@ -61,7 +61,7 @@ function Search({
   })
 
   return (
-    <Card title="Добавить компанию">
+    <Card title="Добавить организацию">
       <Field
         label="ИНН или название"
         autoFocus

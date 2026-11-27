@@ -358,3 +358,20 @@ async def test_companies_show_missing_amount(client, db, world):
     await db.commit()
     [item] = (await client.get("/api/companies", headers=headers)).json()
     assert item["has_missing_amount"] is False
+
+
+async def test_mine_returns_only_own_personal_tasks(client, db, world):
+    for user, title in ((world["admin"], "дело админа"), (world["first"], "дело бухгалтера")):
+        created = await client.post(
+            "/api/tasks", headers=auth(user), json={"title": title, "due_date": "2026-12-01"}
+        )
+        assert created.status_code == 201
+
+    async def titles(user, query):
+        response = await client.get(f"/api/tasks?{query}", headers=auth(user))
+        return sorted(item["title"] for item in response.json()["items"])
+
+    # админ видит все личные задачи, но «мои дела» — только свои
+    assert await titles(world["admin"], "personal=true") == ["дело админа", "дело бухгалтера"]
+    assert await titles(world["admin"], "mine=true") == ["дело админа"]
+    assert await titles(world["first"], "mine=true") == ["дело бухгалтера"]
