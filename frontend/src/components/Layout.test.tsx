@@ -29,12 +29,13 @@ function setup(role: Role) {
 const titles = (links: HTMLElement[]) => links.map((link) => link.textContent)
 
 describe('меню', () => {
-  it('у бухгалтера четыре раздела и число организаций, требующих внимания', async () => {
+  it('у бухгалтера пять разделов и число организаций, требующих внимания', async () => {
     const menu = setup('accountant')
 
     await menu().findByLabelText('требуют внимания: 1')
     expect(titles(menu().getAllByRole('link'))).toEqual([
       'Задачи',
+      'Календарь',
       'Мои дела',
       '1Организации',
       'Настройки',

@@ -17,6 +17,7 @@ import SettingsPage from './pages/settings/SettingsPage'
 import Reminders from './pages/reminders/Reminders'
 import Reports from './pages/reports/Reports'
 import More from './pages/More'
+import CalendarPage from './pages/tasks/CalendarPage'
 import MyTasks from './pages/tasks/MyTasks'
 import NewTask from './pages/tasks/NewTask'
 import TaskPage from './pages/tasks/TaskPage'
@@ -69,8 +70,7 @@ export default function App() {
             )}
             {user.role !== 'client' && (
               <>
-                {/* прежний адрес календаря */}
-                <Route path="calendar" element={<Navigate to="/?view=calendar" replace />} />
+                <Route path="calendar" element={<CalendarPage user={user} />} />
                 <Route path="more" element={<More user={user} onLogout={logout} />} />
                 <Route path="reminders" element={<Reminders user={user} />} />
                 <Route path="reports" element={<Reports user={user} />} />

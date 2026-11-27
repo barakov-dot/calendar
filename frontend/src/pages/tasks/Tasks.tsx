@@ -2,18 +2,13 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import AddButton from '../../components/AddButton'
-import { CalendarIcon, ListIcon } from '../../components/Icons'
-import MonthGrid from '../../components/MonthGrid'
 import { SubstitutionNotice } from '../../components/Substitutions'
 import TaskFeed from '../../components/TaskFeed'
 import { Alert, Button, ErrorText, Select } from '../../components/ui'
 import { canEdit } from '../../lib/roles'
 import {
   addDays,
-  addMonths,
   KIND_NAMES,
-  monthEnd,
-  monthTitle,
   plural,
   STATUS_NAMES,
   type Task,
@@ -54,15 +49,10 @@ export default function Tasks({ user }: { user: User }) {
     setParams(next, { replace: true })
   }
 
-  const calendar = params.get('view') === 'calendar'
   const tab = TABS.find(([key]) => key === params.get('tab'))?.[0] ?? 'week'
   const company_id = params.get('company') ?? ''
   const kind = params.get('kind') ?? ''
-  // в списке по умолчанию невыполненные, в календаре — все
-  const status = params.get('status') ?? (calendar ? 'all' : 'planned')
-  const month = params.get('month') ?? today.slice(0, 7)
-  const chosen = params.get('day')
-  const day = chosen?.startsWith(month) ? chosen : null
+  const status = params.get('status') ?? 'planned'
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filtered = kind !== '' || params.get('status') !== null
 
@@ -72,19 +62,12 @@ export default function Tasks({ user }: { user: User }) {
   const withOverdue = status === 'planned' || status === 'all'
   const overdue = useTasks(
     { ...base, status: 'planned', to: addDays(today, -1) },
-    !calendar && withOverdue,
+    withOverdue,
   )
-  const soon = useTasks(
-    { ...base, status: statusParam, from: today, to: addDays(today, 30) },
-    !calendar,
-  )
+  const soon = useTasks({ ...base, status: statusParam, from: today, to: addDays(today, 30) })
   const everything = useTasks(
     { ...base, status: statusParam, from: status === 'planned' ? today : undefined },
-    !calendar && tab === 'all',
-  )
-  const monthly = useTasks(
-    { ...base, status: statusParam, from: `${month}-01`, to: monthEnd(month) },
-    calendar,
+    tab === 'all',
   )
   const editable = canEdit(user.role)
 
@@ -107,15 +90,14 @@ export default function Tasks({ user }: { user: User }) {
   const cut =
     (source.data?.total ?? 0) > (source.data?.items.length ?? 0) || lateTotal > late.length
 
-  const error = overdue.error ?? soon.error ?? everything.error ?? monthly.error
-  const dayTasks = (monthly.data?.items ?? []).filter((task) => task.due_date === day)
+  const error = overdue.error ?? soon.error ?? everything.error
 
   return (
     <div className="space-y-4 pb-20">
       <h1 className="text-2xl font-bold">
-        {calendar ? 'Календарь' : ready ? headline(tab, upcoming, status) : 'Задачи'}
+        {ready ? headline(tab, upcoming, status) : 'Задачи'}
       </h1>
-      {!calendar && lateTotal > 0 && (
+      {lateTotal > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
           <span className="min-w-0 flex-1">
             {lateTotal}{' '}
@@ -134,40 +116,38 @@ export default function Tasks({ user }: { user: User }) {
         </div>
       )}
       {editable && <SubstitutionNotice userId={user.id} />}
-      {!calendar && (
-        <div
-          role="tablist"
-          aria-label="Период"
-          className="grid grid-cols-4 gap-1 rounded-2xl bg-slate-200/60 p-1 dark:bg-slate-800/60"
-        >
-          {TABS.map(([key, title, days]) => {
-            const count =
-              days === null || !soon.data ? null : lateTotal + upTo(days).length
-            return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={tab === key}
-                onClick={() => set({ tab: key })}
-                // на узком экране число переносится под название
-                className={`flex min-w-0 cursor-pointer flex-col items-center justify-center rounded-xl py-1.5 text-sm font-semibold whitespace-nowrap sm:flex-row sm:gap-1 sm:py-2.5 ${
-                  tab === key
-                    ? 'bg-white shadow-sm dark:bg-slate-900'
-                    : 'text-slate-500 dark:text-slate-400'
-                }`}
-              >
-                {title}
-                {count !== null && (
-                  <span className={tab === key ? 'text-blue-700 dark:text-blue-300' : ''}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
+      <div
+        role="tablist"
+        aria-label="Период"
+        className="grid grid-cols-4 gap-1 rounded-2xl bg-slate-200/60 p-1 dark:bg-slate-800/60"
+      >
+        {TABS.map(([key, title, days]) => {
+          const count =
+            days === null || !soon.data ? null : lateTotal + upTo(days).length
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => set({ tab: key })}
+              // на узком экране число переносится под название
+              className={`flex min-w-0 cursor-pointer flex-col items-center justify-center rounded-xl py-1.5 text-sm font-semibold whitespace-nowrap sm:flex-row sm:gap-1 sm:py-2.5 ${
+                tab === key
+                  ? 'bg-white shadow-sm dark:bg-slate-900'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              {title}
+              {count !== null && (
+                <span className={tab === key ? 'text-blue-700 dark:text-blue-300' : ''}>
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
       <div className="flex gap-2">
         <select
           aria-label="Организация"
@@ -190,26 +170,6 @@ export default function Tasks({ user }: { user: User }) {
         >
           Фильтры{filtered && ' •'} <span aria-hidden="true">{filtersOpen ? '▴' : '▾'}</span>
         </button>
-        <div role="group" aria-label="Вид" className={`${CONTROL} flex gap-1 !p-1`}>
-          {(
-            [
-              [false, 'Списком', ListIcon],
-              [true, 'Календарём', CalendarIcon],
-            ] as const
-          ).map(([value, title, Symbol]) => (
-            <button
-              key={title}
-              type="button"
-              aria-label={title}
-              title={title}
-              aria-pressed={calendar === value}
-              onClick={() => set({ view: value ? 'calendar' : null })}
-              className={`cursor-pointer rounded-lg px-1.5 sm:px-2 ${calendar === value ? 'bg-slate-100 text-blue-700 dark:bg-slate-800 dark:text-blue-300' : 'text-slate-400'}`}
-            >
-              <Symbol className="size-5" />
-            </button>
-          ))}
-        </div>
       </div>
       {filtersOpen && (
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
@@ -247,10 +207,10 @@ export default function Tasks({ user }: { user: User }) {
         </div>
       )}
       <ErrorText error={error} />
-      {!calendar && cut && (
+      {cut && (
         <Alert kind="warning">Показаны не все задачи. Выберите организацию или тип.</Alert>
       )}
-      {!calendar && ready && (
+      {ready && (
         <TaskFeed
           key={`${tab}|${company_id}|${kind}|${status}`}
           tasks={list}
@@ -258,51 +218,6 @@ export default function Tasks({ user }: { user: User }) {
           editable={editable}
           newestFirst={tab === 'all' && status !== 'planned' && status !== 'all'}
         />
-      )}
-      {calendar && (
-        <>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              aria-label="Предыдущий месяц"
-              onClick={() => set({ month: addMonths(month, -1), day: null })}
-            >
-              ←
-            </Button>
-            <h2 className="min-w-40 text-center text-lg font-semibold">{monthTitle(month)}</h2>
-            <Button
-              variant="secondary"
-              aria-label="Следующий месяц"
-              onClick={() => set({ month: addMonths(month, 1), day: null })}
-            >
-              →
-            </Button>
-          </div>
-          {monthly.data && monthly.data.total > monthly.data.items.length && (
-            <Alert kind="warning">
-              Показаны не все задачи месяца ({monthly.data.items.length} из {monthly.data.total}).
-              Уточните фильтры.
-            </Alert>
-          )}
-          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <div className="space-y-2">
-              <MonthGrid
-                month={month}
-                tasks={monthly.data?.items ?? []}
-                today={today}
-                selected={day}
-                onSelect={(value) => set({ day: value })}
-              />
-            </div>
-            {day ? (
-              <TaskFeed key={day} tasks={dayTasks} today={today} editable={editable} />
-            ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Нажмите на день в календаре, чтобы увидеть задачи.
-              </p>
-            )}
-          </div>
-        </>
       )}
       {editable && (
         <AddButton

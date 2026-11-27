@@ -7,7 +7,15 @@ import { canEdit, ROLE_NAMES } from '../lib/roles'
 import { dayTitle, todayIso } from '../lib/tasks'
 import type { User } from '../lib/types'
 import { needsAttention, useCompanies } from '../lib/useCompanies'
-import { BellIcon, BuildingIcon, CalendarIcon, CheckSquareIcon, GearIcon, ReportIcon } from './Icons'
+import {
+  BellIcon,
+  BuildingIcon,
+  CalendarIcon,
+  CheckSquareIcon,
+  GearIcon,
+  ListIcon,
+  ReportIcon,
+} from './Icons'
 import ThemeToggle from './ThemeToggle'
 import { Button } from './ui'
 
@@ -42,7 +50,8 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
   const attention = companies.data?.filter(needsAttention).length
 
   const main: Entry[] = [
-    { to: '/', title: 'Задачи', Symbol: CalendarIcon },
+    { to: '/', title: 'Задачи', Symbol: ListIcon },
+    { to: '/calendar', title: 'Календарь', Symbol: CalendarIcon },
     // помощник ничего не создаёт, личных дел у него нет
     ...(canEdit(user.role) ? [{ to: '/my', title: 'Мои дела', Symbol: CheckSquareIcon }] : []),
     { to: '/companies', title: 'Организации', Symbol: BuildingIcon, badge: attention },
@@ -113,7 +122,7 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
             to={entry.to}
             end={entry.to === '/'}
             className={({ isActive }) =>
-              `flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium ${
+              `flex min-w-0 flex-auto flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] font-medium ${
                 isActive || inside(entry)
                   ? 'text-blue-700 dark:text-blue-300'
                   : 'text-slate-500 dark:text-slate-400'
