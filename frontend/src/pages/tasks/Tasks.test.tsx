@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Task } from '../../lib/tasks'
+import { isOverdue, type Task, toneOf } from '../../lib/tasks'
 import type { Role, User } from '../../lib/types'
 import Tasks from './Tasks'
 
@@ -133,6 +133,15 @@ describe('экран задач', () => {
     await user.click(await screen.findByRole('button', { name: /Сданные отчёты/ }))
 
     await screen.findByRole('img', { name: 'Сдано' })
+  })
+
+  it('не считает пропущенными сроки до начала ведения календаря', () => {
+    const old = task(9, '2026-10-01', { before_start: true })
+
+    expect(toneOf(old, '2026-11-27')).toBe('history')
+    expect(isOverdue(old, '2026-11-27')).toBe(false)
+    expect(isOverdue({ ...old, before_start: false }, '2026-11-27')).toBe(true)
+    expect(toneOf({ ...old, status: 'paid' }, '2026-11-27')).toBe('closed')
   })
 
   it('показывает и снова прячет прошедшие сроки по нажатию', async () => {

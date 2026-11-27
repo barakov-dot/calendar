@@ -29,6 +29,7 @@ from app.services import audit, payments
 from app.services.calendar.workdays import load_calendar
 from app.services.companies import person_name
 from app.services.reminders import shift
+from app.services.task_state import before_start, before_start_condition
 from app.services.tasks import NDS_RULE, override_amount
 
 AMOUNT_KINDS = (TaskKind.PAYMENT, TaskKind.OTHER)
@@ -74,6 +75,7 @@ def _view(
 ):
     values = {name: getattr(task, name) for name in TaskOut.model_fields if hasattr(task, name)}
     values["company_name"] = (company.short_name or company.name) if company else "Личная задача"
+    values["before_start"] = before_start(task, company)
     if user.role == Role.CLIENT:
         may = task.company_id in payer_ids and task.kind == TaskKind.PAYMENT
         values["can_mark_paid"] = may and task.status == TaskStatus.PLANNED
@@ -100,6 +102,7 @@ async def search(
     statuses: list[str] | None = None,
     missing_amount: bool = False,
     newest_first: bool = False,
+    hide_history: bool = False,
     limit: int = 500,
     offset: int = 0,
 ) -> tuple[list, int]:
@@ -120,6 +123,8 @@ async def search(
         query = query.where(Task.due_date <= date_to)
     if kinds:
         query = query.where(Task.kind.in_(kinds))
+    if hide_history:
+        query = query.where(~before_start_condition())
     if statuses:
         query = query.where(Task.status.in_(statuses))
     if missing_amount:

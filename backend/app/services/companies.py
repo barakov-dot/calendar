@@ -21,6 +21,7 @@ from app.schemas.company import (
 )
 from app.services import audit
 from app.services.dadata.client import Party
+from app.services.task_state import before_start_condition
 
 # Поля карточки, которые приходят из DaData и обновляются кнопкой «Обновить».
 DADATA_FIELDS = (
@@ -217,6 +218,7 @@ async def list_for(
             Task.status == TaskStatus.PLANNED,
             Task.needs_amount.is_(True),
             Task.amount_kopecks.is_(None),
+            ~before_start_condition(),
             Task.due_date.between(current, current + MISSING_AMOUNT_AHEAD),
         )
         .correlate(Company)

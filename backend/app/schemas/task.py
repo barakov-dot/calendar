@@ -27,6 +27,8 @@ class ClientTaskOut(BaseModel):
     client_note: str
     source_ref: str
     has_files: bool = False
+    # срок раньше начала ведения календаря: не просрочка
+    before_start: bool = False
     # доступные клиенту действия; у сотрудников всегда false
     can_mark_paid: bool = False
     can_unmark_paid: bool = False

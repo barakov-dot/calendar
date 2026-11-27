@@ -87,6 +87,12 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
             ` (по закону или расписанию ${formatDate(task.original_due_date)}${task.due_overridden ? ', изменён вручную' : ', перенесён с выходного'})`}
         </p>
         {overdue && <Alert kind="error">Срок прошёл.</Alert>}
+        {task.status === 'planned' && task.before_start && (
+          <Alert>
+            Срок раньше начала ведения календаря: задача не считается пропущенной. Суммы и
+            отметки менять можно.
+          </Alert>
+        )}
         {task.description && <p className="text-sm">{task.description}</p>}
         <p className="text-sm">
           Статус: <strong>{STATUS_NAMES[task.status]}</strong>

@@ -33,9 +33,10 @@ class Plan:
 
 
 def _kept(task: Task) -> str:
-    """Оплаченные и исправленные вручную платежи не меняются."""
+    """Введённые суммы оплаченных и исправленные вручную платежи не меняются."""
+    # в оплаченный платёж без суммы её можно дописать: затирать там нечего
     if task.status == TaskStatus.PAID:
-        return "уже оплачен"
+        return "" if task.amount_kopecks is None else "уже оплачен"
     if task.status != TaskStatus.PLANNED:
         return "не в плане"
     if task.amount_overridden:

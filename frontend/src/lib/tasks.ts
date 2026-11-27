@@ -31,6 +31,8 @@ export interface Task {
   can_mark_paid: boolean
   can_unmark_paid: boolean
   has_files?: boolean
+  /** Срок раньше начала ведения календаря: не просрочка. */
+  before_start?: boolean
   /** Задача по требованию инспекции; клиенту не отдаётся. */
   demand_id?: number | null
   /** «Что сделать» и «за какой период» из налогового правила; клиенту не отдаются. */
@@ -86,11 +88,21 @@ export const statusesFor = (kind: TaskKind): TaskStatus[] => [
   'not_required',
 ]
 
-export type Tone = 'overdue' | 'planned' | 'closed' | 'skipped'
+export type Tone = 'overdue' | 'planned' | 'closed' | 'skipped' | 'history'
 
-export function toneOf(task: Pick<Task, 'status' | 'due_date'>, today: string): Tone {
+/** Срок прошёл, а задача не выполнена и относится к тому, что ведётся в календаре. */
+export const isOverdue = (
+  task: Pick<Task, 'status' | 'due_date' | 'before_start'>,
+  today: string,
+) => toneOf(task, today) === 'overdue'
+
+export function toneOf(
+  task: Pick<Task, 'status' | 'due_date' | 'before_start'>,
+  today: string,
+): Tone {
   if (task.status === 'not_required') return 'skipped'
   if (task.status !== 'planned') return 'closed'
+  if (task.before_start) return 'history'
   return task.due_date < today ? 'overdue' : 'planned'
 }
 

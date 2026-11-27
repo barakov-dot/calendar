@@ -44,7 +44,11 @@ function ClientTask({ task, today }: { task: Task; today: string }) {
       {task.client_note && <p className="text-sm break-words">{task.client_note}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <span className={`rounded-full px-2 py-0.5 text-xs ${TONE_STYLES[tone]}`}>
-          {tone === 'overdue' && task.kind === 'payment' ? 'Срок прошёл' : clientStatus(task)}
+          {tone === 'overdue' && task.kind === 'payment'
+            ? 'Срок прошёл'
+            : tone === 'history'
+              ? 'Прошлый период'
+              : clientStatus(task)}
         </span>
         {task.can_mark_paid && (
           <Button

@@ -8,6 +8,7 @@ import { Alert, Button, ErrorText, Select } from '../../components/ui'
 import { canEdit } from '../../lib/roles'
 import {
   addDays,
+  isOverdue,
   KIND_NAMES,
   plural,
   STATUS_NAMES,
@@ -64,7 +65,7 @@ export default function Tasks({ user }: { user: User }) {
   const statusParam = status === 'all' ? '' : status
   const withOverdue = status === 'planned' || status === 'all'
   const overdue = useTasks(
-    { ...base, status: 'planned', to: addDays(today, -1) },
+    { ...base, status: 'planned', to: addDays(today, -1), hide_history: true },
     withOverdue,
   )
   const soon = useTasks({ ...base, status: statusParam, from: today, to: addDays(today, 30) })
@@ -90,9 +91,7 @@ export default function Tasks({ user }: { user: User }) {
   const source = whole ? everything : soon
   // в «Всё» прошедшие невыполненные уже есть в отдельном запросе
   const current: Task[] = whole
-    ? (everything.data?.items ?? []).filter(
-        (task) => !(task.status === 'planned' && task.due_date < today),
-      )
+    ? (everything.data?.items ?? []).filter((task) => !isOverdue(task, today))
     : upTo(TABS.find(([key]) => key === tab)![2]!)
   const list = showLate ? [...late, ...current] : current
   const ready = !!source.data

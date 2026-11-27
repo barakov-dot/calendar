@@ -15,6 +15,7 @@ export default function ClientPayments() {
   const open = useTasks({
     ...filters,
     status: 'planned',
+    hide_history: true,
     from: addDays(today, -OVERDUE_SHOWN_DAYS),
     to: addDays(today, 60),
   })

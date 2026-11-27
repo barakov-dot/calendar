@@ -18,6 +18,7 @@ from app.core.settings_store import get_settings
 from app.models import ChangedBy, Company, Task, TaskKind, TaskStatus, User
 from app.services.companies import person_name
 from app.services.notify.messages import money
+from app.services.task_state import before_start_condition
 
 FONTS = Path("/usr/share/fonts/truetype/dejavu")
 NO_ACCOUNTANT = "Не назначен"
@@ -141,6 +142,7 @@ async def build(
             Company.is_archived.is_(False),
             Task.due_date >= date_from,
             Task.due_date <= min(date_to, current - timedelta(days=1)),
+            ~before_start_condition(),
         )
     )
 

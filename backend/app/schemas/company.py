@@ -57,6 +57,7 @@ class CompanyData(Input):
     okved: str = Field("", max_length=16)
     director_name: str = Field("", max_length=500)
     region_code: str = Field("", pattern=r"^(\d{2})?$")
+    calendar_start: date | None = Field(None, ge=date(2020, 1, 1), le=date(2100, 12, 31))
     entity_type: EntityType
     main_regime: Regime
     nds_payer: bool | None = None
@@ -183,6 +184,7 @@ class CompanyOut(BaseModel):
     kpp: str
     ogrn: str
     registration_date: date | None
+    calendar_start: date | None
     name: str
     short_name: str
     address: str

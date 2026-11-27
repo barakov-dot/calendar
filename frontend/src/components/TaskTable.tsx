@@ -135,7 +135,11 @@ export default function TaskTable({
               <span
                 className={`rounded-full px-2 py-0.5 text-xs ${TONE_STYLES[toneOf(task, today)]}`}
               >
-                {toneOf(task, today) === 'overdue' ? 'Просрочено' : STATUS_NAMES[task.status]}
+                {toneOf(task, today) === 'overdue'
+                  ? 'Просрочено'
+                  : toneOf(task, today) === 'history'
+                    ? 'До начала ведения'
+                    : STATUS_NAMES[task.status]}
               </span>
               <span className="@xl:hidden">
                 <Amount task={task} />

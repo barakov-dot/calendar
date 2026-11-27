@@ -45,6 +45,7 @@ from app.services.demands import share
 from app.services.demands.types import get_book
 from app.services.notify import messages
 from app.services.notify.planner import local_now, reachable, workdays_until
+from app.services.task_state import before_start, before_start_condition
 from app.services.telegram.connect import REQUEST_TIMEOUT
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,7 @@ async def digest_tasks(
         .where(
             Task.status == TaskStatus.PLANNED,
             Task.due_date <= current + timedelta(days=7),
+            ~before_start_condition(),
             or_(
                 Task.owner_id == user.id,
                 Company.accountant_id.in_(accountants) & Company.is_archived.is_(False),
@@ -140,6 +142,9 @@ async def _grouped(
         if item is None or item[0].status != TaskStatus.PLANNED:
             continue
         task = item[0]
+        # дату начала ведения могли указать, пока сообщение ждало отправки
+        if before_start(task, item[1]):
+            continue
         if kind == NotificationType.OVERDUE and task.due_date >= current:
             continue
         if kind == NotificationType.FILL_AMOUNT and (
@@ -274,6 +279,7 @@ async def _single(
         or not member.receive_reminders
         or task.status != TaskStatus.PLANNED
         or task.kind != TaskKind.PAYMENT
+        or before_start(task, company)
     ):
         return None
     if row.type == NotificationType.REMINDER and task.due_date < current:

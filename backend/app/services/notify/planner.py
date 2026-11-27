@@ -29,7 +29,7 @@ from app.models import (
 from app.services import substitutions
 from app.services.calendar.workdays import WorkCalendar, load_calendar
 from app.services.notify.queue import enqueue
-from app.services.task_state import PAYDAY_RULES
+from app.services.task_state import PAYDAY_RULES, before_start_condition
 
 # Просрочку сообщаем по свежим срокам: старый долг не должен сыпаться пачкой.
 OVERDUE_WINDOW_DAYS = 3
@@ -75,7 +75,11 @@ def _open_company_tasks():
     return (
         select(Task, Company)
         .join(Company, Company.id == Task.company_id)
-        .where(Task.status == TaskStatus.PLANNED, Company.is_archived.is_(False))
+        .where(
+            Task.status == TaskStatus.PLANNED,
+            Company.is_archived.is_(False),
+            ~before_start_condition(),
+        )
     )
 
 
@@ -133,6 +137,7 @@ def _client_tasks(settings: AppSettings):
         .outerjoin(NotificationSettings, NotificationSettings.user_id == User.id)
         .where(
             Task.status == TaskStatus.PLANNED,
+            ~before_start_condition(),
             Task.kind == TaskKind.PAYMENT,
             client_task_condition(settings.tasks.show_notices_to_clients),
             Company.is_archived.is_(False),

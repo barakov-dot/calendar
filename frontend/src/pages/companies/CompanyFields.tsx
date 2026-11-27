@@ -85,6 +85,13 @@ export function TaxFields({ form, onChange }: Props) {
   const isOoo = form.entity_type === 'ooo'
   return (
     <>
+      <Field
+        label="Начало ведения в календаре"
+        type="date"
+        value={form.calendar_start ?? ''}
+        hint="Сроки раньше этой даты не считаются пропущенными и не напоминают о себе. Суммы и отметки в них можно менять."
+        onChange={(event) => onChange({ ...form, calendar_start: event.target.value || null })}
+      />
       <Select
         label="Режим налогообложения"
         value={form.main_regime}

@@ -96,6 +96,7 @@ async def test_client_gets_only_visible_tasks_without_internal_fields(client, db
         "client_note",
         "source_ref",
         "has_files",
+        "before_start",
         "can_mark_paid",
         "can_unmark_paid",
     }

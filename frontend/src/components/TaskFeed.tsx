@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { formatKopecks } from '../lib/company'
 import {
   dayTitle,
+  isOverdue,
   KIND_NAMES,
   relativeDay,
   STATUS_NAMES,
@@ -123,13 +124,14 @@ function Row({
   onMark: () => void
 }) {
   const open = task.status === 'planned'
-  const overdue = open && task.due_date < today
+  const overdue = isOverdue(task, today)
   // сданные отчёты и уведомления читаются как обычные строки, выполненность видна по галочке
   const submitted = task.status === 'done' && (task.kind === 'report' || task.kind === 'notice')
   const details = [
     task.period_label || KIND_NAMES[task.kind],
     task.company_name,
     open ? '' : STATUS_NAMES[task.status],
+    open && task.before_start ? 'до начала ведения' : '',
   ].filter(Boolean)
   const amount =
     task.amount_kopecks != null
@@ -195,8 +197,8 @@ export default function TaskFeed({
 }) {
   const marking = useMarking()
   const [limit, setLimit] = useState(PAGE)
-  const overdue = tasks.filter((task) => task.status === 'planned' && task.due_date < today)
-  const rest = tasks.filter((task) => !(task.status === 'planned' && task.due_date < today))
+  const overdue = tasks.filter((task) => isOverdue(task, today))
+  const rest = tasks.filter((task) => !isOverdue(task, today))
   if (newestFirst) rest.reverse()
   const shown = rest.slice(0, Math.max(0, limit - overdue.length))
   const days = [...new Set(shown.map((task) => task.due_date))]

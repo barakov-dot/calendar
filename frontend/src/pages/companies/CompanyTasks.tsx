@@ -18,7 +18,7 @@ export default function CompanyTasks({
   const today = todayIso()
   const [period, setPeriod] = useState<Period>('upcoming')
   const ranges = {
-    attention: { to: addDays(today, -1), status: 'planned' },
+    attention: { to: addDays(today, -1), status: 'planned', hide_history: true },
     upcoming: { from: today, to: addDays(today, 60) },
     all: {},
   }

@@ -25,6 +25,8 @@ export interface CompanyForm {
   ogrn: string
   /** Дата регистрации ИП: с неё считаются взносы за себя. */
   registration_date: string | null
+  /** С какой даты ведётся календарь: более ранние сроки не считаются пропущенными. */
+  calendar_start: string | null
   name: string
   short_name: string
   address: string
@@ -55,6 +57,7 @@ export const EMPTY_COMPANY: CompanyForm = {
   kpp: '',
   ogrn: '',
   registration_date: null,
+  calendar_start: null,
   name: '',
   short_name: '',
   address: '',

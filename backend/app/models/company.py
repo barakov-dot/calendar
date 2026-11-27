@@ -75,6 +75,8 @@ class Company(Base):
     # нужны ли задачи по НДФЛ на АУСН (налог может перечислять банк)
     ausn_ndfl_tasks: Mapped[bool] = mapped_column(default=True, server_default="true")
 
+    # с какой даты ведётся календарь: более ранние сроки не считаются пропущенными
+    calendar_start: Mapped[date | None]
     region_code: Mapped[str] = mapped_column(String(2), default="", server_default="")
     accountant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     is_archived: Mapped[bool] = mapped_column(default=False, server_default="false")
