@@ -29,6 +29,7 @@ class NotificationType(StrEnum):
     SIGNATURE = "signature"  # заканчивается срок электронной подписи
     BROADCAST = "broadcast"  # рассылка администратора
     DEMAND = "demand"  # приближается срок по требованию инспекции
+    DEMAND_SHARE = "demand_share"  # требование отправили получателю
 
 
 class NotificationStatus(StrEnum):
@@ -91,6 +92,8 @@ class Notification(Base):
     )
     type: Mapped[str] = mapped_column(String(32))
     scheduled_for: Mapped[date]
+    # пояснение отправителя к сообщению
+    note: Mapped[str] = mapped_column(Text, default="", server_default="")
     status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
     attempts: Mapped[int] = mapped_column(default=0, server_default="0")
     next_attempt_at: Mapped[datetime | None] = mapped_column(Timestamp)

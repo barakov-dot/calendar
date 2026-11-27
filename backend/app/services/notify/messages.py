@@ -6,7 +6,7 @@ from datetime import date
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from app.core.settings_store import AppSettings
-from app.models import Company, Task
+from app.models import Company, Demand, Task
 
 MESSAGE_LIMIT = 4000
 LINES_PER_SECTION = 15
@@ -81,6 +81,23 @@ def demand_reminder(task: Task, company: Company, current: date, workdays: int) 
     if task.amount_kopecks is not None:
         text += f"\nСумма: {money(task.amount_kopecks)}"
     return clip(text)
+
+
+def demand_share(
+    demand: Demand, name: str, response_label: str, company: Company, comment: str
+) -> str:
+    number = f" № {demand.number}" if demand.number else ""
+    lines = [
+        f"📄 {company_name(company)}",
+        f"{name}{number} от {demand.doc_date:%d.%m.%Y}",
+        f"Квитанция о приёме: {demand.receipt_date:%d.%m.%Y}",
+        f"{response_label}: {demand.response_date:%d.%m.%Y}",
+    ]
+    if demand.amount_kopecks is not None:
+        lines.append(f"Сумма: {money(demand.amount_kopecks)}")
+    if comment:
+        lines.append(f"\n{comment}")
+    return "\n".join(lines)
 
 
 def section(title: str, rows: Iterable[tuple[Task, Company | None]], current: date) -> str:

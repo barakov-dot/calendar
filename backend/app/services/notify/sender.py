@@ -15,9 +15,10 @@ from aiogram.exceptions import (
     TelegramNotFound,
     TelegramRetryAfter,
 )
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import BufferedInputFile, InlineKeyboardMarkup
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from app.core.permissions import editable_task_condition, visible_task_condition
 from app.core.settings_store import AppSettings
@@ -27,6 +28,7 @@ from app.models import (
     Broadcast,
     Company,
     CompanyMember,
+    Demand,
     DemandStep,
     Notification,
     NotificationStatus,
@@ -39,6 +41,8 @@ from app.models import (
 )
 from app.services import substitutions
 from app.services.calendar.workdays import load_calendar
+from app.services.demands import share
+from app.services.demands.types import get_book
 from app.services.notify import messages
 from app.services.notify.planner import local_now, reachable, workdays_until
 from app.services.telegram.connect import REQUEST_TIMEOUT
@@ -59,6 +63,8 @@ class Message:
     keyboard: InlineKeyboardMarkup | None
     # строки очереди, вошедшие в сообщение
     rows: list[Notification]
+    # (содержимое, имя файла): сообщение уходит подписью к документу
+    document: tuple[bytes, str] | None = None
 
 
 async def digest_tasks(
@@ -190,11 +196,37 @@ async def _demand(
     return Message(text, buttons, [row])
 
 
+async def _demand_share(
+    db: AsyncSession, settings: AppSettings, user: User, row: Notification
+) -> Message | None:
+    """Требование, отправленное вручную. Получатель всё ещё должен быть связан с компанией."""
+    task = await db.get(Task, row.task_id)
+    if task is None or task.demand_id is None:
+        return None
+    demand = await db.get(
+        Demand, task.demand_id, options=[undefer(Demand.data)], populate_existing=True
+    )
+    company = await db.get(Company, demand.company_id)
+    allowed = {item.user.id for item in await share.candidates(db, demand)}
+    if user.id not in allowed or company.is_archived:
+        return None
+    kind = get_book().kind(demand.knd)
+    text = messages.demand_share(demand, kind.name, kind.response_label, company, row.note)
+    buttons = messages.keyboard(
+        messages.calendar_button(settings, "Открыть", f"demands/{demand.id}")
+    )
+    if demand.data is None:
+        return Message(messages.clip(text), buttons, [row])
+    return Message(text[:1024], buttons, [row], (demand.data, demand.filename))
+
+
 async def _single(
     db: AsyncSession, settings: AppSettings, user: User, row: Notification, current: date
 ) -> Message | None:
     if row.type == NotificationType.DEMAND:
         return await _demand(db, settings, user, row, current)
+    if row.type == NotificationType.DEMAND_SHARE:
+        return await _demand_share(db, settings, user, row)
     item = await _task_for(db, settings, user, row.task_id, current)
     if item is None:
         return None
@@ -310,6 +342,25 @@ def _postpone(rows: list[Notification], now: datetime, seconds: float, error: st
         row.error = error[:1000]
 
 
+async def _transmit(bot: Bot, chat_id: int, message: Message):
+    if message.document is None:
+        return await bot.send_message(
+            chat_id,
+            message.text,
+            reply_markup=message.keyboard,
+            request_timeout=REQUEST_TIMEOUT,
+        )
+    data, filename = message.document
+    return await bot.send_document(
+        chat_id,
+        BufferedInputFile(data, filename),
+        caption=message.text,
+        reply_markup=message.keyboard,
+        # файл передаётся дольше обычного сообщения
+        request_timeout=REQUEST_TIMEOUT * 3,
+    )
+
+
 async def deliver(
     db: AsyncSession,
     bot: Bot,
@@ -333,12 +384,7 @@ async def deliver(
         _finish([row for row in rows if row not in message.rows], NotificationStatus.SKIPPED)
         stop = False
         try:
-            result = await bot.send_message(
-                user.telegram_id,
-                message.text,
-                reply_markup=message.keyboard,
-                request_timeout=REQUEST_TIMEOUT,
-            )
+            result = await _transmit(bot, user.telegram_id, message)
         except TelegramRetryAfter as error:
             _postpone(message.rows, now, error.retry_after, "Telegram просит подождать")
             stop = True

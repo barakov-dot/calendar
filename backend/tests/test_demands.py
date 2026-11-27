@@ -258,7 +258,10 @@ async def test_task_is_changed_only_through_demand(client, db, world):
     closed = await client.get(f"/api/demands/{got['id']}", headers=headers)
     assert closed.json()["closed"] is True
 
-    assert (await client.delete(f"/api/demands/{got['id']}", headers=headers)).status_code == 204
+    url = f"/api/demands/{got['id']}"
+    # удаляет только администратор
+    assert (await client.delete(url, headers=headers)).status_code == 403
+    assert (await client.delete(url, headers=auth(world["admin"]))).status_code == 204
     assert (await db.scalars(select(Task.id).where(Task.demand_id.is_not(None)))).all() == []
 
 
@@ -415,3 +418,98 @@ async def test_client_reminders_only_about_response(client, db, world, settings,
         )
     )
     assert rows.all() == ([got["response"]["task_id"]] if expected else [])
+
+
+async def share_setup(client, world):
+    got = await create(client, world["accountant"], body(world["company"], note="внутреннее"))
+    url = f"/api/demands/{got['id']}"
+    await client.post(
+        f"{url}/file",
+        content=pdf("документ"),
+        headers=auth(world["accountant"]) | {"X-Filename": "demand.pdf"},
+    )
+    return got, url
+
+
+async def deliver_all(db) -> FakeTelegram:
+    async with FakeTelegram() as telegram:
+        bot = create_bot(get_config(), None, telegram.api("127.0.0.1"))
+        try:
+            await deliver(db, bot, get_store().get(), datetime.now(UTC), pause=0)
+        finally:
+            await bot.session.close()
+    return telegram
+
+
+async def test_recipients_are_linked_to_the_company(client, world):
+    _, url = await share_setup(client, world)
+
+    got = await client.get(f"{url}/recipients", headers=auth(world["accountant"]))
+
+    assert {(item["user_id"], item["group"]) for item in got.json()} == {
+        (world["client_user"].id, "client"),
+        (world["accountant"].id, "accountant"),
+        (world["helper"].id, "assistant"),
+    }
+
+
+async def test_share_sends_the_document_through_the_queue(client, db, world):
+    _, url = await share_setup(client, world)
+    chosen = [world["client_user"].id, world["helper"].id]
+    headers = auth(world["accountant"])
+
+    queued = await client.post(
+        f"{url}/share", json={"user_ids": chosen, "comment": "Нужны документы"}, headers=headers
+    )
+
+    assert queued.status_code == 200, queued.text
+    assert [item["status"] for item in queued.json() if item["user_id"] in chosen] == [
+        "pending"
+    ] * 2
+    telegram = await deliver_all(db)
+    assert sorted(chat for chat, _, _ in telegram.documents) == sorted(
+        [world["client_user"].telegram_id, world["helper"].telegram_id]
+    )
+    assert {name for _, name, _ in telegram.documents} == {"demand.pdf"}
+    after = await client.get(f"{url}/recipients", headers=headers)
+    assert {item["status"] for item in after.json() if item["user_id"] in chosen} == {"sent"}
+
+
+async def test_share_survives_change_of_dates(client, db, world):
+    got, url = await share_setup(client, world)
+    headers = auth(world["accountant"])
+    await client.post(f"{url}/share", json={"user_ids": [world["helper"].id]}, headers=headers)
+
+    await client.put(url, json=body(world["company"], receipt_date="2026-12-01"), headers=headers)
+
+    assert (await db.scalar(select(Notification.type))) == "demand_share"
+
+
+async def test_unlinked_recipient_gets_nothing(client, db, world):
+    _, url = await share_setup(client, world)
+    headers = auth(world["accountant"])
+
+    foreign = await client.post(
+        f"{url}/share", json={"user_ids": [world["stranger"].id]}, headers=headers
+    )
+    await client.post(f"{url}/share", json={"user_ids": [world["client_user"].id]}, headers=headers)
+    for member in await db.scalars(select(CompanyMember)):
+        await db.delete(member)
+    await db.commit()
+
+    assert foreign.status_code == 422
+    # клиента отвязали, пока сообщение ждало отправки
+    assert (await deliver_all(db)).documents == []
+
+
+@pytest.mark.parametrize(
+    ("name", "status"), [("helper", 403), ("client_user", 403), ("stranger", 404)]
+)
+async def test_who_may_not_share(client, world, name, status):
+    _, url = await share_setup(client, world)
+
+    response = await client.post(
+        f"{url}/share", json={"user_ids": [world["accountant"].id]}, headers=auth(world[name])
+    )
+
+    assert response.status_code == status

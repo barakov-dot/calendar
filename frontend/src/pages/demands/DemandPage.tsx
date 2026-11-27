@@ -15,6 +15,7 @@ import { miniAppInitData } from '../../lib/telegram'
 import type { User } from '../../lib/types'
 import { useBulkStatus, useRefreshTasks } from '../../lib/useTasks'
 import DemandForm, { type DemandBody } from './DemandForm'
+import ShareCard from './ShareCard'
 
 function useRefreshDemand() {
   const queryClient = useQueryClient()
@@ -46,6 +47,7 @@ export default function DemandPage({ user }: { user: User }) {
           demand={demand.data}
           editable={canEdit(user.role)}
           client={user.role === 'client'}
+          admin={user.role === 'admin'}
         />
       )}
     </div>
@@ -56,10 +58,12 @@ function Loaded({
   demand,
   editable,
   client,
+  admin,
 }: {
   demand: Demand
   editable: boolean
   client: boolean
+  admin: boolean
 }) {
   const refresh = useRefreshDemand()
   const navigate = useNavigate()
@@ -146,22 +150,25 @@ function Loaded({
       </div>
       <div className="min-w-0 space-y-4">
         <DocumentFile demand={demand} editable={editable} />
+        {editable && <ShareCard demandId={demand.id} hasFile={!!demand.filename} />}
         {editable && (
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setEditing(true)}>
               Изменить
             </Button>
-            <Button
-              variant="danger"
-              disabled={remove.isPending}
-              onClick={() => {
-                if (window.confirm('Удалить требование вместе с его сроками и файлом?')) {
-                  remove.mutate()
-                }
-              }}
-            >
-              Удалить
-            </Button>
+            {admin && (
+              <Button
+                variant="danger"
+                disabled={remove.isPending}
+                onClick={() => {
+                  if (window.confirm('Удалить требование вместе с его сроками и файлом?')) {
+                    remove.mutate()
+                  }
+                }}
+              >
+                Удалить
+              </Button>
+            )}
           </div>
         )}
         <ErrorText error={remove.error} />

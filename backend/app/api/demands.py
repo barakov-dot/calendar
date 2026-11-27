@@ -5,7 +5,7 @@
 """
 
 import asyncio
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated
 from urllib.parse import quote, unquote
 
@@ -14,12 +14,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from app.api.companies import Staff
-from app.api.deps import Database, require_role
+from app.api.deps import AdminUser, Database, require_role
 from app.core.permissions import accessible_company_ids_query
 from app.models import EDITORS, Company, Demand, DemandStep, Role, TaskStatus, User
 from app.schemas.company import MAX_KOPECKS
 from app.services import attachments
-from app.services.demands import service
+from app.services.companies import person_name
+from app.services.demands import service, share
 from app.services.demands.recognize import pdf_text, read
 from app.services.demands.types import get_book
 from app.services.telegram.documents import SendError, send_document
@@ -114,6 +115,23 @@ class DemandOut(BaseModel):
     closed: bool
     receipt: StepOut | None
     response: StepOut | None
+
+
+class RecipientOut(BaseModel):
+    user_id: int
+    name: str
+    # client | accountant | assistant
+    group: str
+    # почему сообщение не дойдёт; пусто — получит
+    reason: str | None
+    # последняя отправка этому человеку
+    status: str | None
+    sent_at: datetime | None
+
+
+class ShareIn(Input):
+    user_ids: list[int] = Field(min_length=1, max_length=200)
+    comment: str = Field("", max_length=share.COMMENT_LIMIT)
 
 
 def _failed(error: service.DemandError) -> HTTPException:
@@ -273,7 +291,8 @@ async def update(demand_id: int, body: DemandIn, user: Staff, db: Database) -> D
 
 
 @router.delete("/{demand_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete(demand_id: int, user: Staff, db: Database) -> Response:
+async def delete(demand_id: int, user: AdminUser, db: Database) -> Response:
+    """Удаляет только администратор: вместе с требованием пропадают сроки и документ."""
     try:
         demand = await service.get(db, user, demand_id, lock=True)
     except service.DemandError as error:
@@ -324,3 +343,40 @@ async def send(demand_id: int, user: Viewer, db: Database) -> Response:
     except SendError as error:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(error)) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _recipients(db: Database, demand: Demand) -> list[RecipientOut]:
+    return [
+        RecipientOut(
+            user_id=item.user.id,
+            name=person_name(item.user),
+            group=item.group,
+            reason=item.reason,
+            status=item.status,
+            sent_at=item.sent_at,
+        )
+        for item in await share.recipients(db, demand)
+    ]
+
+
+@router.get("/{demand_id}/recipients")
+async def recipients(demand_id: int, user: Staff, db: Database) -> list[RecipientOut]:
+    """Кому можно отправить требование: клиенты и бухгалтер организации, помощники."""
+    try:
+        demand = await service.get(db, user, demand_id)
+    except service.DemandError as error:
+        raise _failed(error) from None
+    return await _recipients(db, demand)
+
+
+@router.post("/{demand_id}/share")
+async def share_demand(
+    demand_id: int, body: ShareIn, user: Staff, db: Database
+) -> list[RecipientOut]:
+    """Ставит в очередь бота сообщение с документом выбранным получателям."""
+    try:
+        demand = await service.get(db, user, demand_id, lock=True)
+        await share.send(db, user, demand, set(body.user_ids), body.comment.strip())
+    except service.DemandError as error:
+        raise _failed(error) from None
+    return await _recipients(db, demand)

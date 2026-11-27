@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -53,6 +53,18 @@ const kinds = [
   },
 ]
 
+const people = [
+  { user_id: 3, name: 'Клиент', group: 'client', reason: null, status: null, sent_at: null },
+  {
+    user_id: 4,
+    name: 'Дина',
+    group: 'assistant',
+    reason: 'заблокировал(а) бота',
+    status: null,
+    sent_at: null,
+  },
+]
+
 function setup(path: string, role: Role = 'accountant') {
   const calls: { url: string; method: string; body: unknown }[] = []
   vi.stubGlobal(
@@ -78,6 +90,8 @@ function setup(path: string, role: Role = 'accountant') {
         '/api/companies': [{ id: 1, name: 'ООО «Пример»', short_name: '' }],
         '/api/demands/7': demand,
         '/api/tasks/bulk': { updated: 1, skipped: 0 },
+        '/api/demands/7/recipients': people,
+        '/api/demands/7/share': people,
       }
       if (url === '/api/demands') {
         return new Response(JSON.stringify(init.method === 'POST' ? demand : [demand]))
@@ -120,6 +134,11 @@ describe('требования', () => {
 
     await screen.findByText(/Проверьте распознанные данные/)
     await screen.findByText(/Квитанция — 07.12.2026. Срок исполнения — 14.12.2026./)
+    // посчитанные даты стоят прямо в полях
+    const value = (label: string) => (screen.getByLabelText(label, { exact: false }) as HTMLInputElement).value
+    expect(value('Дата получения требования')).toBe('2026-11-27')
+    expect(value('Дата квитанции о приёме')).toBe('2026-12-07')
+    expect(screen.getByDisplayValue('2026-12-14')).toBeTruthy()
     const save = screen.getByRole('button', { name: 'Сохранить требование' })
     await waitFor(() => expect(save).toHaveProperty('disabled', false))
     await user.click(save)
@@ -146,6 +165,53 @@ describe('требования', () => {
       expect(calls.find((call) => call.url === '/api/tasks/bulk')?.body).toEqual({
         ids: [11],
         status: 'done',
+      }),
+    )
+  })
+
+  it('дату исполнения можно заменить и снова посчитать', async () => {
+    const { calls, user } = setup('/demands')
+    await user.click(await screen.findByRole('button', { name: 'Добавить без файла' }))
+    fireEvent.change(screen.getByLabelText('Дата документа'), {
+      target: { value: '2026-11-27' },
+    })
+    const due = await screen.findByDisplayValue('2026-12-14')
+
+    fireEvent.change(due, { target: { value: '2026-12-18' } })
+
+    await screen.findByText(/Задано вручную/)
+    await waitFor(() =>
+      expect(calls.at(-1)).toMatchObject({
+        url: '/api/demands/dates',
+        body: { response_date: '2026-12-18', receipt_date: null },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Посчитать заново' }))
+    expect(screen.queryByText(/Задано вручную/)).toBeNull()
+  })
+
+  it('удалить может только администратор', async () => {
+    setup('/demands/7')
+    await screen.findByRole('button', { name: 'Изменить' })
+    expect(screen.queryByRole('button', { name: 'Удалить' })).toBeNull()
+    cleanup()
+
+    setup('/demands/7', 'admin')
+    await screen.findByRole('button', { name: 'Удалить' })
+  })
+
+  it('отправляет требование отмеченным получателям', async () => {
+    const { calls, user } = setup('/demands/7')
+
+    await user.click(await screen.findByLabelText('Клиент'))
+    expect(screen.getByLabelText('Дина')).toHaveProperty('disabled', true)
+    await user.type(screen.getByLabelText('Сообщение получателям'), 'Посмотрите')
+    await user.click(screen.getByRole('button', { name: /Отправить в Telegram/ }))
+
+    await waitFor(() =>
+      expect(calls.find((call) => call.url === '/api/demands/7/share')?.body).toEqual({
+        user_ids: [3],
+        comment: 'Посмотрите',
       }),
     )
   })

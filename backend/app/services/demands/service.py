@@ -18,6 +18,7 @@ from app.models import (
     Demand,
     DemandStep,
     Notification,
+    NotificationType,
     Task,
     TaskSource,
     TaskStatus,
@@ -135,7 +136,11 @@ async def _sync(db: AsyncSession, demand: Demand) -> None:
         elif task.due_date != due:
             task.due_date = task.original_due_date = due
             # напоминания о новом сроке начинаются заново
-            await db.execute(delete(Notification).where(Notification.task_id == task.id))
+            await db.execute(
+                delete(Notification).where(
+                    Notification.task_id == task.id, Notification.type == NotificationType.DEMAND
+                )
+            )
         if task.status == TaskStatus.PLANNED:
             task.kind = task_kind
         task.title = f"{action}: {subject}"
