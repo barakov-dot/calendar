@@ -9,6 +9,7 @@ from app.models.company import (
     ProfitAdvances,
     Regime,
 )
+from app.models.demand import Demand, DemandStep
 from app.models.extras import Attachment, Signature, Substitution
 from app.models.notification import (
     Broadcast,
@@ -39,6 +40,8 @@ __all__ = [
     "ChangedBy",
     "Company",
     "CompanyMember",
+    "Demand",
+    "DemandStep",
     "EntityType",
     "Invite",
     "InviteKind",

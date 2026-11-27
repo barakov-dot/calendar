@@ -13,7 +13,11 @@ function setup(role: Role) {
   ]
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(JSON.stringify(companies))),
+    vi.fn(async (url: string) =>
+      new Response(
+        JSON.stringify(url === '/api/demands' ? [{ closed: false }, { closed: true }] : companies),
+      ),
+    ),
   )
   const user: User = { id: 1, first_name: 'А', last_name: '', username: '', role, is_active: true }
   render(
@@ -29,17 +33,21 @@ function setup(role: Role) {
 const titles = (links: HTMLElement[]) => links.map((link) => link.textContent)
 
 describe('меню', () => {
-  it('у бухгалтера пять разделов и число организаций, требующих внимания', async () => {
+  it('на телефоне вместо организаций — требования, организации в «Настройках»', async () => {
     const menu = setup('accountant')
 
+    await menu().findByLabelText('открытых требований: 1')
     await menu().findByLabelText('требуют внимания: 1')
     expect(titles(menu().getAllByRole('link'))).toEqual([
       'Задачи',
       'Календарь',
       'Мои дела',
-      '1Организации',
-      'Настройки',
+      '1Требования',
+      '1Настройки',
     ])
+    // в меню широкого экрана организации остаются
+    const side = within(screen.getByRole('navigation', { name: 'Разделы' }))
+    side.getByRole('link', { name: /Организации/ })
   })
 
   it('у помощника нет личных дел', () => {

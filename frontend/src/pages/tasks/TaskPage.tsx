@@ -62,7 +62,10 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
   })
   const overdue = toneOf(task, todayIso()) === 'overdue'
   const deletable =
-    task.source === 'custom' && !task.recurring_reminder_id && !task.signature_id
+    task.source === 'custom' &&
+    !task.recurring_reminder_id &&
+    !task.signature_id &&
+    !task.demand_id
 
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
@@ -124,6 +127,15 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
       {task.signature_id && (
         <Alert>
           Напоминание об ЭЦП: срок и владелец меняются в карточке компании, вкладка «ЭЦП».
+        </Alert>
+      )}
+      {task.demand_id && (
+        <Alert>
+          Задача по требованию инспекции: сроки, сумма и документ — в{' '}
+          <Link to={`/demands/${task.demand_id}`} className="underline">
+            карточке требования
+          </Link>
+          .
         </Alert>
       )}
       {task.nds_parts.length > 0 && <NdsBlock task={task} editable={editable} />}
@@ -192,7 +204,10 @@ function EditForm({ task }: { task: TaskDetail }) {
   const [form, setForm] = useState(initial)
   const refresh = useRefreshTasks()
   const change = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
-  const hasAmount = (task.kind === 'payment' || task.kind === 'other') && usesAmount(task)
+  // эти поля меняются через подпись или требование
+  const owned = !!task.signature_id || !!task.demand_id
+  const hasAmount =
+    !task.demand_id && (task.kind === 'payment' || task.kind === 'other') && usesAmount(task)
   const kopecks = parseRubles(form.amount)
   // отправляются только изменённые поля: сумма и срок иначе стали бы «ручными»
   const changed = Object.fromEntries(
@@ -210,13 +225,13 @@ function EditForm({ task }: { task: TaskDetail }) {
 
   return (
     <Card title="Изменить">
-      {task.source === 'custom' && !task.signature_id && (
+      {task.source === 'custom' && !owned && (
         <>
           <Field label="Название" value={form.title} onChange={(e) => change({ title: e.target.value })} />
           <TextArea label="Описание" value={form.description} onChange={(description) => change({ description })} />
         </>
       )}
-      {!task.signature_id && (
+      {!owned && (
         <Field
           label="Срок"
           type="date"
@@ -244,7 +259,7 @@ function EditForm({ task }: { task: TaskDetail }) {
         value={form.client_note}
         onChange={(client_note) => change({ client_note })}
       />
-      {task.company_id !== null && !task.signature_id && (
+      {task.company_id !== null && !owned && (
         <Checkbox
           label="Клиент видит задачу"
           checked={form.client_visible}

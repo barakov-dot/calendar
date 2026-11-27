@@ -10,6 +10,7 @@ dependencies = [
     "asyncpg",
     "fastapi",
     "fpdf2",
+    "pypdf",
     "openpyxl",
     "httpx",
     "pyjwt",

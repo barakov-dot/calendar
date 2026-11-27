@@ -15,6 +15,7 @@ from app.core.settings_store import AppSettings
 from app.models import (
     Company,
     CompanyMember,
+    DemandStep,
     NotificationSettings,
     NotificationType,
     Role,
@@ -204,6 +205,48 @@ async def _signatures(
             )
 
 
+async def _demands(
+    db: AsyncSession,
+    settings: AppSettings,
+    staff: _Staff,
+    calendar: WorkCalendar,
+    current: date,
+) -> None:
+    """Требования инспекции: свои пороги в рабочих днях для квитанции и для ответа.
+
+    Если пройдено несколько порогов (требование загрузили поздно), берётся ближайший.
+    """
+    notifications = settings.notifications
+    offsets = {
+        DemandStep.RECEIPT: sorted(notifications.demand_receipt_offsets_days),
+        DemandStep.RESPONSE: sorted(notifications.demand_response_offsets_days),
+    }
+    admins = []
+    if notifications.demand_notify_admin:
+        query = select(User.id).where(User.role == Role.ADMIN, *reachable())
+        admins = list(await db.scalars(query))
+    rows = await db.execute(
+        # 200 дней — с запасом: пороги не больше 60 рабочих дней
+        _open_company_tasks().where(
+            Task.demand_id.is_not(None),
+            Task.due_date.between(current, current + timedelta(days=200)),
+        )
+    )
+    for task, company in rows.all():
+        left = workdays_until(calendar, current, task.due_date)
+        threshold = next((days for days in offsets[task.demand_step] if days >= left), None)
+        if threshold is None:
+            continue
+        for user_id in {*staff.recipients(company.accountant_id), *admins}:
+            await enqueue(
+                db,
+                user_id,
+                NotificationType.DEMAND,
+                task.due_date - timedelta(days=threshold),
+                task.id,
+            )
+
+
 async def _overdue(db: AsyncSession, settings: AppSettings, staff: _Staff, current: date) -> None:
     window = Task.due_date.between(
         current - timedelta(days=OVERDUE_WINDOW_DAYS), current - timedelta(days=1)
@@ -236,6 +279,7 @@ async def plan(db: AsyncSession, settings: AppSettings, now: datetime) -> None:
         await _fill_amount(db, settings, staff, calendar, current)
         await _reminders(db, settings, current)
         await _signatures(db, settings, staff, current)
+        await _demands(db, settings, staff, calendar, current)
         if settings.notifications.overdue_notify:
             await _overdue(db, settings, staff, current)
     await db.commit()

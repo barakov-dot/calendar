@@ -36,8 +36,9 @@ from app.models import (
     User,
 )
 from app.services import substitutions
+from app.services.calendar.workdays import load_calendar
 from app.services.notify import messages
-from app.services.notify.planner import local_now, reachable
+from app.services.notify.planner import local_now, reachable, workdays_until
 from app.services.telegram.connect import REQUEST_TIMEOUT
 
 logger = logging.getLogger(__name__)
@@ -166,6 +167,20 @@ async def _single(
             messages.calendar_button(settings, "Открыть", f"tasks/{task.id}")
         )
         return Message(messages.signature_reminder(task, company, current), buttons, [row])
+    if row.type == NotificationType.DEMAND:
+        if (
+            user.role == Role.CLIENT
+            or task.demand_id is None
+            or task.status != TaskStatus.PLANNED
+            or task.due_date < current
+        ):
+            return None
+        workdays = workdays_until(await load_calendar(db), current, task.due_date)
+        buttons = messages.keyboard(
+            messages.calendar_button(settings, "Открыть", f"demands/{task.demand_id}")
+        )
+        text = messages.demand_reminder(task, company, current, workdays)
+        return Message(text, buttons, [row])
     if row.type == NotificationType.ATTACHMENT:
         author = await db.scalar(
             select(User)

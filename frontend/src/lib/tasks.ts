@@ -31,6 +31,8 @@ export interface Task {
   can_mark_paid: boolean
   can_unmark_paid: boolean
   has_files?: boolean
+  /** Задача по требованию инспекции; клиенту не отдаётся. */
+  demand_id?: number | null
   /** «Что сделать» и «за какой период» из налогового правила; клиенту не отдаются. */
   action_title?: string
   period_label?: string

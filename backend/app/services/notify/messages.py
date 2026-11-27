@@ -69,6 +69,20 @@ def signature_reminder(task: Task, company: Company, current: date) -> str:
     )
 
 
+def demand_reminder(task: Task, company: Company, current: date, workdays: int) -> str:
+    if task.due_date == current:
+        rest = "срок сегодня"
+    else:
+        rest = f"осталось рабочих дней: {workdays}"
+    text = (
+        f"{marker(task.due_date, current)} 📄 {company_name(company)}\n{task.title}\n"
+        f"До {task.due_date:%d.%m.%Y}, {rest}"
+    )
+    if task.amount_kopecks is not None:
+        text += f"\nСумма: {money(task.amount_kopecks)}"
+    return clip(text)
+
+
 def section(title: str, rows: Iterable[tuple[Task, Company | None]], current: date) -> str:
     rows = list(rows)
     lines = [task_line(task, company, current) for task, company in rows[:LINES_PER_SECTION]]

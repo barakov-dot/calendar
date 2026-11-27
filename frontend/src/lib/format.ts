@@ -10,10 +10,10 @@ export function formatDateTime(value: string | number): string {
 }
 
 /** «7, 3, 1» → [7, 3, 1]; null, если строка не список дней от 1 до 365. */
-export function parseOffsets(text: string): number[] | null {
+export function parseOffsets(text: string, min = 1, max = 365): number[] | null {
   const parts = text.split(/[\s,;]+/).filter(Boolean)
   const days = parts.map(Number)
-  if (days.some((day) => !Number.isInteger(day) || day < 1 || day > 365)) return null
+  if (days.some((day) => !Number.isInteger(day) || day < min || day > max)) return null
   return [...new Set(days)].sort((a, b) => b - a)
 }
 

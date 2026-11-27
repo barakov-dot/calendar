@@ -60,6 +60,9 @@ export interface AppSettings {
     fill_amount_workdays_before: number
     overdue_notify: boolean
     signature_offsets_days: number[]
+    demand_receipt_offsets_days: number[]
+    demand_response_offsets_days: number[]
+    demand_notify_admin: boolean
     backup_alert: boolean
   }
 }

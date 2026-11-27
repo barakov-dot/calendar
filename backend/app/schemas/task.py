@@ -51,6 +51,7 @@ class TaskOut(ClientTaskOut):
     status_changed_by_role: str | None
     recurring_reminder_id: int | None
     signature_id: int | None
+    demand_id: int | None
 
 
 class NdsPart(BaseModel):

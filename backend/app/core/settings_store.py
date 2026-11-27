@@ -106,8 +106,20 @@ class NotificationSettings(Section):
     fill_amount_workdays_before: int = Field(5, ge=0, le=60)
     overdue_notify: bool = True
     signature_offsets_days: list[int] = Field(default_factory=lambda: [30, 14, 7, 1])
+    # требования инспекции: за сколько рабочих дней напоминать; 0 — в сам день
+    demand_receipt_offsets_days: list[int] = Field(default_factory=lambda: [2, 1, 0])
+    demand_response_offsets_days: list[int] = Field(default_factory=lambda: [5, 3, 1, 0])
+    # напоминать о требованиях и администратору, а не только бухгалтеру
+    demand_notify_admin: bool = True
     # напоминать администратору, если «make backup» давно не создавал копию
     backup_alert: bool = True
+
+    @field_validator("demand_receipt_offsets_days", "demand_response_offsets_days")
+    @classmethod
+    def demand_offsets(cls, value: list[int]) -> list[int]:
+        if any(days < 0 or days > 60 for days in value):
+            raise ValueError("дни напоминаний о требованиях должны быть от 0 до 60")
+        return value
 
     @field_validator("default_client_offsets_days", "signature_offsets_days")
     @classmethod

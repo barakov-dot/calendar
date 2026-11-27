@@ -71,6 +71,8 @@ class Task(Base):
             postgresql_where=text("recurring_reminder_id IS NOT NULL"),
             postgresql_nulls_not_distinct=True,
         ),
+        # у требования по одной задаче на каждый шаг
+        UniqueConstraint("demand_id", "demand_step", name="uq_tasks_demand_step"),
         Index("ix_tasks_company_due", "company_id", "due_date"),
         Index("ix_tasks_status_due", "status", "due_date"),
     )
@@ -85,6 +87,9 @@ class Task(Base):
     signature_id: Mapped[int | None] = mapped_column(
         ForeignKey("signatures.id", ondelete="CASCADE"), unique=True
     )
+    # шаг требования инспекции; меняется только через требование
+    demand_id: Mapped[int | None] = mapped_column(ForeignKey("demands.id", ondelete="CASCADE"))
+    demand_step: Mapped[str | None] = mapped_column(String(16))
     source: Mapped[str] = mapped_column(String(16))
     rule_code: Mapped[str | None] = mapped_column(String(64))
     period_key: Mapped[str | None] = mapped_column(String(32))

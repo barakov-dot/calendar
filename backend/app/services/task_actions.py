@@ -199,6 +199,8 @@ async def patch(db: AsyncSession, actor: User, task: Task, body: TaskPatch) -> N
     locked = {"title", "description", "due_date", "reset_due", "client_visible"}
     if task.signature_id and sent & locked:
         raise TaskError("Это напоминание об ЭЦП: измените подпись в карточке компании")
+    if task.demand_id and sent & (locked | {"amount_kopecks"}):
+        raise TaskError("Это задача по требованию: измените само требование")
     if task.source != TaskSource.CUSTOM and sent & {"title", "description"}:
         raise TaskError("Название и описание задачи из налоговых правил менять нельзя")
     if values.get("amount_kopecks") is not None and task.kind not in AMOUNT_KINDS:
@@ -289,6 +291,8 @@ async def create(db: AsyncSession, actor: User, body: TaskCreate) -> Task:
 async def delete(db: AsyncSession, actor: User, task: Task) -> None:
     if task.signature_id:
         raise TaskError("Это напоминание об ЭЦП: удалите подпись в карточке компании")
+    if task.demand_id:
+        raise TaskError("Это задача по требованию: удалите само требование")
     if task.source != TaskSource.CUSTOM:
         raise TaskError("Задачу из налоговых правил удалить нельзя: отметьте «Не требуется»")
     if task.recurring_reminder_id:

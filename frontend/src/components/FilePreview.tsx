@@ -12,6 +12,8 @@ export interface PreviewFile {
   id: number
   filename: string
   content_type: string
+  /** Откуда читать; по умолчанию — приложенный к задаче файл. */
+  path?: string
 }
 
 function Picture({ file, name }: { file: Blob; name: string }) {
@@ -48,8 +50,8 @@ export default function FilePreview({
 }) {
   const close = useRef<HTMLDivElement>(null)
   const content = useQuery({
-    queryKey: ['attachment-content', file.id],
-    queryFn: () => apiFile(`/attachments/${file.id}`),
+    queryKey: ['file-content', file.path ?? file.id],
+    queryFn: () => apiFile(file.path ?? `/attachments/${file.id}`),
     // содержимое файла не меняется, но и держать его в памяти после закрытия незачем
     staleTime: Infinity,
     gcTime: 0,

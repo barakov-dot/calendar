@@ -10,6 +10,8 @@ import ClientPayments from './pages/client/ClientPayments'
 import ClientTaskPage from './pages/client/ClientTaskPage'
 import Preferences from './pages/Preferences'
 import Declarations from './pages/declarations/Declarations'
+import DemandPage from './pages/demands/DemandPage'
+import DemandsPage from './pages/demands/DemandsPage'
 import CompaniesList from './pages/companies/CompaniesList'
 import CompanyCard from './pages/companies/CompanyCard'
 import NewCompany from './pages/companies/NewCompany'
@@ -78,6 +80,8 @@ export default function App() {
                 <Route path="more" element={<More user={user} onLogout={logout} />} />
                 <Route path="reminders" element={<Reminders user={user} />} />
                 <Route path="reports" element={<Reports user={user} />} />
+                <Route path="demands" element={<DemandsPage user={user} />} />
+                <Route path="demands/:id" element={<DemandPage user={user} />} />
                 <Route path="tasks/:id" element={<TaskPage user={user} />} />
                 <Route path="companies" element={<CompaniesList user={user} />} />
                 <Route path="companies/:id" element={<CompanyCard user={user} />} />

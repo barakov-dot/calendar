@@ -57,6 +57,11 @@ export const UploadIcon = (props: Props) => (
     <path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M4.5 15v5h15v-5" />
   </Icon>
 )
+export const DemandIcon = (props: Props) => (
+  <Icon {...props}>
+    <path d="M6 3.5h8l4.5 4.5v12.5H6zM14 3.5V8h4.5M12.2 11v4M12.2 17.8h.01" />
+  </Icon>
+)
 export const ListIcon = (props: Props) => (
   <Icon {...props}>
     <path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" />

@@ -17,6 +17,10 @@ export default function NotificationsTab({
   const [offsets, setOffsets] = useState(saved.default_client_offsets_days.join(', '))
   const [signature, setSignature] = useState(saved.signature_offsets_days.join(', '))
   const signatureDays = parseOffsets(signature)
+  const [receipt, setReceipt] = useState(saved.demand_receipt_offsets_days.join(', '))
+  const [response, setResponse] = useState(saved.demand_response_offsets_days.join(', '))
+  const receiptDays = parseOffsets(receipt, 0, 60)
+  const responseDays = parseOffsets(response, 0, 60)
   const save = useSaveSettings()
   const change = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
   const days = parseOffsets(offsets)
@@ -68,6 +72,28 @@ export default function NotificationsTab({
       {signatureDays === null && (
         <Alert kind="error">Укажите целые числа от 1 до 365 через запятую.</Alert>
       )}
+      <h3 className="pt-2 font-semibold">Требования инспекции</h3>
+      <Field
+        label="Квитанция о приёме: напоминать за (рабочих дней)"
+        value={receipt}
+        hint="Через запятую. 0 — в сам день."
+        onChange={(event) => setReceipt(event.target.value)}
+      />
+      <Field
+        label="Ответ, оплата или явка: напоминать за (рабочих дней)"
+        value={response}
+        hint="Через запятую. 0 — в сам день."
+        onChange={(event) => setResponse(event.target.value)}
+      />
+      {(receiptDays === null || responseDays === null) && (
+        <Alert kind="error">Укажите целые числа от 0 до 60 через запятую.</Alert>
+      )}
+      <Checkbox
+        label="Напоминать о требованиях и администратору"
+        checked={form.demand_notify_admin}
+        onChange={(demand_notify_admin) => change({ demand_notify_admin })}
+      />
+      <h3 className="pt-2 font-semibold">Прочее</h3>
       <Checkbox
         label="Показывать клиентам уведомления в ФНС"
         checked={showNotices}
@@ -84,16 +110,26 @@ export default function NotificationsTab({
       </p>
       <ErrorText error={save.error} />
       <Button
-        disabled={days === null || signatureDays === null || save.isPending}
+        disabled={
+          days === null ||
+          signatureDays === null ||
+          receiptDays === null ||
+          responseDays === null ||
+          save.isPending
+        }
         onClick={() =>
           days &&
           signatureDays &&
+          receiptDays &&
+          responseDays &&
           save.mutate({
             settings: {
               notifications: {
                 ...form,
                 default_client_offsets_days: days,
                 signature_offsets_days: signatureDays,
+                demand_receipt_offsets_days: receiptDays,
+                demand_response_offsets_days: responseDays,
               },
               tasks: { show_notices_to_clients: showNotices },
             },

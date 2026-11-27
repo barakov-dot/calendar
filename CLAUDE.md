@@ -61,6 +61,7 @@ backend/
       rules/      # движок налоговых правил
       calendar/   # производственный календарь и переносы сроков
       declarations/ # суммы из XML деклараций ФНС
+      demands/    # требования инспекции: распознавание PDF, сроки, задачи
       notify/     # формирование и отправка уведомлений
       telegram/   # фабрика Bot/сессии с учётом прокси из настроек
       dadata/     # клиент DaData
@@ -70,7 +71,7 @@ backend/
   Dockerfile
 frontend/
   Dockerfile      # multi-stage: dev (vite) и build (nginx со статикой)
-rules/            # налоговые правила в YAML (по году)
+rules/            # налоговые правила в YAML (по году) и виды требований (demands.yaml)
 data/calendar/    # производственный календарь по годам (JSON)
 config/           # settings.json (gitignore), settings.example.json, backups/
 deploy/           # пример конфигурации nginx, инструкция по развёртыванию на Ubuntu, скрипт бэкапа
@@ -92,6 +93,7 @@ Makefile                  # короткие команды
 9. Секреты не коммитить: `.env`, `config/settings.json`, `config/backups/` — в `.gitignore`. В репозитории — `.env.example` и `config/settings.example.json` с заглушками.
 10. Каждое изменение поведения — с тестом. Для сроков есть «золотые» тесты с реальными датами 2026 года (PLAN.md, раздел 8).
 11. Тексты интерфейса и уведомлений — на русском.
+12. Настоящие документы клиентов (требования, декларации) не попадают в репозиторий: в тестах только выдуманные.
 
 ## Команды (через Makefile)
 ```

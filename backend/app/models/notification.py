@@ -28,6 +28,7 @@ class NotificationType(StrEnum):
     ATTACHMENT = "attachment"  # клиент приложил файл
     SIGNATURE = "signature"  # заканчивается срок электронной подписи
     BROADCAST = "broadcast"  # рассылка администратора
+    DEMAND = "demand"  # приближается срок по требованию инспекции
 
 
 class NotificationStatus(StrEnum):

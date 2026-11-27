@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
+import { useDemands } from '../lib/demands'
 import { fullName } from '../lib/format'
 import { navClass } from '../lib/navClass'
 import { canEdit, ROLE_NAMES } from '../lib/roles'
@@ -12,6 +13,7 @@ import {
   BuildingIcon,
   CalendarIcon,
   CheckSquareIcon,
+  DemandIcon,
   GearIcon,
   ListIcon,
   ReportIcon,
@@ -28,6 +30,8 @@ interface Entry {
   title: string
   Symbol: ComponentType<{ className?: string }>
   badge?: number
+  /** Что означает число на пункте. */
+  badgeLabel?: string
   /** Другие адреса, на которых пункт тоже подсвечен. */
   also?: string[]
 }
@@ -37,10 +41,10 @@ const INSIDE_MORE = ['/preferences', '/accountants', '/settings']
 /** На широком экране эти разделы есть в самом меню, на телефоне — в «Настройках». */
 const IN_SIDEBAR = ['/declarations', '/reminders', '/reports', '/users', '/broadcasts']
 
-function Badge({ count }: { count?: number }) {
+function Badge({ count, label = 'требуют внимания' }: { count?: number; label?: string }) {
   return count ? (
     <span
-      aria-label={`требуют внимания: ${count}`}
+      aria-label={`${label}: ${count}`}
       className="min-w-5 rounded-full bg-orange-600 px-1.5 text-center text-xs font-semibold text-white"
     >
       {count}
@@ -54,14 +58,31 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
   const companies = useCompanies()
   const today = todayIso()
   const attention = companies.data?.filter(needsAttention).length
+  const demands = useDemands()
+  const open = Array.isArray(demands.data)
+    ? demands.data.filter((demand) => !demand.closed).length
+    : 0
 
-  const main: Entry[] = [
+  const shared: Entry[] = [
     { to: '/', title: 'Задачи', Symbol: ListIcon },
     { to: '/calendar', title: 'Календарь', Symbol: CalendarIcon },
     // помощник ничего не создаёт, личных дел у него нет
     ...(canEdit(user.role) ? [{ to: '/my', title: 'Мои дела', Symbol: CheckSquareIcon }] : []),
-    { to: '/companies', title: 'Организации', Symbol: BuildingIcon, badge: attention },
+    {
+      to: '/demands',
+      title: 'Требования',
+      Symbol: DemandIcon,
+      badge: open,
+      badgeLabel: 'открытых требований',
+      also: ['/demands/'],
+    },
   ]
+  const organisations: Entry = {
+    to: '/companies',
+    title: 'Организации',
+    Symbol: BuildingIcon,
+    badge: attention,
+  }
   // на телефоне эти разделы открываются из «Настроек»
   const wide: Entry[] = [
     ...(canEdit(user.role)
@@ -77,7 +98,11 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
       : []),
   ]
   const more: Entry = { to: '/more', title: 'Настройки', Symbol: GearIcon, also: INSIDE_MORE }
-  const phone: Entry[] = [...main, { ...more, also: [...INSIDE_MORE, ...IN_SIDEBAR] }]
+  // на телефоне «Организации» открываются из «Настроек», и число переносится туда
+  const phone: Entry[] = [
+    ...shared,
+    { ...more, badge: attention, also: [...INSIDE_MORE, ...IN_SIDEBAR, '/companies'] },
+  ]
 
   const inside = (entry: Entry) => entry.also?.some((prefix) => path.startsWith(prefix)) ?? false
 
@@ -86,7 +111,7 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
       <aside className="hidden border-r border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col dark:border-slate-800 dark:bg-slate-900">
         <div className="px-4 pt-5 pb-2 text-sm font-semibold">Платёжный календарь</div>
         <nav aria-label="Разделы" className="flex flex-col gap-1 p-2">
-          {[...main, ...wide, more].map((entry) => (
+          {[...shared, organisations, ...wide, more].map((entry) => (
             <NavLink
               key={entry.to}
               to={entry.to}
@@ -97,7 +122,7 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
             >
               <entry.Symbol className="size-5" />
               <span className="flex-1">{entry.title}</span>
-              <Badge count={entry.badge} />
+              <Badge count={entry.badge} label={entry.badgeLabel} />
             </NavLink>
           ))}
         </nav>
@@ -147,7 +172,7 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
             <span className="relative">
               <entry.Symbol />
               <span className="absolute -top-1 left-4">
-                <Badge count={entry.badge} />
+                <Badge count={entry.badge} label={entry.badgeLabel} />
               </span>
             </span>
             {entry.title}
