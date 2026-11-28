@@ -46,8 +46,8 @@ async def test_distributes_work_and_invites(client, db, world):
     company = world["company"]
 
     moved = await client.post(
-        f"/api/admin/companies/{company.id}/reassign",
-        json={"accountant_id": world["chief"].id},
+        f"/api/admin/companies/{company.id}/staff",
+        json={"accountant_ids": [world["chief"].id]},
         headers=headers,
     )
     team = await client.post("/api/admin/invites", json={"kind": "assistant"}, headers=headers)

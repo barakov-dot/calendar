@@ -7,7 +7,7 @@ from app.core.settings_store import get_store
 from app.models import AuditLog, Role, Task
 from app.services import tasks
 from app.services.calendar.workdays import load_missing_years
-from tests.factories import auth, link_client, make_company, make_user
+from tests.factories import assign, auth, link_client, make_company, make_user
 from tests.rules_helpers import CALENDAR_DIR
 
 pytestmark = pytest.mark.usefixtures("secrets")
@@ -25,6 +25,7 @@ async def world(db, monkeypatch):
     payer = await make_user(db, 4, Role.CLIENT)
     own = await make_company(db, first, 1, short_name="Своя", main_regime="osno", nds_payer=True)
     other = await make_company(db, second, 2, short_name="Чужая")
+    await assign(db, own, helper)
     await link_client(db, own, payer, can_mark_paid=True)
     for company in (own, other):
         await tasks.regenerate_company(db, company.id)
@@ -54,7 +55,7 @@ async def listed(client, user, **params) -> dict:
     ("user", "companies"),
     [
         ("admin", {"Своя", "Чужая"}),
-        ("helper", {"Своя", "Чужая"}),
+        ("helper", {"Своя"}),
         ("first", {"Своя"}),
         ("second", {"Чужая"}),
         ("payer", {"Своя"}),
@@ -323,7 +324,7 @@ async def test_personal_task(client, world):
         seen[name] = bool(found["items"])
     assert seen == {
         "admin": True,
-        "helper": True,
+        "helper": False,
         "first": True,
         "second": False,
         "payer": False,

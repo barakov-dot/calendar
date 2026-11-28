@@ -72,6 +72,11 @@ export default function NotificationsTab({
       {signatureDays === null && (
         <Alert kind="error">Укажите целые числа от 1 до 365 через запятую.</Alert>
       )}
+      <Checkbox
+        label="Присылать помощникам напоминания о сроках по их организациям"
+        checked={form.assistant_reminders}
+        onChange={(assistant_reminders) => change({ assistant_reminders })}
+      />
       <h3 className="pt-2 font-semibold">Требования инспекции</h3>
       <Field
         label="Квитанция о приёме: напоминать за (рабочих дней)"

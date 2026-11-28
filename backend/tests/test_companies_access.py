@@ -10,7 +10,7 @@ from app.core.settings_store import get_store
 from app.main import app
 from app.models import Company, CompanyMember, Patent, Role, Signature
 from app.services.inn import with_check_digits
-from tests.factories import auth, link_client, make_company, make_user
+from tests.factories import assign, auth, link_client, make_company, make_user
 
 pytestmark = pytest.mark.usefixtures("secrets")
 
@@ -27,6 +27,8 @@ async def world(db):
     own = await make_company(db, first, 1, notes="секретная заметка")
     other = await make_company(db, second, 2, entity_type="ip", inn=with_check_digits("0000000002"))
     archived = await make_company(db, first, 3, is_archived=True)
+    await assign(db, own, helper)
+    await assign(db, archived, helper)
     await link_client(db, own, client_a)
     await link_client(db, other, client_b, can_mark_paid=True)
     await link_client(db, archived, client_a)
@@ -41,7 +43,7 @@ async def test_accessible_company_ids(db, world):
     own, other, archived = world["own"], world["other"], world["archived"]
     expected = {
         "admin": {own.id, other.id, archived.id},
-        "helper": {own.id, other.id, archived.id},
+        "helper": {own.id, archived.id},
         "first": {own.id, archived.id},
         "second": {other.id},
         "client_a": {own.id},  # архивная клиенту не видна
@@ -135,8 +137,9 @@ async def test_foreign_company_is_not_available(client, db, world, method, path,
         assert response.status_code == 403
         # помощник тоже только читает: изменить ничего не может
         response = await client.request(method, url, json=body, headers=auth(world["helper"]))
-        helper_reads = method == "GET" and path.endswith(("/signatures", "/rosstat"))
-        assert response.status_code == (200 if helper_reads else 403)
+        # чужая для него компания не видна и на чтение
+        reading = method == "GET" and path.endswith(("/signatures", "/rosstat"))
+        assert response.status_code == (404 if reading else 403)
 
     assert await snapshot(db) == before
 
@@ -169,11 +172,18 @@ async def test_nested_object_of_foreign_company_via_own(client, db, world, path)
     assert await snapshot(db) == before
 
 
+@pytest.mark.parametrize("part", ["signatures", "rosstat"])
+async def test_assistant_reads_own_company(client, world, part):
+    url = f"/api/companies/{world['own'].id}/{part}"
+
+    assert (await client.get(url, headers=auth(world["helper"]))).status_code == 200
+
+
 @pytest.mark.parametrize(
     ("user", "visible"),
     [
         ("admin", {"own", "other"}),
-        ("helper", {"own", "other"}),
+        ("helper", {"own"}),
         ("first", {"own"}),
         ("second", {"other"}),
     ],
@@ -223,8 +233,8 @@ async def test_client_cannot_create(client, world, method, url, body):
 @pytest.mark.parametrize("user", ["first", "client_a", "helper"])
 async def test_reassign_and_staff_are_admin_only(client, world, user):
     headers = auth(world[user])
-    url = f"/api/admin/companies/{world['own'].id}/reassign"
-    body = {"accountant_id": world["second"].id}
+    url = f"/api/admin/companies/{world['own'].id}/staff"
+    body = {"accountant_ids": [world["second"].id]}
 
     assert (await client.post(url, json=body, headers=headers)).status_code == 403
     assert (await client.get("/api/staff", headers=headers)).status_code == 403

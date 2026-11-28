@@ -68,7 +68,8 @@ describe('мастер добавления компании', () => {
 
     await vi.waitFor(() => expect(posts).toHaveLength(1))
     expect(posts[0]).toMatchObject({
-      accountant_id: 7,
+      accountant_ids: [7],
+      assistant_ids: [],
       patents: [],
       company: { inn: '7707083893', main_regime: 'osno', nds_payer: true, region_code: '77' },
     })

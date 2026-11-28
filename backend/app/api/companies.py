@@ -27,7 +27,7 @@ from app.schemas.company import (
     PartyOut,
     PatentIn,
     PatentOut,
-    ReassignIn,
+    StaffIn,
     SuggestOut,
 )
 from app.services import audit, companies, invites
@@ -102,16 +102,19 @@ async def suggest(_: Staff, q: Annotated[str, Query(min_length=3, max_length=300
 
 @router.post("/companies", status_code=status.HTTP_201_CREATED)
 async def create_company(body: CompanyCreate, user: Staff, db: Database) -> CompanyOut:
-    # Бухгалтер создаёт компанию только себе; выбирать ответственного может админ.
-    accountant_id = user.id
-    if user.role in MANAGERS and body.accountant_id is not None:
-        accountant_id = body.accountant_id
+    # Бухгалтер создаёт компанию только себе; выбирать сотрудников могут админ и главный.
+    accountant_ids, assistant_ids = [user.id], []
+    if user.role in MANAGERS:
+        assistant_ids = body.assistant_ids
+        if body.accountant_ids is not None:
+            accountant_ids = body.accountant_ids
     try:
-        if accountant_id != user.id:
-            await companies.responsible(db, accountant_id)
+        if not accountant_ids:
+            raise companies.CompanyError("Назначьте хотя бы одного бухгалтера")
+        await companies.check_staff(db, set(accountant_ids) - {user.id}, set(assistant_ids))
         data = companies.validate(body.company)
         company = await companies.create(
-            db, user, data, accountant_id, body.patents, cached_party(data.inn)
+            db, user, data, accountant_ids, assistant_ids, body.patents, cached_party(data.inn)
         )
     except companies.CompanyError as error:
         raise _rejected(error) from None
@@ -169,15 +172,13 @@ async def refresh_dadata(company: StaffCompany, user: Staff, db: Database) -> Co
     return await companies.details(db, company)
 
 
-@router.post("/admin/companies/{company_id}/reassign")
-async def reassign(
-    company_id: int, body: ReassignIn, admin: ManagerUser, db: Database
-) -> CompanyOut:
+@router.post("/admin/companies/{company_id}/staff")
+async def set_staff(company_id: int, body: StaffIn, admin: ManagerUser, db: Database) -> CompanyOut:
     company = await db.get(Company, company_id)
     if company is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
     try:
-        await companies.reassign(db, admin, company, body.accountant_id)
+        await companies.set_staff(db, admin, company, body.accountant_ids, body.assistant_ids)
     except companies.CompanyError as error:
         raise _rejected(error) from None
     return await companies.details(db, company)
@@ -321,10 +322,13 @@ async def revoke_client_invite(
 
 @router.get("/staff")
 async def staff(_: ManagerUser, db: Database) -> list[dict]:
-    """Кому можно назначить компанию: действующие бухгалтеры всех уровней и администраторы."""
+    """Кого можно закрепить за компанией: действующие бухгалтеры всех уровней,
+    администраторы и помощники."""
     users = await db.scalars(
         select(User)
-        .where(User.role.in_(EDITORS), User.is_active.is_(True))
+        .where(User.role.in_((*EDITORS, Role.ASSISTANT)), User.is_active.is_(True))
         .order_by(User.id)
     )
-    return [{"id": user.id, "name": companies.person_name(user)} for user in users]
+    return [
+        {"id": user.id, "name": companies.person_name(user), "role": user.role} for user in users
+    ]

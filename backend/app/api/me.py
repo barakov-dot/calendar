@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app.api.deps import CurrentUser, Database
 from app.core.permissions import accessible_company_ids_query, business_today
 from app.core.settings_store import get_settings
-from app.models import Company, NotificationSettings, Role, User
+from app.models import Company, CompanyStaff, NotificationSettings, Role, User
 from app.services import substitutions
 from app.services.companies import person_name
 
@@ -93,9 +93,14 @@ async def contacts(user: CurrentUser, db: Database) -> ContactsOut:
     if user.role == Role.CLIENT:
         rows = await db.execute(
             select(Company, User)
-            .join(User, User.id == Company.accountant_id)
-            .where(Company.id.in_(accessible_company_ids_query(user)), User.is_active.is_(True))
-            .order_by(Company.id)
+            .join(CompanyStaff, CompanyStaff.company_id == Company.id)
+            .join(User, User.id == CompanyStaff.user_id)
+            .where(
+                Company.id.in_(accessible_company_ids_query(user)),
+                User.is_active.is_(True),
+                User.role.in_(substitutions.STAFF),
+            )
+            .order_by(Company.id, User.id)
         )
         replaced = await substitutions.active(db, business_today())
         accountants = []

@@ -17,7 +17,7 @@ from app.services.notify.planner import plan
 from app.services.notify.sender import deliver
 from app.services.reports import FONTS
 from app.services.telegram.factory import create_bot
-from tests.factories import auth, link_client, make_company, make_user
+from tests.factories import assign, auth, link_client, make_company, make_user
 from tests.fakes import FakeTelegram
 from tests.test_tasks import CALENDAR_DIR
 
@@ -43,6 +43,7 @@ async def world(db):
     helper = await make_user(db, 4, Role.ASSISTANT)
     client_user = await make_user(db, 5, Role.CLIENT)
     company = await make_company(db, accountant, 1)
+    await assign(db, company, helper)
     await link_client(db, company, client_user)
     return locals()
 

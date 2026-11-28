@@ -4,6 +4,7 @@ from app.models.base import Base
 from app.models.company import (
     Company,
     CompanyMember,
+    CompanyStaff,
     EntityType,
     Patent,
     ProfitAdvances,
@@ -53,6 +54,7 @@ __all__ = [
     "ChangedBy",
     "Company",
     "CompanyMember",
+    "CompanyStaff",
     "Demand",
     "DemandStep",
     "EntityType",

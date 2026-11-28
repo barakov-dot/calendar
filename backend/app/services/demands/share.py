@@ -1,7 +1,4 @@
-"""Отправка требования людям через бота: клиентам и бухгалтеру организации, помощникам.
-
-Помощники не закреплены за компаниями и видят все, поэтому в списке они все.
-"""
+"""Отправка требования людям через бота: клиентам, бухгалтерам и помощникам организации."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -21,7 +18,7 @@ from app.models import (
     Task,
     User,
 )
-from app.services import audit, substitutions
+from app.services import audit, staff, substitutions
 from app.services.broadcasts import why_unreachable
 from app.services.demands.service import DemandError
 from app.services.notify.queue import enqueue
@@ -46,7 +43,7 @@ async def _response_task(db: AsyncSession, demand: Demand) -> int:
 
 
 async def candidates(db: AsyncSession, demand: Demand) -> list[Recipient]:
-    """Действующие получатели: клиенты, ответственный и замещающие, помощники."""
+    """Действующие получатели: клиенты, бухгалтеры и замещающие, помощники организации."""
     company = await db.get(Company, demand.company_id)
     found: dict[int, Recipient] = {}
 
@@ -59,11 +56,16 @@ async def candidates(db: AsyncSession, demand: Demand) -> list[Recipient]:
 
     members = select(CompanyMember.user_id).where(CompanyMember.company_id == company.id)
     await add("client", User.id.in_(members) & (User.role == Role.CLIENT))
-    if company.accountant_id is not None:
+    team = await staff.team(db, company.id)
+    if team.accountants:
         replaced = await substitutions.active(db, business_today())
-        staff = {company.accountant_id, *replaced.get(company.accountant_id, [])}
-        await add("accountant", User.id.in_(staff) & User.role.in_(substitutions.STAFF))
-    await add("assistant", User.role == Role.ASSISTANT)
+        ids = {
+            user_id
+            for accountant in team.accountants
+            for user_id in (accountant.id, *replaced.get(accountant.id, []))
+        }
+        await add("accountant", User.id.in_(ids) & User.role.in_(substitutions.STAFF))
+    await add("assistant", User.id.in_([user.id for user in team.assistants]))
     return list(found.values())
 
 

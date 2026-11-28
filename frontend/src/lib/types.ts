@@ -70,6 +70,7 @@ export interface AppSettings {
     demand_response_offsets_days: number[]
     demand_notify_admin: boolean
     demand_notify_clients: boolean
+    assistant_reminders: boolean
     backup_alert: boolean
   }
 }
@@ -129,8 +130,9 @@ export interface Member {
 export interface Company extends CompanyForm {
   id: number
   is_archived: boolean
-  accountant_id: number | null
   accountant_name: string
+  accountants: StaffRef[]
+  assistants: StaffRef[]
   dadata_updated_at: string | null
   patents: Patent[]
   members: Member[]
@@ -146,7 +148,6 @@ export interface CompanyListItem {
   nds_payer: boolean
   has_employees: boolean
   is_archived: boolean
-  accountant_id: number | null
   accountant_name: string
   patents_count: number
   members_count: number
@@ -170,7 +171,14 @@ export interface Party {
   status: string
 }
 
+export interface StaffRef {
+  id: number
+  name: string
+  is_active: boolean
+}
+
 export interface StaffMember {
   id: number
   name: string
+  role: Role
 }

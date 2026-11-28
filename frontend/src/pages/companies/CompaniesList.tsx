@@ -56,7 +56,13 @@ export default function CompaniesList({ user }: { user: User }) {
       />
       <Checkbox label="Показать архив" checked={archived} onChange={setArchived} />
       <ErrorText error={companies.error} />
-      {companies.data?.length === 0 && <p className="text-sm">Ничего не найдено.</p>}
+      {companies.data?.length === 0 && (
+        <p className="text-sm">
+          {user.role === 'assistant' && !search && !archived
+            ? 'За вами пока не закреплены организации. Это делает администратор или главный бухгалтер.'
+            : 'Ничего не найдено.'}
+        </p>
+      )}
       <ul className="grid gap-3 lg:grid-cols-2">
         {companies.data?.map((company) => (
           <li key={company.id}>

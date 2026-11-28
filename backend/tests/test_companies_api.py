@@ -1,9 +1,11 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from sqlalchemy import select
 
 from app.api import companies as api
 from app.core.settings_store import get_store
-from app.models import AuditLog, Company, CompanyMember, InviteKind, Role, Task
+from app.models import AuditLog, Company, CompanyMember, Invite, InviteKind, Role, Task
 from app.services import dadata, invites
 from app.services.dadata.client import parse_party
 from app.services.inn import is_valid_inn, with_check_digits
@@ -51,13 +53,14 @@ async def test_accountant_creates_company_for_self(client, db, staff):
 
     response = await client.post(
         "/api/companies",
-        json={"company": OOO, "accountant_id": admin.id},
+        json={"company": OOO, "accountant_ids": [admin.id]},
         headers=auth(accountant),
     )
 
     body = response.json()
     assert response.status_code == 201, body
-    assert (body["accountant_id"], body["accountant_name"]) == (accountant.id, "Борис")
+    assert [item["id"] for item in body["accountants"]] == [accountant.id]
+    assert body["accountant_name"] == "Борис"
     # значения по умолчанию для ООО на ОСНО
     assert body["nds_payer"] is True
     assert body["profit_advances_mode"] == "monthly_by_quarter"
@@ -71,14 +74,14 @@ async def test_admin_chooses_accountant(client, db, staff):
     headers = auth(admin)
 
     bad = await client.post(
-        "/api/companies", json={"company": OOO, "accountant_id": client_user.id}, headers=headers
+        "/api/companies", json={"company": OOO, "accountant_ids": [client_user.id]}, headers=headers
     )
     good = await client.post(
-        "/api/companies", json={"company": OOO, "accountant_id": accountant.id}, headers=headers
+        "/api/companies", json={"company": OOO, "accountant_ids": [accountant.id]}, headers=headers
     )
 
     assert bad.status_code == 422
-    assert good.json()["accountant_id"] == accountant.id
+    assert [item["id"] for item in good.json()["accountants"]] == [accountant.id]
 
 
 @pytest.mark.parametrize(
@@ -242,19 +245,29 @@ async def test_list_badges_and_search(client, db, staff):
     assert await find("%") == await find("100%")  # знак процента не подстановка
 
 
-async def test_reassign_revokes_open_invites(client, db, staff):
+async def test_removing_accountant_revokes_own_invites(client, db, staff):
     admin, accountant = staff
     second = await make_user(db, 3)
     company = await make_company(db, accountant)
-    await client.post(f"/api/companies/{company.id}/invites", json={}, headers=auth(admin))
+    # приглашение выдано бухгалтером, которого снимают
+    db.add(
+        Invite(
+            token="t",
+            kind="client",
+            company_id=company.id,
+            created_by=accountant.id,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+    )
+    await db.commit()
 
     response = await client.post(
-        f"/api/admin/companies/{company.id}/reassign",
-        json={"accountant_id": second.id},
+        f"/api/admin/companies/{company.id}/staff",
+        json={"accountant_ids": [second.id]},
         headers=auth(admin),
     )
 
-    assert response.json()["accountant_id"] == second.id
+    assert [item["id"] for item in response.json()["accountants"]] == [second.id]
     url = f"/api/companies/{company.id}"
     assert (await client.get(url, headers=auth(accountant))).status_code == 404
     assert (await client.get(f"{url}/invites", headers=auth(admin))).json() == []

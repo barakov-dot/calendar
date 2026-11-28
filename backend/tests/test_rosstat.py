@@ -14,7 +14,7 @@ from app.services import tasks
 from app.services.rosstat import client as rosstat
 from app.services.rosstat.parse import parse_date, parse_form
 from app.services.rosstat.sync import due_since, run_due
-from tests.factories import auth, link_client, make_company, make_user
+from tests.factories import assign, auth, link_client, make_company, make_user
 
 pytestmark = pytest.mark.usefixtures("secrets")
 
@@ -75,6 +75,7 @@ async def world(db):
     helper = await make_user(db, 4, Role.ASSISTANT)
     client_user = await make_user(db, 5, Role.CLIENT)
     company = await make_company(db, accountant, 1)
+    await assign(db, company, helper)
     await link_client(db, company, client_user)
     return locals()
 

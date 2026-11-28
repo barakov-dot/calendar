@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import accessible_company_ids_query
 from app.core.settings_store import get_settings
-from app.models import ChangedBy, Company, Task, TaskKind, TaskStatus, User
+from app.models import ChangedBy, Company, CompanyStaff, Task, TaskKind, TaskStatus, User
+from app.services import staff
 from app.services.companies import person_name
 from app.services.notify.messages import money
 from app.services.task_state import before_start_condition
@@ -115,8 +116,9 @@ async def build(
     if company_id is not None:
         companies.append(Company.id == company_id)
     if accountant_id is not None:
-        companies.append(Company.accountant_id == accountant_id)
+        companies.append(Company.id.in_(staff.companies_of(CompanyStaff.user_id == accountant_id)))
     users = {item.id: item for item in await db.scalars(select(User))}
+    teams = await staff.teams(db)
 
     def query(*conditions):
         return (
@@ -150,10 +152,10 @@ async def build(
     totals: dict[int, Summary] = {}
 
     def total_for(company: Company) -> Summary:
-        accountant = users.get(company.accountant_id)
+        team = teams.get(company.id, staff.Team())
+        names = ", ".join(person_name(user) for user in team.accountants)
         return totals.setdefault(
-            company.id,
-            Summary(person_name(accountant) or NO_ACCOUNTANT, company.short_name or company.name),
+            company.id, Summary(names or NO_ACCOUNTANT, company.short_name or company.name)
         )
 
     for task, company in [*done, *missed]:

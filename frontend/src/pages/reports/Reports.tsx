@@ -95,7 +95,7 @@ export default function Reports({ user }: { user: User }) {
               onChange={(event) => change({ accountant_id: event.target.value })}
             >
               <option value="">Все</option>
-              {staff.data?.map((member) => (
+              {staff.data?.filter((member) => member.role !== 'assistant').map((member) => (
                 <option key={member.id} value={member.id}>
                   {member.name}
                 </option>

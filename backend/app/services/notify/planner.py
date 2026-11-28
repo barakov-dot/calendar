@@ -27,6 +27,7 @@ from app.models import (
     TaskStatus,
     User,
 )
+from app.services import staff as staff_service
 from app.services import substitutions
 from app.services.calendar.workdays import WorkCalendar, load_calendar
 from app.services.notify.queue import enqueue
@@ -63,10 +64,13 @@ async def _digests(
 ) -> None:
     if settings.notifications.digest_workdays_only and not workday:
         return
+    roles = EDITORS
+    if settings.notifications.assistant_reminders:
+        roles = (*EDITORS, Role.ASSISTANT)
     rows = await db.execute(
         select(User.id, NotificationSettings.daily_digest, NotificationSettings.digest_time)
         .outerjoin(NotificationSettings, NotificationSettings.user_id == User.id)
-        .where(User.role.in_(EDITORS), *reachable())
+        .where(User.role.in_(roles), *reachable())
     )
     for user_id, enabled, own_time in rows:
         if enabled is False or clock < (own_time or settings.notifications.digest_time):
@@ -90,21 +94,35 @@ def _open_company_tasks():
 class _Staff:
     """Кто из сотрудников получает уведомления по компаниям сегодня."""
 
+    teams: dict[int, staff_service.Team]
     substitutes: dict[int, list[int]]
     reachable: set[int]
+    assistant_reminders: bool
 
-    def recipients(self, accountant_id: int | None) -> list[int]:
-        if accountant_id is None:
-            return []
-        found = substitutions.recipients(self.substitutes, accountant_id)
-        return [user_id for user_id in found if user_id in self.reachable]
+    def recipients(self, company_id: int, assistants: bool = True) -> list[int]:
+        """Бухгалтеры компании (или замещающие) и, если включено, её помощники."""
+        team = self.teams.get(company_id, staff_service.Team())
+        found = [
+            user_id
+            for accountant in team.accountants
+            for user_id in substitutions.recipients(self.substitutes, accountant.id)
+        ]
+        if assistants and self.assistant_reminders:
+            found += [user.id for user in team.assistants]
+        return [user_id for user_id in dict.fromkeys(found) if user_id in self.reachable]
 
 
-async def _staff(db: AsyncSession, current: date) -> _Staff:
-    ids = await db.scalars(select(User.id).where(User.role.in_(substitutions.STAFF), *reachable()))
+async def _staff(db: AsyncSession, settings: AppSettings, current: date) -> _Staff:
+    roles = (*substitutions.STAFF, Role.ASSISTANT)
+    ids = await db.scalars(select(User.id).where(User.role.in_(roles), *reachable()))
     # недоступный замещающий не отнимает сообщения у бухгалтера
     replaced = await substitutions.active(db, current, *reachable())
-    return _Staff(replaced, set(ids))
+    return _Staff(
+        await staff_service.teams(db),
+        replaced,
+        set(ids),
+        settings.notifications.assistant_reminders,
+    )
 
 
 async def _fill_amount(
@@ -126,7 +144,8 @@ async def _fill_amount(
     )
     for task, company in rows.all():
         if workdays_until(calendar, current, task.due_date) <= ahead:
-            for user_id in staff.recipients(company.accountant_id):
+            # помощник сумму вписать не может
+            for user_id in staff.recipients(company.id, assistants=False):
                 await enqueue(db, user_id, NotificationType.FILL_AMOUNT, task.due_date, task.id)
 
 
@@ -193,7 +212,7 @@ async def _signatures(
     for task, company in rows.all():
         left = (task.due_date - current).days
         threshold = next(days for days in thresholds if days >= left)
-        users = staff.recipients(company.accountant_id)
+        users = staff.recipients(company.id)
         if task.client_visible:
             users += await db.scalars(
                 select(User.id)
@@ -247,7 +266,7 @@ async def _demands(
         threshold = next((days for days in offsets[task.demand_step] if days >= left), None)
         if threshold is None:
             continue
-        recipients = {*staff.recipients(company.accountant_id), *admins}
+        recipients = {*staff.recipients(company.id), *admins}
         # клиент не подписывает квитанцию, ему напоминают только о сроке исполнения
         if notifications.demand_notify_clients and task.demand_step == DemandStep.RESPONSE:
             recipients |= set(
@@ -279,7 +298,7 @@ async def _overdue(db: AsyncSession, settings: AppSettings, staff: _Staff, curre
     # бухгалтеру — всегда, по всем задачам его компаний
     rows = await db.execute(_open_company_tasks().where(window))
     for task, company in rows.all():
-        for user_id in staff.recipients(company.accountant_id):
+        for user_id in staff.recipients(company.id):
             await enqueue(db, user_id, NotificationType.OVERDUE, task.due_date, task.id)
     # клиенту — только если он платит сам
     rows = await db.execute(
@@ -325,7 +344,7 @@ async def plan(db: AsyncSession, settings: AppSettings, now: datetime) -> None:
     await _digests(db, settings, current, clock, calendar.is_workday(current))
     # остальное — не раньше общего времени дайджеста, чтобы не писать ночью
     if clock >= settings.notifications.digest_time:
-        staff = await _staff(db, current)
+        staff = await _staff(db, settings, current)
         await _fill_amount(db, settings, staff, calendar, current)
         await _reminders(db, settings, current)
         await _signatures(db, settings, staff, current)

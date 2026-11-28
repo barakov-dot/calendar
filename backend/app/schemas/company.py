@@ -127,7 +127,8 @@ class CompanyData(Input):
 
 class CompanyCreate(Input):
     company: dict
-    accountant_id: int | None = None
+    accountant_ids: list[int] | None = Field(default=None, max_length=50)
+    assistant_ids: list[int] = Field(default_factory=list, max_length=50)
     patents: list[PatentIn] = Field(default_factory=list, max_length=50)
 
 
@@ -138,8 +139,15 @@ class CompanyPatch(Input):
     is_archived: bool | None = None
 
 
-class ReassignIn(Input):
-    accountant_id: int
+class StaffIn(Input):
+    accountant_ids: list[int] = Field(min_length=1, max_length=50)
+    assistant_ids: list[int] = Field(default_factory=list, max_length=50)
+
+
+class StaffOut(BaseModel):
+    id: int
+    name: str
+    is_active: bool
 
 
 class MemberPatch(Input):
@@ -172,7 +180,6 @@ class CompanyListItem(BaseModel):
     nds_payer: bool
     has_employees: bool
     is_archived: bool
-    accountant_id: int | None
     accountant_name: str
     patents_count: int
     members_count: int
@@ -218,10 +225,11 @@ class CompanyOut(BaseModel):
     salary_day: int | None
     notes: str
     is_archived: bool
-    accountant_id: int | None
     dadata_updated_at: datetime | None
     created_at: datetime
     accountant_name: str = ""
+    accountants: list[StaffOut] = Field(default_factory=list)
+    assistants: list[StaffOut] = Field(default_factory=list)
     patents: list[PatentOut] = Field(default_factory=list)
     members: list[MemberOut] = Field(default_factory=list)
 

@@ -180,7 +180,10 @@ companies
   profit_advances_mode, has_property_avg, has_property_cadastral, has_property_advances,
   has_transport_tax, has_land_tax, has_trade_fee, has_tourist_tax, has_dsv, ausn_ndfl_tasks,
   advance_day, salary_day,
-  region_code, accountant_id -> users, is_archived, notes, created_at
+  region_code, is_archived, notes, created_at
+
+company_staff              -- бухгалтеры и помощники компании; кто есть кто, решает роль
+  company_id, user_id, PK(company_id, user_id)
 
 patents
   id, company_id, number, region, date_start, date_end, cost_kopecks (nullable)
@@ -252,8 +255,8 @@ audit_log
 ```
 get_accessible_company_ids(user):
   admin      -> все компании
-  assistant  -> все компании (только чтение)
-  accountant -> companies where accountant_id = user.id
+  assistant  -> company_staff where user_id = user.id (только чтение)
+  accountant -> company_staff where user_id = user.id (и замещаемые)
   client     -> company_members where user_id = user.id
 ```
 - клиенту отдаются только `client_visible = true` — платежи, отчёты, уведомления в ФНС — со статусами; поле `comment` клиенту не отдаётся никогда;
@@ -601,7 +604,7 @@ GET/POST /api/admin/calendar/{year}
 
 ### Фаза 5 — Интерфейс бухгалтера (2–4 дня)
 - [x] «Сегодня», «Календарь», «Компании», «Карточка», «Задача»
-- [x] Роль «помощник бухгалтера»: только просмотр; видит все компании, суммы и внутренние комментарии (приглашает администратор)
+- [x] Роль «помощник бухгалтера»: только просмотр; видит свои компании, суммы и внутренние комментарии (приглашает администратор)
 - [x] Ручное изменение срока задачи не должно затираться генерацией (отдельный признак, как `amount_overridden`)
 - [x] Ввод сумм, статусы, комментарии (внутренний и для клиента), видимость
 - [x] Массовые действия, фильтры
@@ -729,7 +732,12 @@ GET/POST /api/admin/calendar/{year}
 
 Роль главного бухгалтера:
 - [x] Все компании, задачи и требования; распределение работы, приглашения, пользователи и рассылка; без настроек сервиса и чужих личных дел; назначает только админ
-- Помощник по-прежнему видит все компании (решение владельца)
+
+Несколько бухгалтеров и помощников у компании:
+- [x] Сотрудники отмечаются в карточке компании и при её создании (админ и главный бухгалтер)
+- [x] Все отмеченные бухгалтеры равны: доступ, напоминания и сообщения клиентов; замещение действует для каждого отдельно
+- [x] Помощник видит только компании, за которыми закреплён; напоминания ему — настройкой (по умолчанию выключены)
+- Миграция переносит прежнего бухгалтера каждой компании; помощников после обновления нужно закрепить
 
 ---
 

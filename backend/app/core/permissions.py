@@ -7,7 +7,17 @@ from sqlalchemy import ColumnElement, Select, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.settings_store import get_settings
-from app.models import MANAGERS, Company, CompanyMember, Role, Substitution, Task, TaskKind, User
+from app.models import (
+    MANAGERS,
+    Company,
+    CompanyMember,
+    CompanyStaff,
+    Role,
+    Substitution,
+    Task,
+    TaskKind,
+    User,
+)
 
 
 def business_today() -> date:
@@ -22,19 +32,26 @@ def _accountant_condition(user: User, on: date | None) -> ColumnElement[bool]:
         Substitution.date_from <= day,
         Substitution.date_to >= day,
     )
-    return or_(Company.accountant_id == user.id, Company.accountant_id.in_(replaced))
+    return Company.id.in_(
+        select(CompanyStaff.company_id).where(
+            or_(CompanyStaff.user_id == user.id, CompanyStaff.user_id.in_(replaced))
+        )
+    )
 
 
 def accessible_company_ids_query(user: User, on: date | None = None) -> Select[tuple[int]]:
     """Подзапрос с id доступных пользователю компаний.
 
-    admin, chief и assistant — все (помощник только читает); accountant — где он ответственный
-    или замещает ответственного; client — к которым привязан (архивные клиенту не видны).
+    admin и chief — все; accountant — где он закреплён или замещает закреплённого;
+    assistant — где закреплён (только чтение); client — к которым привязан (архивные
+    клиенту не видны).
     """
-    if user.role in (*MANAGERS, Role.ASSISTANT):
+    if user.role in MANAGERS:
         return select(Company.id)
     if user.role == Role.ACCOUNTANT:
         return select(Company.id).where(_accountant_condition(user, on))
+    if user.role == Role.ASSISTANT:
+        return select(CompanyStaff.company_id).where(CompanyStaff.user_id == user.id)
     if user.role == Role.CLIENT:
         return (
             select(Company.id)
@@ -74,7 +91,7 @@ def visible_task_condition(
     company_task = Task.company_id.in_(accessible_company_ids_query(user, on))
     if user.role == Role.CLIENT:
         return and_(company_task, client_task_condition(show_notices))
-    if user.role in (Role.ADMIN, Role.ASSISTANT):
+    if user.role == Role.ADMIN:
         return or_(company_task, Task.company_id.is_(None))
     return or_(company_task, Task.owner_id == user.id)
 

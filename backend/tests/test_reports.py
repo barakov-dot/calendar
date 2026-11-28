@@ -8,7 +8,7 @@ from openpyxl import load_workbook
 
 from app.core.permissions import business_today
 from app.models import Role, Task
-from tests.factories import auth, link_client, make_company, make_user
+from tests.factories import assign, auth, link_client, make_company, make_user
 
 pytestmark = pytest.mark.usefixtures("secrets")
 
@@ -26,6 +26,7 @@ async def world(db):
     payer = await make_user(db, 10, Role.CLIENT)
     company = await make_company(db, first, 1, short_name="=HYPERLINK(1)")
     other = await make_company(db, second, 2, short_name="ООО «Вторая»")
+    await assign(db, company, helper)
     await link_client(db, company, payer)
     today = business_today()
 
@@ -88,7 +89,7 @@ async def test_summary(client, world):
 
 @pytest.mark.parametrize(
     ("user", "companies"),
-    [("admin", 2), ("helper", 2), ("first", 1), ("second", 1)],
+    [("admin", 2), ("helper", 1), ("first", 1), ("second", 1)],
 )
 async def test_limited_to_accessible(client, world, user, companies):
     assert len((await get(client, world, user)).json()["summary"]) == companies

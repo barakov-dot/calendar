@@ -106,8 +106,9 @@ export default function Accountants({ user: viewer }: { user: User }) {
           </Button>
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Помощник видит все компании, суммы и комментарии, но ничего не меняет. Клиентов
-          приглашайте из карточки компании.
+          Помощник видит только организации, за которыми закреплён (отметьте его в карточке
+          организации): суммы и комментарии, но ничего не меняет. Клиентов приглашайте из
+          карточки компании.
         </p>
         <ErrorText error={invite.error ?? invites.error ?? revoke.error} />
         <InviteList invites={invites.data ?? []} onRevoke={(id) => revoke.mutate(id)} />

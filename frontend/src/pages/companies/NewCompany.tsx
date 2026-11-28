@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import { Alert, Button, Card, ErrorText, Field, Select } from '../../components/ui'
+import { Alert, Button, Card, ErrorText, Field } from '../../components/ui'
 import { api } from '../../lib/api'
 import { type CompanyForm, EMPTY_COMPANY, toForm, withRegime } from '../../lib/company'
 import { isManager } from '../../lib/roles'
@@ -11,7 +11,7 @@ import type { Company, Party, User } from '../../lib/types'
 import { RequisiteFields, TaxFields } from './CompanyFields'
 import type { PatentData } from './PatentForm'
 import PatentList from './PatentList'
-import { useStaff } from './useStaff'
+import { StaffPicker, type StaffChoice } from './StaffPicker'
 
 const STATUS_WARNINGS: Record<string, string> = {
   LIQUIDATING: 'Организация в процессе ликвидации.',
@@ -124,15 +124,17 @@ function Details({
     calendar_start: todayIso(),
   }))
   const [patents, setPatents] = useState<PatentData[]>([])
-  const [accountantId, setAccountantId] = useState(user.id)
-  const staff = useStaff(isManager(user.role))
+  const [staff, setStaff] = useState<StaffChoice>({
+    accountant_ids: [user.id],
+    assistant_ids: [],
+  })
   const create = useMutation({
     mutationFn: () =>
       api<Company>('/companies', {
         method: 'POST',
         body: {
           company: form,
-          accountant_id: accountantId,
+          ...staff,
           patents: form.entity_type === 'ip' ? patents : [],
         },
       }),
@@ -169,22 +171,15 @@ function Details({
         </Card>
       )}
       {isManager(user.role) && (
-        <Card title="Ответственный">
-          <Select
-            label="Бухгалтер"
-            value={accountantId}
-            onChange={(event) => setAccountantId(Number(event.target.value))}
-          >
-            {staff.data?.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </Select>
+        <Card title="Сотрудники">
+          <StaffPicker value={staff} onChange={setStaff} />
         </Card>
       )}
       <ErrorText error={create.error} />
-      <Button disabled={create.isPending} onClick={() => create.mutate()}>
+      <Button
+        disabled={create.isPending || staff.accountant_ids.length === 0}
+        onClick={() => create.mutate()}
+      >
         Создать компанию
       </Button>
     </div>

@@ -67,7 +67,7 @@ export function SubstitutionsCard() {
       onChange={(event) => change({ [name]: Number(event.target.value) })}
     >
       <option value={0}>Выберите</option>
-      {staff.data?.map((member) => (
+      {staff.data?.filter((member) => member.role !== 'assistant').map((member) => (
         <option key={member.id} value={member.id}>
           {member.name}
         </option>

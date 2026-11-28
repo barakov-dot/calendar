@@ -29,7 +29,7 @@ REMINDER_NOT_FOUND = "Напоминание не найдено"
 def _visible(user: User):
     company = RecurringReminder.company_id.in_(accessible_company_ids_query(user))
     personal = RecurringReminder.company_id.is_(None)
-    if user.role in (Role.CHIEF, Role.ACCOUNTANT):
+    if user.role != Role.ADMIN:
         personal = personal & (RecurringReminder.created_by == user.id)
     return or_(company, personal)
 

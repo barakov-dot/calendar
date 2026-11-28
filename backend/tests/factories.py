@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import security
-from app.models import Company, CompanyMember, Role, User
+from app.models import Company, CompanyMember, CompanyStaff, Role, User
 from app.services.inn import with_check_digits
 from tests.conftest import JWT_SECRET
 
@@ -30,12 +30,19 @@ async def make_company(db: AsyncSession, accountant: User | None, number: int = 
         "entity_type": "ooo",
         "main_regime": "usn6",
         "region_code": "00",
-        "accountant_id": accountant.id if accountant else None,
     } | fields
     company = Company(**values)
     db.add(company)
     await db.commit()
+    if accountant:
+        await assign(db, company, accountant)
     return company
+
+
+async def assign(db: AsyncSession, company: Company, *users: User) -> None:
+    """Закрепляет за компанией бухгалтеров или помощников."""
+    db.add_all(CompanyStaff(company_id=company.id, user_id=user.id) for user in users)
+    await db.commit()
 
 
 async def link_client(db: AsyncSession, company: Company, user: User, **fields) -> None:

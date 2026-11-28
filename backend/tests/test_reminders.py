@@ -7,7 +7,7 @@ from app.models import RecurringReminder, Role, Task
 from app.services import reminders, tasks
 from app.services.calendar.workdays import load_missing_years
 from app.services.reminders import Schedule, occurrence_dates, shift
-from tests.factories import auth, make_company, make_user
+from tests.factories import assign, auth, make_company, make_user
 from tests.rules_helpers import CALENDAR_DIR, work_calendar
 
 TODAY = date(2026, 11, 20)
@@ -92,6 +92,7 @@ async def world(db, secrets, monkeypatch):
     second = await make_user(db, 3)
     payer = await make_user(db, 4, Role.CLIENT)
     company = await make_company(db, first)
+    await assign(db, company, helper)
     return locals()
 
 
@@ -194,7 +195,8 @@ async def test_personal_reminder_and_access(client, db, world):
         return response.status_code, len(response.json()) if response.is_success else None
 
     assert await visible("admin") == (200, 2)
-    assert await visible("helper") == (200, 2)
+    # чужие личные напоминания помощник не видит
+    assert await visible("helper") == (200, 1)
     assert await visible("second") == (200, 0)
     assert (await visible("payer"))[0] == 403
     for reminder in (personal, of_company):

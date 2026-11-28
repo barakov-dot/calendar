@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.core.settings_store import get_store
 from app.models import AuditLog, Notification, Role, Task
-from tests.factories import auth, link_client, make_company, make_user
+from tests.factories import assign, auth, link_client, make_company, make_user
 
 pytestmark = pytest.mark.usefixtures("secrets")
 
@@ -39,6 +39,7 @@ async def world(db):
     outsider = await make_user(db, 12, Role.CLIENT)
     company = await make_company(db, accountant, 1)
     other = await make_company(db, other_accountant, 2)
+    await assign(db, company, helper)
     await link_client(db, company, payer, can_mark_paid=True)
     await link_client(db, company, viewer)
     await link_client(db, other, outsider, can_mark_paid=True)

@@ -12,7 +12,7 @@ class Role(StrEnum):
     ADMIN = "admin"
     CHIEF = "chief"  # главный бухгалтер: все компании и люди, без настроек сервиса
     ACCOUNTANT = "accountant"
-    ASSISTANT = "assistant"  # помощник бухгалтера: видит всё, ничего не меняет
+    ASSISTANT = "assistant"  # помощник бухгалтера: видит свои компании, ничего не меняет
     CLIENT = "client"
 
 

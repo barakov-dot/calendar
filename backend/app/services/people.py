@@ -6,8 +6,16 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import business_today
-from app.models import MANAGERS, Company, CompanyMember, Role, Substitution, User
-from app.services import audit
+from app.models import (
+    MANAGERS,
+    Company,
+    CompanyMember,
+    CompanyStaff,
+    Role,
+    Substitution,
+    User,
+)
+from app.services import audit, staff
 from app.services.companies import person_name
 from app.services.login_code import normalize
 
@@ -21,9 +29,10 @@ class PersonError(Exception):
 async def search(db: AsyncSession, role: str | None = None, q: str = "") -> list[tuple[User, int]]:
     """Все пользователи и число действующих компаний каждого."""
     own = (
-        select(Company.accountant_id.label("user_id"), func.count().label("total"))
+        select(CompanyStaff.user_id, func.count().label("total"))
+        .join(Company, Company.id == CompanyStaff.company_id)
         .where(Company.is_archived.is_(False))
-        .group_by(Company.accountant_id)
+        .group_by(CompanyStaff.user_id)
         .subquery()
     )
     linked = (
@@ -56,7 +65,7 @@ async def accountant_companies(db: AsyncSession, user: User) -> list[Company]:
     return list(
         await db.scalars(
             select(Company)
-            .where(Company.accountant_id == user.id)
+            .where(Company.id.in_(staff.companies_of(CompanyStaff.user_id == user.id)))
             .order_by(Company.is_archived, func.lower(Company.name))
         )
     )

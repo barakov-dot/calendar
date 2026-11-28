@@ -131,6 +131,8 @@ class NotificationSettings(Section):
     demand_response_offsets_days: list[int] = Field(default_factory=lambda: [5, 3, 1, 0])
     # напоминать о требованиях и администратору с главным бухгалтером, а не только ответственному
     demand_notify_admin: bool = True
+    # присылать помощникам напоминания о сроках по их компаниям
+    assistant_reminders: bool = False
     # напоминать клиентам о сроке исполнения требования
     demand_notify_clients: bool = True
     # напоминать администратору, если «make backup» давно не создавал копию

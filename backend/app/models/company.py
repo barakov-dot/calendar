@@ -86,10 +86,20 @@ class Company(Base):
     rosstat_error: Mapped[str] = mapped_column(Text, default="", server_default="")
     rosstat_okpo: Mapped[str] = mapped_column(String(14), default="", server_default="")
     region_code: Mapped[str] = mapped_column(String(2), default="", server_default="")
-    accountant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     is_archived: Mapped[bool] = mapped_column(default=False, server_default="false")
     notes: Mapped[str] = mapped_column(Text, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
+
+
+class CompanyStaff(Base):
+    """Сотрудники компании: бухгалтеры и помощники. Кто есть кто, решает роль пользователя."""
+
+    __tablename__ = "company_staff"
+
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True, index=True)
 
 
 class Patent(Base):

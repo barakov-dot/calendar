@@ -28,6 +28,7 @@ from app.models import (
     Broadcast,
     Company,
     CompanyMember,
+    CompanyStaff,
     Demand,
     DemandStep,
     Notification,
@@ -39,7 +40,7 @@ from app.models import (
     TaskStatus,
     User,
 )
-from app.services import substitutions
+from app.services import staff, substitutions
 from app.services.calendar.workdays import load_calendar
 from app.services.demands import share
 from app.services.demands.types import get_book
@@ -76,7 +77,11 @@ async def digest_tasks(
     Пока пользователя замещают, его компании получает замещающий.
     """
     replaced = await substitutions.active(db, current, *reachable())
-    accountants = substitutions.answers_for(replaced, user.id)
+    # помощник никого не замещает
+    people = (
+        {user.id} if user.role == Role.ASSISTANT else substitutions.answers_for(replaced, user.id)
+    )
+    own = staff.companies_of(CompanyStaff.user_id.in_(people))
     rows = await db.execute(
         select(Task, Company)
         .outerjoin(Company, Company.id == Task.company_id)
@@ -86,12 +91,17 @@ async def digest_tasks(
             ~before_start_condition(),
             or_(
                 Task.owner_id == user.id,
-                Company.accountant_id.in_(accountants) & Company.is_archived.is_(False),
+                Company.id.in_(own) & Company.is_archived.is_(False),
             ),
         )
         .order_by(Task.due_date, Company.name, Task.title, Task.id)
     )
     return [(task, company) for task, company in rows]
+
+
+def _assistant_wants(settings: AppSettings, user: User) -> bool:
+    """Помощникам напоминания идут, только если это включено в настройках."""
+    return user.role == Role.ASSISTANT and settings.notifications.assistant_reminders
 
 
 async def _task_for(
@@ -102,6 +112,8 @@ async def _task_for(
         condition = visible_task_condition(user, settings.tasks.show_notices_to_clients, current)
     elif user.role in EDITORS:
         condition = editable_task_condition(user, current)
+    elif _assistant_wants(settings, user):
+        condition = visible_task_condition(user, settings.tasks.show_notices_to_clients, current)
     else:
         return None
     row = (
@@ -119,7 +131,9 @@ async def _task_for(
 async def _digest(
     db: AsyncSession, settings: AppSettings, user: User, row: Notification, current: date
 ) -> Message | None:
-    if row.scheduled_for != current or user.role not in EDITORS:
+    if row.scheduled_for != current or not (
+        user.role in EDITORS or _assistant_wants(settings, user)
+    ):
         return None
     header = f"Доброе утро! План на {messages.short(current)}"
     text = messages.overview(header, await digest_tasks(db, user, current), current)

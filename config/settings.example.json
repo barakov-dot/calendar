@@ -38,6 +38,7 @@
     "demand_receipt_offsets_days": [2, 1, 0],
     "demand_response_offsets_days": [5, 3, 1, 0],
     "demand_notify_admin": true,
+    "assistant_reminders": false,
     "demand_notify_clients": true,
     "backup_alert": true
   },

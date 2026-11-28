@@ -9,7 +9,6 @@ from app.core.permissions import editable_task_condition, visible_task_condition
 from app.core.settings_store import get_settings
 from app.models import (
     EDITORS,
-    Company,
     CompanyMember,
     NotificationType,
     Role,
@@ -18,7 +17,7 @@ from app.models import (
     TaskStatus,
     User,
 )
-from app.services import audit, substitutions, tasks
+from app.services import audit, staff, substitutions, tasks
 from app.services.notify.queue import enqueue
 
 
@@ -84,14 +83,17 @@ def _change(task: Task, status: str, user: User) -> None:
 
 
 async def responsible(db: AsyncSession, company_id: int) -> list[User]:
-    """Кому писать по компании: замещающие или бухгалтер, а если никого — администраторы."""
-    company = await db.get(Company, company_id)
-    if company.accountant_id is not None:
+    """Кому писать по компании: её бухгалтеры (или замещающие), а если никого —
+    администраторы."""
+    team = await staff.team(db, company_id)
+    if team.accountants:
         replaced = await substitutions.active(db, tasks.today())
-        found = [
-            await db.get(User, user_id)
-            for user_id in substitutions.recipients(replaced, company.accountant_id)
-        ]
+        ids = dict.fromkeys(
+            user_id
+            for accountant in team.accountants
+            for user_id in substitutions.recipients(replaced, accountant.id)
+        )
+        found = [await db.get(User, user_id) for user_id in ids]
         if active := [user for user in found if user.is_active]:
             return active
     return list(

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 
-import { Alert, Button, Card, ErrorText, Select, Tabs } from '../../components/ui'
+import { Alert, Button, Card, ErrorText, Tabs } from '../../components/ui'
 import { api } from '../../lib/api'
 import { ENTITY_NAMES, REGIME_NAMES, toForm } from '../../lib/company'
 import { formatDateTime } from '../../lib/format'
@@ -17,7 +17,7 @@ import type { PatentData } from './PatentForm'
 import PatentList from './PatentList'
 import RosstatBlock from './RosstatBlock'
 import SignaturesBlock from './SignaturesBlock'
-import { useStaff } from './useStaff'
+import { StaffPicker, type StaffChoice } from './StaffPicker'
 
 export default function CompanyCard({ user }: { user: User }) {
   const id = Number(useParams().id)
@@ -130,7 +130,18 @@ function Loaded({ company, user }: { company: Company; user: User }) {
             <Patents company={company} />
           </fieldset>
         )}
-        {isManager(user.role) && <Reassign key={company.accountant_id} company={company} />}
+        {isManager(user.role) ? (
+          <Staff key={JSON.stringify(toChoice(company))} company={company} />
+        ) : (
+          <Card title="Сотрудники">
+            <p className="text-sm">Бухгалтеры: {company.accountant_name || 'не назначены'}</p>
+            {company.assistants.length > 0 && (
+              <p className="text-sm">
+                Помощники: {company.assistants.map((member) => member.name).join(', ')}
+              </p>
+            )}
+          </Card>
+        )}
         <ErrorText error={archive.error} />
         {editable && (
           <Button
@@ -208,43 +219,38 @@ function Patents({ company }: { company: Company }) {
   )
 }
 
-function Reassign({ company }: { company: Company }) {
-  const staff = useStaff(true)
-  const [accountantId, setAccountantId] = useState(company.accountant_id ?? 0)
-  const reassign = useCompanyAction(company.id, () =>
-    api(`/admin/companies/${company.id}/reassign`, {
-      method: 'POST',
-      body: { accountant_id: accountantId },
-    }),
+function toChoice(company: Company): StaffChoice {
+  return {
+    accountant_ids: company.accountants.map((member) => member.id),
+    assistant_ids: company.assistants.map((member) => member.id),
+  }
+}
+
+function Staff({ company }: { company: Company }) {
+  const [choice, setChoice] = useState(() => toChoice(company))
+  const save = useCompanyAction(company.id, () =>
+    api(`/admin/companies/${company.id}/staff`, { method: 'POST', body: choice }),
   )
+  const same = (left: number[], right: number[]) =>
+    left.length === right.length && left.every((id) => right.includes(id))
+  const saved = toChoice(company)
+  const dirty =
+    !same(choice.accountant_ids, saved.accountant_ids) ||
+    !same(choice.assistant_ids, saved.assistant_ids)
 
   return (
-    <Card title="Ответственный">
-      <Select
-        label="Бухгалтер"
-        value={accountantId}
-        onChange={(event) => setAccountantId(Number(event.target.value))}
-      >
-        {!staff.data?.some((member) => member.id === company.accountant_id) && (
-          <option value={company.accountant_id ?? 0}>
-            {company.accountant_name ? `${company.accountant_name} (отключён)` : 'Не назначен'}
-          </option>
-        )}
-        {staff.data?.map((member) => (
-          <option key={member.id} value={member.id}>
-            {member.name}
-          </option>
-        ))}
-      </Select>
+    <Card title="Сотрудники">
+      <StaffPicker value={choice} onChange={setChoice} current={company} />
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        При передаче неиспользованные приглашения клиентов отзываются.
+        Все отмеченные бухгалтеры получают напоминания и сообщения клиентов. Неиспользованные
+        приглашения клиентов, выданные снятыми сотрудниками, отзываются.
       </p>
-      <ErrorText error={reassign.error} />
+      <ErrorText error={save.error} />
       <Button
-        disabled={accountantId === (company.accountant_id ?? 0) || reassign.isPending}
-        onClick={() => reassign.mutate(null)}
+        disabled={!dirty || choice.accountant_ids.length === 0 || save.isPending}
+        onClick={() => save.mutate(null)}
       >
-        Передать компанию
+        Сохранить сотрудников
       </Button>
     </Card>
   )

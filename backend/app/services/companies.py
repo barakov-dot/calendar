@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,8 +14,10 @@ from app.models import (
     EDITORS,
     Company,
     CompanyMember,
+    CompanyStaff,
     Invite,
     Patent,
+    Role,
     Signature,
     Task,
     TaskStatus,
@@ -28,8 +30,9 @@ from app.schemas.company import (
     MemberOut,
     PatentIn,
     PatentOut,
+    StaffOut,
 )
-from app.services import audit
+from app.services import audit, staff
 from app.services.dadata.client import Party
 from app.services.task_state import before_start_condition
 
@@ -76,19 +79,25 @@ def person_name(user: User | None) -> str:
     return name or (f"@{user.username}" if user.username else "Без имени")
 
 
-async def responsible(db: AsyncSession, user_id: int) -> User:
-    """Пользователь, которому можно назначить компанию."""
-    user = await db.get(User, user_id)
-    if user is None or not user.is_active or user.role not in EDITORS:
-        raise CompanyError("Ответственным может быть только действующий бухгалтер")
-    return user
+async def check_staff(db: AsyncSession, accountant_ids: set[int], assistant_ids: set[int]) -> None:
+    """Кого можно закрепить за компанией."""
+    groups = (
+        (accountant_ids, EDITORS, "Бухгалтером может быть только действующий бухгалтер"),
+        (assistant_ids, (Role.ASSISTANT,), "Помощником может быть только действующий помощник"),
+    )
+    for ids, roles, message in groups:
+        for user_id in sorted(ids):
+            user = await db.get(User, user_id)
+            if user is None or not user.is_active or user.role not in roles:
+                raise CompanyError(message)
 
 
 async def create(
     db: AsyncSession,
     actor: User,
     data: CompanyData,
-    accountant_id: int,
+    accountant_ids: list[int],
+    assistant_ids: list[int],
     patents: list[PatentIn],
     party: Party | None,
 ) -> Company:
@@ -101,7 +110,7 @@ async def create(
             f"Компания с этим ИНН уже есть{archived}. Если вы её не видите, "
             "обратитесь к администратору."
         )
-    company = Company(**data.model_dump(), accountant_id=accountant_id)
+    company = Company(**data.model_dump())
     if party is not None:
         company.dadata_raw = party.raw
         company.dadata_updated_at = datetime.now(UTC)
@@ -112,13 +121,15 @@ async def create(
         await db.rollback()
         raise DuplicateInn("Компания с этим ИНН уже есть") from None
     db.add_all(Patent(company_id=company.id, **patent.model_dump()) for patent in patents)
+    members = sorted({*accountant_ids, *assistant_ids})
+    db.add_all(CompanyStaff(company_id=company.id, user_id=user_id) for user_id in members)
     audit.record(
         db,
         actor.id,
         "company.create",
         "company",
         company.id,
-        {"inn": company.inn, "accountant_id": accountant_id, "patents": len(patents)},
+        {"inn": company.inn, "staff": members, "patents": len(patents)},
     )
     await db.commit()
     return company
@@ -171,17 +182,37 @@ async def refresh_from_dadata(
     await db.commit()
 
 
-async def reassign(db: AsyncSession, actor: User, company: Company, accountant_id: int) -> None:
-    await responsible(db, accountant_id)
-    if company.accountant_id == accountant_id:
+async def set_staff(
+    db: AsyncSession,
+    actor: User,
+    company: Company,
+    accountant_ids: list[int],
+    assistant_ids: list[int],
+) -> None:
+    """Заменяет список сотрудников компании."""
+    previous = set(
+        await db.scalars(select(CompanyStaff.user_id).where(CompanyStaff.company_id == company.id))
+    )
+    wanted = {*accountant_ids, *assistant_ids}
+    # уже назначенных не перепроверяем: отключённый сотрудник не мешает менять остальных
+    await check_staff(db, set(accountant_ids) - previous, set(assistant_ids) - previous)
+    if wanted == previous:
         return
-    previous = company.accountant_id
-    company.accountant_id = accountant_id
-    # Ссылки, выданные прежним бухгалтером, перестают действовать.
+    removed = previous - wanted
+    await db.execute(
+        delete(CompanyStaff).where(
+            CompanyStaff.company_id == company.id, CompanyStaff.user_id.in_(removed)
+        )
+    )
+    db.add_all(
+        CompanyStaff(company_id=company.id, user_id=user_id) for user_id in wanted - previous
+    )
+    # ссылки, выданные снятыми сотрудниками, перестают действовать
     await db.execute(
         update(Invite)
         .where(
             Invite.company_id == company.id,
+            Invite.created_by.in_(removed),
             Invite.used_at.is_(None),
             Invite.revoked_at.is_(None),
         )
@@ -190,12 +221,20 @@ async def reassign(db: AsyncSession, actor: User, company: Company, accountant_i
     audit.record(
         db,
         actor.id,
-        "company.reassign",
+        "company.staff",
         "company",
         company.id,
-        {"from": previous, "to": accountant_id},
+        {"added": sorted(wanted - previous), "removed": sorted(removed)},
     )
     await db.commit()
+
+
+def _names(users: list[User]) -> str:
+    return ", ".join(person_name(user) for user in users)
+
+
+def _member(user: User) -> StaffOut:
+    return StaffOut(id=user.id, name=person_name(user), is_active=user.is_active)
 
 
 async def list_for(
@@ -236,8 +275,7 @@ async def list_for(
     )
     signed = select(Signature.id).where(Signature.company_id == Company.id).correlate(Company)
     query = (
-        select(Company, User, patents, members, blocked, missing, signed.exists())
-        .outerjoin(User, User.id == Company.accountant_id)
+        select(Company, patents, members, blocked, missing, signed.exists())
         .where(
             Company.id.in_(accessible_company_ids_query(user)),
             Company.is_archived.is_(archived),
@@ -252,7 +290,8 @@ async def list_for(
                 Company.inn.startswith(search, autoescape=True),
             )
         )
-    rows = await db.execute(query)
+    rows = (await db.execute(query)).all()
+    found = await staff.teams(db, CompanyStaff.company_id.in_([row[0].id for row in rows]))
     return [
         CompanyListItem(
             **{
@@ -260,7 +299,7 @@ async def list_for(
                 for name in CompanyListItem.model_fields
                 if hasattr(company, name)
             },
-            accountant_name=person_name(accountant),
+            accountant_name=_names(found.get(company.id, staff.Team()).accountants),
             patents_count=patent_count,
             members_count=member_count,
             has_blocked_member=has_blocked,
@@ -269,7 +308,6 @@ async def list_for(
         )
         for (
             company,
-            accountant,
             patent_count,
             member_count,
             has_blocked,
@@ -305,11 +343,11 @@ async def details(db: AsyncSession, company: Company) -> CompanyOut:
     patents = await db.scalars(
         select(Patent).where(Patent.company_id == company.id).order_by(Patent.date_start, Patent.id)
     )
-    accountant = (
-        await db.get(User, company.accountant_id) if company.accountant_id is not None else None
-    )
     result = CompanyOut.model_validate(company)
-    result.accountant_name = person_name(accountant)
+    team = await staff.team(db, company.id)
+    result.accountant_name = _names(team.accountants)
+    result.accountants = [_member(user) for user in team.accountants]
+    result.assistants = [_member(user) for user in team.assistants]
     result.patents = [PatentOut.model_validate(patent) for patent in patents]
     result.members = await list_members(db, company.id)
     return result

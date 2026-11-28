@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_config
 from app.core.db import get_engine, get_sessionmaker
-from app.models import Company, CompanyMember, Patent, Role, User
+from app.models import Company, CompanyMember, CompanyStaff, Patent, Role, User
 from app.schemas.company import CompanyData
 from app.services.calendar.workdays import load_missing_years
 from app.services.inn import with_check_digits
@@ -123,9 +123,11 @@ async def seed_companies(db: AsyncSession) -> None:
         if await db.scalar(select(Company.id).where(Company.inn == inn)):
             continue
         data = dev_company_data(base, fields)
-        company = Company(**data.model_dump(), accountant_id=users[accountant])
+        company = Company(**data.model_dump())
         db.add(company)
         await db.flush()
+        db.add(CompanyStaff(company_id=company.id, user_id=users[accountant]))
+        db.add(CompanyStaff(company_id=company.id, user_id=users[-7]))
         if base == PATENT_OWNER:
             db.add(Patent(company_id=company.id, **dev_patent(date.today().year)))
         db.add_all(
