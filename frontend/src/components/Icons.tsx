@@ -72,6 +72,17 @@ export const ListIcon = (props: Props) => (
     <path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" />
   </Icon>
 )
+export const PencilIcon = (props: Props) => (
+  <Icon {...props}>
+    <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4" />
+  </Icon>
+)
+export const HistoryIcon = (props: Props) => (
+  <Icon {...props}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </Icon>
+)
 export const PlusIcon = (props: Props) => (
   <Icon {...props}>
     <path d="M12 5v14M5 12h14" />

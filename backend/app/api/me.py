@@ -12,6 +12,7 @@ from app.core.settings_store import get_settings
 from app.models import Company, CompanyStaff, NotificationSettings, Role, User
 from app.services import substitutions
 from app.services.companies import person_name
+from app.services.notify.clock import TimeZone
 
 router = APIRouter(prefix="/me")
 
@@ -27,12 +28,14 @@ class NotificationPreferences(BaseModel):
     on_due_day: bool | None = None
     daily_digest: bool = True
     digest_time: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    timezone: TimeZone | None = None
 
 
 class Defaults(BaseModel):
     offsets_days: list[int]
     on_due_day: bool
     digest_time: str
+    timezone: str
 
 
 class PreferencesOut(NotificationPreferences):
@@ -61,6 +64,7 @@ def _out(row: NotificationSettings | None) -> PreferencesOut:
             offsets_days=defaults.default_client_offsets_days,
             on_due_day=defaults.remind_on_due_day,
             digest_time=defaults.digest_time,
+            timezone=get_settings().company.timezone,
         ),
     )
 

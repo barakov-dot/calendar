@@ -56,10 +56,15 @@ describe('меню', () => {
     expect(menu().queryByRole('link', { name: 'Мои дела' })).toBeNull()
   })
 
-  it('у клиента нет рабочего меню', () => {
-    setup('client')
+  it('у клиента свои кнопки внизу, без рабочих разделов', () => {
+    const menu = setup('client')
 
-    expect(screen.queryByRole('navigation', { name: 'Нижнее меню' })).toBeNull()
-    screen.getByRole('link', { name: 'Платежи' })
+    expect(titles(menu().getAllByRole('link'))).toEqual([
+      'Платежи',
+      'Календарь',
+      'История',
+      'Требования',
+      'Настройки',
+    ])
   })
 })

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { Link } from 'react-router'
 
+import AccountCard from '../components/AccountCard'
 import {
   BellIcon,
   BuildingIcon,
@@ -12,10 +13,7 @@ import {
   UploadIcon,
   UsersIcon,
 } from '../components/Icons'
-import ThemeToggle from '../components/ThemeToggle'
-import { Button } from '../components/ui'
-import { fullName } from '../lib/format'
-import { canEdit, isManager, ROLE_NAMES } from '../lib/roles'
+import { canEdit, isManager } from '../lib/roles'
 import type { User } from '../lib/types'
 import { needsAttention, useCompanies } from '../lib/useCompanies'
 
@@ -77,21 +75,7 @@ export default function More({ user, onLogout }: { user: User; onLogout: () => v
           </li>
         ))}
       </ul>
-      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm font-medium">Тема оформления</span>
-          <ThemeToggle />
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0 text-sm">
-            <div className="truncate font-medium">{fullName(user)}</div>
-            <div className="text-slate-500 dark:text-slate-400">{ROLE_NAMES[user.role]}</div>
-          </div>
-          <Button variant="secondary" onClick={onLogout}>
-            Выйти
-          </Button>
-        </div>
-      </div>
+      <AccountCard user={user} onLogout={onLogout} />
     </div>
   )
 }

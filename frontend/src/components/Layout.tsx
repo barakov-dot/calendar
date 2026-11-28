@@ -15,6 +15,7 @@ import {
   CheckSquareIcon,
   DemandIcon,
   GearIcon,
+  HistoryIcon,
   KeyIcon,
   ListIcon,
   ReportIcon,
@@ -53,11 +54,58 @@ function Badge({ count, label = 'требуют внимания' }: { count?: n
   ) : null
 }
 
+const isInside = (entry: Entry, path: string) =>
+  entry.also?.some((prefix) => path.startsWith(prefix)) ?? false
+
+/** Меню телефона: кнопки внизу экрана. */
+function BottomNav({ entries }: { entries: Entry[] }) {
+  const path = useLocation().pathname
+  return (
+    <nav
+      aria-label="Нижнее меню"
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-slate-800 dark:bg-slate-900"
+    >
+      {entries.map((entry) => (
+        <NavLink
+          key={entry.to}
+          to={entry.to}
+          end={entry.to === '/'}
+          className={({ isActive }) =>
+            `flex min-w-0 flex-auto flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] font-medium ${
+              isActive || isInside(entry, path)
+                ? 'text-blue-700 dark:text-blue-300'
+                : 'text-slate-500 dark:text-slate-400'
+            }`
+          }
+        >
+          <span className="relative">
+            <entry.Symbol />
+            <span className="absolute -top-1 left-4">
+              <Badge count={entry.badge} label={entry.badgeLabel} />
+            </span>
+          </span>
+          {entry.title}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
+/** Телефонная шапка: название и сегодняшний день. */
+function PhoneHeader() {
+  const today = todayIso()
+  return (
+    <header className="flex flex-wrap items-baseline gap-x-3 px-4 pt-3 lg:hidden">
+      <span className="font-bold">Платёжный календарь</span>
+      <span className="text-sm text-slate-500 dark:text-slate-400">{dayTitle(today, today)}</span>
+    </header>
+  )
+}
+
 /** Сотрудник: на широком экране меню слева, на телефоне — снизу. */
 function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
   const path = useLocation().pathname
   const companies = useCompanies()
-  const today = todayIso()
   const attention = companies.data?.filter(needsAttention).length
   const demands = useDemands()
   const open = Array.isArray(demands.data)
@@ -106,7 +154,7 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
     { ...more, badge: attention, also: [...INSIDE_MORE, ...IN_SIDEBAR, '/companies'] },
   ]
 
-  const inside = (entry: Entry) => entry.also?.some((prefix) => path.startsWith(prefix)) ?? false
+  const inside = (entry: Entry) => isInside(entry, path)
 
   return (
     <div className="min-h-screen lg:flex">
@@ -144,71 +192,44 @@ function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
         </div>
       </aside>
       <div className="min-w-0 flex-1">
-        <header className="flex flex-wrap items-baseline gap-x-3 px-4 pt-3 lg:hidden">
-          <span className="font-bold">Платёжный календарь</span>
-          <span className="text-sm text-slate-500 dark:text-slate-400">
-            {dayTitle(today, today)}
-          </span>
-        </header>
+        <PhoneHeader />
         <main className="w-full min-w-0 p-3 pb-24 sm:p-5 sm:pb-24 lg:pb-5">
           <Outlet />
         </main>
       </div>
-      <nav
-        aria-label="Нижнее меню"
-        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-slate-800 dark:bg-slate-900"
-      >
-        {phone.map((entry) => (
-          <NavLink
-            key={entry.to}
-            to={entry.to}
-            end={entry.to === '/'}
-            className={({ isActive }) =>
-              `flex min-w-0 flex-auto flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] font-medium ${
-                isActive || inside(entry)
-                  ? 'text-blue-700 dark:text-blue-300'
-                  : 'text-slate-500 dark:text-slate-400'
-              }`
-            }
-          >
-            <span className="relative">
-              <entry.Symbol />
-              <span className="absolute -top-1 left-4">
-                <Badge count={entry.badge} label={entry.badgeLabel} />
-              </span>
-            </span>
-            {entry.title}
-          </NavLink>
-        ))}
-      </nav>
+      <BottomNav entries={phone} />
     </div>
   )
 }
 
-const CLIENT_LINKS: [string, string][] = [
-  ['/', 'Платежи'],
-  ['/calendar', 'Календарь'],
-  ['/history', 'История'],
-  ['/demands', 'Требования'],
-  ['/preferences', 'Настройки'],
+const CLIENT_LINKS: Entry[] = [
+  { to: '/', title: 'Платежи', Symbol: ListIcon },
+  { to: '/calendar', title: 'Календарь', Symbol: CalendarIcon },
+  { to: '/history', title: 'История', Symbol: HistoryIcon },
+  { to: '/demands', title: 'Требования', Symbol: DemandIcon, also: ['/demands/'] },
+  { to: '/preferences', title: 'Настройки', Symbol: GearIcon },
 ]
 
-/** Клиент: короткое меню сверху, на широком экране — слева. */
+/** Клиент: на телефоне кнопки внизу, на широком экране меню слева. */
 function ClientLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
   return (
     <div className="min-h-screen lg:flex">
-      <header className="border-b border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-b-0 dark:border-slate-800 dark:bg-slate-900">
-        <div className="hidden px-4 pt-5 pb-2 text-sm font-semibold lg:block">
-          Платёжный календарь
-        </div>
-        <nav className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:overflow-visible">
-          {CLIENT_LINKS.map(([to, title]) => (
-            <NavLink key={to} to={to} end={to === '/'} className={navClass}>
-              {title}
+      <aside className="hidden border-r border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col dark:border-slate-800 dark:bg-slate-900">
+        <div className="px-4 pt-5 pb-2 text-sm font-semibold">Платёжный календарь</div>
+        <nav aria-label="Разделы" className="flex flex-col gap-1 p-2">
+          {CLIENT_LINKS.map((entry) => (
+            <NavLink
+              key={entry.to}
+              to={entry.to}
+              end={entry.to === '/'}
+              className={({ isActive }) => `${navClass({ isActive })} !flex items-center gap-2`}
+            >
+              <entry.Symbol className="size-5" />
+              {entry.title}
             </NavLink>
           ))}
         </nav>
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-2 text-sm lg:mt-auto lg:flex-col lg:items-start lg:border-t lg:border-slate-200 lg:py-3 lg:dark:border-slate-800">
+        <div className="mt-auto flex flex-col items-start gap-2 border-t border-slate-200 px-3 py-3 text-sm dark:border-slate-800">
           <div className="min-w-0">
             <div className="truncate font-medium">{fullName(user)}</div>
             <div className="text-xs text-slate-500 dark:text-slate-400">
@@ -222,10 +243,14 @@ function ClientLayout({ user, onLogout }: { user: User; onLogout: () => void }) 
             </Button>
           </div>
         </div>
-      </header>
-      <main className="w-full min-w-0 flex-1 p-3 sm:p-5">
-        <Outlet />
-      </main>
+      </aside>
+      <div className="min-w-0 flex-1">
+        <PhoneHeader />
+        <main className="w-full min-w-0 p-3 pb-24 sm:p-5 sm:pb-24 lg:pb-5">
+          <Outlet />
+        </main>
+      </div>
+      <BottomNav entries={CLIENT_LINKS} />
     </div>
   )
 }

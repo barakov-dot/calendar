@@ -29,7 +29,7 @@ from app.models import (
 from app.services import staff as staff_service
 from app.services import substitutions
 from app.services.calendar.workdays import WorkCalendar, load_calendar
-from app.services.notify.queue import enqueue
+from app.services.notify.clock import Clock
 from app.services.task_state import PAYDAY_RULES, before_start_condition
 
 # в это время дня квитанция по требованию считается подписанной
@@ -58,23 +58,21 @@ def reachable(user: type[User] = User):
     )
 
 
-async def _digests(
-    db: AsyncSession, settings: AppSettings, current: date, clock: str, workday: bool
-) -> None:
+async def _digests(db: AsyncSession, settings: AppSettings, clock: Clock, workday: bool) -> None:
     if settings.notifications.digest_workdays_only and not workday:
         return
     roles = EDITORS
     if settings.notifications.assistant_reminders:
         roles = (*EDITORS, Role.ASSISTANT)
     rows = await db.execute(
-        select(User.id, NotificationSettings.daily_digest, NotificationSettings.digest_time)
+        select(User.id, NotificationSettings.daily_digest)
         .outerjoin(NotificationSettings, NotificationSettings.user_id == User.id)
         .where(User.role.in_(roles), *reachable())
     )
-    for user_id, enabled, own_time in rows:
-        if enabled is False or clock < (own_time or settings.notifications.digest_time):
+    for user_id, enabled in rows:
+        if enabled is False:
             continue
-        await enqueue(db, user_id, NotificationType.DIGEST, current)
+        await clock.put(db, user_id, NotificationType.DIGEST, clock.current)
 
 
 def _open_company_tasks():
@@ -141,6 +139,7 @@ async def _fill_amount(
     staff: _Staff,
     calendar: WorkCalendar,
     current: date,
+    clock: Clock,
 ) -> None:
     ahead = settings.notifications.fill_amount_workdays_before
     rows = await db.execute(
@@ -156,7 +155,7 @@ async def _fill_amount(
         if workdays_until(calendar, current, task.due_date) <= ahead:
             # помощник сумму вписать не может
             for user_id in staff.recipients(company.id, assistants=False):
-                await enqueue(db, user_id, NotificationType.FILL_AMOUNT, task.due_date, task.id)
+                await clock.put(db, user_id, NotificationType.FILL_AMOUNT, task.due_date, task.id)
 
 
 def _client_tasks(settings: AppSettings):
@@ -180,7 +179,7 @@ def _client_tasks(settings: AppSettings):
     )
 
 
-async def _reminders(db: AsyncSession, settings: AppSettings, current: date) -> None:
+async def _reminders(db: AsyncSession, settings: AppSettings, current: date, clock: Clock) -> None:
     rows = await db.execute(
         _client_tasks(settings).where(Task.due_date.between(current, current + timedelta(days=365)))
     )
@@ -202,11 +201,11 @@ async def _reminders(db: AsyncSession, settings: AppSettings, current: date) -> 
         else:
             wanted = (left == 0 and on_day) or left in offsets
         if wanted:
-            await enqueue(db, member.user_id, NotificationType.REMINDER, current, task.id)
+            await clock.put(db, member.user_id, NotificationType.REMINDER, current, task.id)
 
 
 async def _signatures(
-    db: AsyncSession, settings: AppSettings, staff: _Staff, current: date
+    db: AsyncSession, settings: AppSettings, staff: _Staff, current: date, clock: Clock
 ) -> None:
     """Напоминания об окончании ЭЦП: за каждый из порогов по одному разу.
 
@@ -235,7 +234,7 @@ async def _signatures(
                 )
             )
         for user_id in users:
-            await enqueue(
+            await clock.put(
                 db,
                 user_id,
                 NotificationType.SIGNATURE,
@@ -250,6 +249,7 @@ async def _demands(
     staff: _Staff,
     calendar: WorkCalendar,
     current: date,
+    clock: Clock,
 ) -> None:
     """Требования инспекции: свои пороги в рабочих днях для квитанции и для ответа.
 
@@ -299,7 +299,7 @@ async def _demands(
                 )
             )
         for user_id in recipients:
-            await enqueue(
+            await clock.put(
                 db,
                 user_id,
                 NotificationType.DEMAND,
@@ -308,7 +308,9 @@ async def _demands(
             )
 
 
-async def _overdue(db: AsyncSession, settings: AppSettings, staff: _Staff, current: date) -> None:
+async def _overdue(
+    db: AsyncSession, settings: AppSettings, staff: _Staff, current: date, clock: Clock
+) -> None:
     window = Task.due_date.between(
         current - timedelta(days=OVERDUE_WINDOW_DAYS), current - timedelta(days=1)
     )
@@ -316,7 +318,7 @@ async def _overdue(db: AsyncSession, settings: AppSettings, staff: _Staff, curre
     rows = await db.execute(_open_company_tasks().where(window))
     for task, company in rows.all():
         for user_id in staff.recipients(company.id):
-            await enqueue(db, user_id, NotificationType.OVERDUE, task.due_date, task.id)
+            await clock.put(db, user_id, NotificationType.OVERDUE, task.due_date, task.id)
     # клиенту — только если он платит сам
     rows = await db.execute(
         _client_tasks(settings).where(
@@ -326,7 +328,7 @@ async def _overdue(db: AsyncSession, settings: AppSettings, staff: _Staff, curre
         )
     )
     for task, member, _ in rows.all():
-        await enqueue(db, member.user_id, NotificationType.OVERDUE, task.due_date, task.id)
+        await clock.put(db, member.user_id, NotificationType.OVERDUE, task.due_date, task.id)
 
 
 async def _sign_receipts(db: AsyncSession, current: date, clock: str) -> None:
@@ -353,19 +355,19 @@ async def _sign_receipts(db: AsyncSession, current: date, clock: str) -> None:
 
 async def plan(db: AsyncSession, settings: AppSettings, now: datetime) -> None:
     moment = local_now(settings, now)
-    current, clock = moment.date(), moment.strftime("%H:%M")
+    current, time_now = moment.date(), moment.strftime("%H:%M")
     calendar = await load_calendar(db)
     # до напоминаний: о подписанной квитанции сообщать уже нечего
-    await _sign_receipts(db, current, clock)
+    await _sign_receipts(db, current, time_now)
     await db.flush()
-    await _digests(db, settings, current, clock, calendar.is_workday(current))
-    # остальное — не раньше общего времени дайджеста, чтобы не писать ночью
-    if clock >= settings.notifications.digest_time:
-        staff = await _staff(db, settings, current)
-        await _fill_amount(db, settings, staff, calendar, current)
-        await _reminders(db, settings, current)
-        await _signatures(db, settings, staff, current)
-        await _demands(db, settings, staff, calendar, current)
-        if settings.notifications.overdue_notify:
-            await _overdue(db, settings, staff, current)
+    # каждому — в его время: пока оно не наступило, напоминание не ставится в очередь
+    clock = await Clock.load(db, settings, now, current)
+    await _digests(db, settings, clock, calendar.is_workday(current))
+    staff = await _staff(db, settings, current)
+    await _fill_amount(db, settings, staff, calendar, current, clock)
+    await _reminders(db, settings, current, clock)
+    await _signatures(db, settings, staff, current, clock)
+    await _demands(db, settings, staff, calendar, current, clock)
+    if settings.notifications.overdue_notify:
+        await _overdue(db, settings, staff, current, clock)
     await db.commit()

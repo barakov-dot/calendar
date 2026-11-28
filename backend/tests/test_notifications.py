@@ -12,7 +12,7 @@ from app.services.notify.planner import plan, workdays_until
 from app.services.notify.queue import enqueue
 from app.services.notify.sender import deliver
 from app.services.telegram.factory import create_bot, resolve_proxy
-from tests.factories import link_client, make_company, make_user
+from tests.factories import auth, link_client, make_company, make_user
 from tests.fakes import FakeSocks5, FakeTelegram
 from tests.rules_helpers import CALENDAR_DIR, work_calendar
 
@@ -369,3 +369,44 @@ async def test_salary_reminder_only_on_payday(db, world, rule):
 
     mine = {(kind, task_id) for user, kind, task_id in found if user == payer.id}
     assert mine == {("reminder", tasks_[0].id)}
+
+
+@pytest.mark.parametrize(
+    ("own", "utc_hour", "expected"),
+    [
+        # по умолчанию 09:00 по Москве
+        ({}, 5, False),
+        ({}, 6, True),
+        ({"digest_time": "07:00"}, 4, True),
+        ({"digest_time": "12:00"}, 8, False),
+        # 09:00 в Екатеринбурге — это 07:00 по Москве, в Калининграде — 10:00
+        ({"timezone": "Asia/Yekaterinburg"}, 4, True),
+        ({"timezone": "Europe/Kaliningrad"}, 6, False),
+        ({"timezone": "Europe/Kaliningrad"}, 7, True),
+        # поздний час западного пояса не уезжает на следующий день
+        ({"digest_time": "23:30", "timezone": "Europe/Kaliningrad"}, 20, True),
+    ],
+)
+async def test_everyone_gets_reminders_at_own_time(db, world, own, utc_hour, expected):
+    for name in ("payer", "accountant"):
+        db.add(NotificationSettings(user_id=world[name].id, **own))
+    await add_task(db, world["company"], day(0))
+    moment = NOW.replace(hour=utc_hour, minute=50 if utc_hour == 20 else 0)
+
+    await run_plan(db, moment)
+
+    rows = (await db.scalars(select(Notification))).all()
+    kinds = {(row.user_id, row.type) for row in rows}
+    assert ((world["accountant"].id, "digest") in kinds) == expected
+    assert any(user_id == world["payer"].id for user_id, _ in kinds) == expected
+
+
+async def test_time_zone_is_saved_and_checked(client, world):
+    url, headers = "/api/me/notification-settings", auth(world["payer"])
+
+    saved = await client.put(url, json={"timezone": "Asia/Omsk"}, headers=headers)
+    wrong = await client.put(url, json={"timezone": "Mars/Base"}, headers=headers)
+
+    assert saved.json()["timezone"] == "Asia/Omsk", saved.text
+    assert saved.json()["defaults"]["timezone"] == "Europe/Moscow"
+    assert wrong.status_code == 422

@@ -66,7 +66,7 @@ export default function App() {
               element={user.role === 'client' ? <ClientPayments /> : <Tasks user={user} />}
             />
             {user.role !== 'assistant' && (
-              <Route path="preferences" element={<Preferences user={user} />} />
+              <Route path="preferences" element={<Preferences user={user} onLogout={logout} />} />
             )}
             <Route path="demands" element={<DemandsPage user={user} />} />
             <Route path="demands/:id" element={<DemandPage user={user} />} />

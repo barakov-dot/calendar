@@ -48,7 +48,9 @@ class NotificationSettings(Base):
     offsets_days: Mapped[list[int] | None] = mapped_column(ARRAY(Integer))
     on_due_day: Mapped[bool | None]
     daily_digest: Mapped[bool] = mapped_column(default=True, server_default="true")
+    # во сколько по своему времени получать напоминания о сроках
     digest_time: Mapped[str | None] = mapped_column(String(5))
+    timezone: Mapped[str | None] = mapped_column(String(40))
 
 
 class Broadcast(Base):
