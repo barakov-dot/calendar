@@ -27,7 +27,7 @@ function items(user: User): Item[] {
   ]
   if (canEdit(user.role)) {
     list.push(
-      ['/declarations', 'Декларации', 'Суммы НДС и прибыли из XML', UploadIcon],
+      ['/declarations', 'Декларации', 'Суммы из XML: НДС, прибыль, УСН', UploadIcon],
       ['/preferences', 'Уведомления', 'Что и когда присылает бот', BellIcon],
     )
   }

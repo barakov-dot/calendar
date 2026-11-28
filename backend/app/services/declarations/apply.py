@@ -98,7 +98,8 @@ async def plan(db: AsyncSession, user: User, declaration: Declaration, lock: boo
     if not found:
         raise DeclarationError(
             f"{declaration.title}: платежей для этих сумм нет. Проверьте в карточке "
-            "организации режим налогообложения, «Плательщик НДС» и порядок авансов по прибыли."
+            "организации тип (ООО или ИП), режим налогообложения, «Плательщик НДС» и порядок "
+            "авансов по прибыли."
         )
 
     parts, warnings = [], list(declaration.warnings)

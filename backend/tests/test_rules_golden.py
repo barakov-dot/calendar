@@ -465,3 +465,22 @@ def test_no_salary_needs_employees():
 def test_no_activity_only_matters_for_ausn():
     assert company("ooo", "ausn_income", no_activity=True).no_activity is True
     assert company("ooo", "usn6", no_activity=True).no_activity is False
+
+
+@pytest.mark.parametrize("regime", ["usn6", "usn15"])
+def test_ip_usn_quarterly_notices_payments_and_year(regime):
+    items = schedule(company("ip", regime), date_to=d(31, 12, 2027))
+
+    def days(code, year=2026):
+        return [
+            item.due_date
+            for item in items
+            if item.rule_code == code and item.period_year == year
+        ]
+
+    # уведомления — 25-е после квартала, платежи — 28-е; выходные переносятся вперёд
+    assert days("usn_notice") == [d(27, 4), d(27, 7), d(26, 10)]
+    assert days("usn_advance") == [d(28, 4), d(28, 7), d(28, 10)]
+    # за IV квартал уведомления нет: декларация 25 апреля и налог 28 апреля
+    assert days("usn_declaration_ip", 2025) == [d(27, 4)]
+    assert days("usn_year_ip", 2025) == [d(28, 4)]

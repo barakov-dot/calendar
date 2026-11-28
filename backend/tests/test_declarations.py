@@ -14,6 +14,7 @@ from tests.test_payments import fresh, make_task, world  # noqa: F401
 pytestmark = pytest.mark.usefixtures("secrets")
 
 INN = with_check_digits(f"{1:09d}")  # ИНН первой компании из world
+IP_INN = with_check_digits("0000000042")
 
 
 def document(body, knd="1151001", inn=INN, period="23", year="2026", correction="0") -> bytes:
@@ -200,7 +201,7 @@ def test_profit_warns_about_mixed_budgets_and_other_sections():
         (b"<root/>", "не файл декларации"),
         (b"x" * (MAX_BYTES + 1), "больше 5 МБ"),
         (b'<!DOCTYPE a [<!ENTITY b "c">]><a>&b;</a>', "DTD"),
-        (nds(knd="1152017"), "только декларации по НДС и по прибыли"),
+        (nds(knd="1152016"), "Поддерживаются декларации"),
         (nds(knd="1151006"), "основной файл"),
         (nds(period="34"), "налоговый период"),
         (profit(due(1, 1), period="22"), "налоговый период"),
@@ -339,3 +340,111 @@ async def test_explains_why_there_is_nowhere_to_write(client, db, world, data, m
 
     assert response.status_code == 422
     assert message in response.json()["detail"]
+
+
+def usn(due="1000", base="1", period="34", person=True, year="2025", **header) -> bytes:
+    taxpayer = (
+        f'<НПФЛ ИННФЛ="{IP_INN}"><ФИО Фамилия="Петров" Имя="Пётр"/></НПФЛ>'
+        if person
+        else f'<НПЮЛ НаимОрг="ООО" ИННЮЛ="{INN}"/>'
+    )
+    text = f"""<?xml version="1.0" encoding="windows-1251"?>
+<Файл><Документ КНД="1152017" Период="{period}" ОтчетГод="{year}" НомКорр="0">
+<СвНП>{taxpayer}</СвНП><УСН ОбНал="{base}">
+<СумНалПУ_НП ОКТМО="45000000" АвПУКв="100" АвПУУменПг="200" АвПУУмен9м="300" НалПУУменПер="{due}"/>
+</УСН></Документ></Файл>"""
+    return text.encode("cp1251")
+
+
+def line(amount="500", quarter="03", kbk="18210501011011000110", period="34", year="2026"):
+    return (
+        f'<УвИсчСумНалог ОКТМО="45000000" КБК="{kbk}" СумНалогАванс="{amount}" '
+        f'Период="{period}" НомерМесКварт="{quarter}" Год="{year}"/>'
+    )
+
+
+def notice(*lines) -> bytes:
+    text = f"""<?xml version="1.0" encoding="windows-1251"?>
+<Файл><Документ КНД="1110355" ДатаДок="24.10.2026">
+<СвНП><НПИП ИННФЛ="{IP_INN}"/></СвНП>{"".join(lines)}</Документ></Файл>"""
+    return text.encode("cp1251")
+
+
+@pytest.mark.parametrize(("quarter", "key"), [("01", "Q1"), ("02", "Q2"), ("03", "Q3")])
+def test_notice_gives_quarterly_usn_advance(quarter, key):
+    found = parse(notice(line(quarter=quarter)))
+
+    assert (found.inn, found.warnings) == (IP_INN, ())
+    assert amounts(found, "usn_advance") == {f"2026-{key}": 500_00}
+
+
+def test_notice_sums_lines_and_skips_other_taxes():
+    found = parse(
+        notice(
+            line("500"),
+            line("70", kbk="18210501021011000110"),
+            line("40", kbk="18210102020011000110"),
+            # НДФЛ с зарплаты и страховые взносы не загружаются
+            line("9", kbk="18210102010011000110", period="21", quarter="01"),
+            line("8", kbk="18210201000011000160", period="21", quarter="02"),
+        )
+    )
+
+    assert amounts(found, "usn_advance") == {"2026-Q3": 570_00}
+    assert amounts(found, "ndfl_ip_advance") == {"2026-Q3": 40_00}
+    assert "2" in found.warnings[0]
+    assert found.title == "Уведомление об авансах за 9 месяцев 2026"
+
+
+def test_notice_reduction_means_nothing_to_pay():
+    found = parse(notice(line("-300", quarter="02")))
+
+    assert amounts(found, "usn_advance") == {"2026-Q2": 0}
+    assert found.totals == (("Аванс УСН за полугодие 2026: к уменьшению", 300_00),)
+
+
+@pytest.mark.parametrize(("person", "rule"), [(True, "usn_year_ip"), (False, "usn_year_ooo")])
+def test_usn_declaration_gives_year_payment_only(person, rule):
+    found = parse(usn(person=person))
+
+    assert [(item.rule_code, item.period_key, item.amount_kopecks) for item in found.items] == [
+        (rule, "2025", 1000_00)
+    ]
+
+
+def test_usn_reduction_means_nothing_to_pay():
+    found = parse(usn("-250"))
+
+    assert found.items[0].amount_kopecks == 0
+    assert found.totals == (("К уменьшению за год", 250_00),)
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        (usn(base="2"), "только декларация УСН «Доходы»"),
+        (usn(period="21"), "налоговый период"),
+        (notice(), "нет сумм"),
+        (notice(line(kbk="18210102010011000110")), "нет квартальных авансов"),
+        (notice(line("abc")), "целым числом"),
+    ],
+)
+def test_rejects_unsuitable_usn_files(data, message):
+    with pytest.raises(DeclarationError, match=message):
+        parse(data)
+
+
+async def test_usn_files_fill_ip_payments(client, db, world):  # noqa: F811
+    company = world["company"]
+    company.entity_type, company.inn = "ip", IP_INN
+    await db.commit()
+    advance = await payment(db, company, "usn_advance", "2026-Q3", date(2026, 10, 28))
+    yearly = await payment(db, company, "usn_year_ip", "2025", date(2026, 4, 28))
+    headers = world["accountant"]
+
+    for data in (notice(line()), usn()):
+        response = await send(client, headers, data, "apply")
+        assert response.status_code == 200, response.text
+
+    assert (await fresh(db, advance)).amount_kopecks == 500_00
+    assert (await fresh(db, yearly)).amount_kopecks == 1000_00

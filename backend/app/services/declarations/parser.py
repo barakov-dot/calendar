@@ -1,4 +1,5 @@
-"""Разбор XML декларации (формат ФНС): НДС (КНД 1151001) и прибыль (КНД 1151006).
+"""Разбор XML из учётной программы (форматы ФНС): декларации по НДС (КНД 1151001),
+прибыли (1151006) и УСН (1152017), уведомление об исчисленных суммах (1110355).
 
 Результат — суммы платежей: какому правилу и периоду какая сумма. Суммы налога берутся
 из декларации, сервис их не считает.
@@ -15,6 +16,14 @@ from app.services.rules.engine import split_in_three
 MAX_BYTES = 5 * 1024 * 1024
 NDS_KND = "1151001"
 PROFIT_KND = "1151006"
+USN_KND = "1152017"
+NOTICE_KND = "1110355"
+USN_YEAR = ("34", "50")  # 50 — последний период при прекращении деятельности
+# начало КБК → (правило аванса, название налога); остальные суммы уведомления не нужны
+NOTICE_TAXES = {
+    "182105010": ("usn_advance", "УСН"),
+    "18210102020": ("ndfl_ip_advance", "НДФЛ ИП"),
+}
 # код налогового периода → квартал; 5х — последний период при реорганизации и ликвидации
 QUARTERS = {"21": 1, "22": 2, "23": 3, "24": 4, "51": 1, "54": 2, "55": 3, "56": 4}
 # прибыль: отчётные периоды нарастающим итогом
@@ -84,8 +93,12 @@ def _rubles(element: ElementTree.Element, name: str, signed: bool = False) -> in
 def _taxpayer(document: ElementTree.Element) -> tuple[str, str]:
     """(ИНН, название) организации или предпринимателя."""
     company = document.find("СвНП/НПЮЛ")
+    entrepreneur = document.find("СвНП/НПИП")
     if company is not None:
         inn, name = company.get("ИННЮЛ", ""), company.get("НаимОрг", "")
+    elif entrepreneur is not None:
+        # в уведомлении у ИП только ИНН
+        inn, name = entrepreneur.get("ИННФЛ", ""), ""
     else:
         person = document.find("СвНП/НПФЛ")
         if person is None:
@@ -224,26 +237,106 @@ def _profit(
     return f"Налог на прибыль за {name}", items, totals, warnings
 
 
+def _usn(
+    usn: ElementTree.Element, code: str, year: int, organisation: bool
+) -> tuple[str, list[Item], list[tuple[str, int]], list[str]]:
+    """Годовая декларация по УСН: из неё берётся сумма за год вместо уведомления за IV квартал."""
+    if code not in USN_YEAR:
+        raise _bad_period()
+    if usn.get("ОбНал") != "1":
+        raise DeclarationError(
+            "Пока читается только декларация УСН «Доходы». Для «Доходы минус расходы» "
+            "пришлите пример файла разработчику."
+        )
+    sections = usn.findall("СумНалПУ_НП")
+    if not sections:
+        raise DeclarationError("В декларации нет раздела 1.1 с суммой налога")
+    # строки 100 (доплата, плюс) и 110 (уменьшение, минус) за год
+    due = sum(_rubles(section, "НалПУУменПер", signed=True) for section in sections) * 100
+    rule = "usn_year_ooo" if organisation else "usn_year_ip"
+    items = [Item(rule, str(year), 1, max(due, 0), f"налог УСН за {year} год")]
+    totals = [("К доплате за год" if due >= 0 else "К уменьшению за год", abs(due))]
+    return f"УСН за {year} год", items, totals, []
+
+
+def _notice(
+    document: ElementTree.Element,
+) -> tuple[str, list[Item], list[tuple[str, int]], list[str]]:
+    """Уведомление об исчисленных суммах: квартальные авансы по УСН и НДФЛ ИП."""
+    found: dict[tuple[str, int, int], int] = {}
+    skipped = 0
+    lines = document.findall("УвИсчСумНалог")
+    if not lines:
+        raise DeclarationError("В уведомлении нет сумм")
+    for line in lines:
+        kbk = line.get("КБК", "")
+        tax = next(
+            (rule for start, (rule, _) in NOTICE_TAXES.items() if kbk.startswith(start)), None
+        )
+        # квартальные авансы: период 34, номер квартала 01–03
+        quarter = {"01": 1, "02": 2, "03": 3}.get(line.get("НомерМесКварт", ""))
+        if tax is None or line.get("Период") != "34" or quarter is None:
+            skipped += 1
+            continue
+        year = line.get("Год", "")
+        if not re.fullmatch(r"20\d\d", year):
+            raise _bad_period()
+        key = (tax, int(year), quarter)
+        found[key] = found.get(key, 0) + _rubles(line, "СумНалогАванс", signed=True) * 100
+    if not found:
+        raise DeclarationError(
+            "В уведомлении нет квартальных авансов по УСН или НДФЛ ИП: суммы других налогов "
+            "сервис не загружает"
+        )
+
+    items, totals, warnings = [], [], []
+    names = dict(NOTICE_TAXES.values())
+    for (rule, year, quarter), amount in sorted(found.items(), key=lambda pair: pair[0][1:]):
+        label = f"аванс {names[rule]} за {CUMULATIVE[quarter - 1]} {year}"
+        items.append(Item(rule, f"{year}-Q{quarter}", 1, max(amount, 0), label))
+        shown = label[0].upper() + label[1:]
+        totals.append((shown if amount >= 0 else f"{shown}: к уменьшению", abs(amount)))
+    if skipped:
+        warnings.append(f"Строк с другими налогами или периодами: {skipped}. Они не загружаются.")
+    periods = sorted({(year, quarter) for _, year, quarter in found})
+    title = "Уведомление об авансах за " + ", ".join(
+        f"{CUMULATIVE[quarter - 1]} {year}" for year, quarter in periods
+    )
+    return title, items, totals, warnings
+
+
 def parse(data: bytes) -> Declaration:
     root = _root(data)
     document = root.find("Документ")
     if root.tag != "Файл" or document is None:
         raise DeclarationError("Это не файл декларации в формате ФНС")
-    kinds = {NDS_KND: ("НДС", _nds), PROFIT_KND: ("Прибыль", _profit)}
-    kind = kinds.get(document.get("КНД", ""))
-    if kind is None:
-        raise DeclarationError("Поддерживаются только декларации по НДС и по прибыли")
-    tag, read = kind
-    body = document.find(tag)
-    if body is None:
-        raise DeclarationError("Это приложение к декларации. Нужен её основной файл")
-
-    year = document.get("ОтчетГод", "")
+    knd = document.get("КНД", "")
+    kinds = {NDS_KND: "НДС", PROFIT_KND: "Прибыль", USN_KND: "УСН", NOTICE_KND: None}
+    if knd not in kinds:
+        raise DeclarationError(
+            "Поддерживаются декларации по НДС, прибыли и УСН и уведомление об исчисленных суммах"
+        )
     correction = document.get("НомКорр", "0")
-    if not re.fullmatch(r"20\d\d", year) or not correction.isdigit():
+    if not correction.isdigit():
         raise _bad_period()
     inn, taxpayer = _taxpayer(document)
-    title, items, totals, warnings = read(body, document.get("Период", ""), int(year))
+
+    if knd == NOTICE_KND:
+        title, items, totals, warnings = _notice(document)
+    else:
+        body = document.find(kinds[knd])
+        if body is None:
+            raise DeclarationError("Это приложение к декларации. Нужен её основной файл")
+        year = document.get("ОтчетГод", "")
+        if not re.fullmatch(r"20\d\d", year):
+            raise _bad_period()
+        code = document.get("Период", "")
+        if knd == USN_KND:
+            organisation = document.find("СвНП/НПЮЛ") is not None
+            title, items, totals, warnings = _usn(body, code, int(year), organisation)
+        else:
+            read = _nds if knd == NDS_KND else _profit
+            title, items, totals, warnings = read(body, code, int(year))
     return Declaration(
         inn=inn,
         taxpayer=taxpayer,
