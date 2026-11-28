@@ -17,6 +17,7 @@ const demand: Demand = {
   name: 'Требование о представлении пояснений',
   action: 'Представить пояснения',
   is_payment: false,
+  no_response: false,
   response_label: 'Срок исполнения',
   number: '100',
   doc_date: '2026-11-27',
@@ -43,7 +44,7 @@ const kinds = [
     response_label: 'Срок исполнения',
     response_workdays: 5,
     is_payment: false,
-    due_on_upload: false,
+    no_response: false,
   },
   {
     knd: '',
@@ -52,7 +53,7 @@ const kinds = [
     response_label: 'Срок исполнения',
     response_workdays: null,
     is_payment: false,
-    due_on_upload: false,
+    no_response: false,
   },
 ]
 

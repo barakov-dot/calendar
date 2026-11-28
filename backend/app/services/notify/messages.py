@@ -91,7 +91,9 @@ def demand_share(
         f"📄 {company_name(company)}",
         f"{name}{number} от {demand.doc_date:%d.%m.%Y}",
         f"Квитанция о приёме: {demand.receipt_date:%d.%m.%Y}",
-        f"{response_label}: {demand.response_date:%d.%m.%Y}",
+        f"{response_label}: {demand.response_date:%d.%m.%Y}"
+        if demand.response_date
+        else "Деньги спишут со счёта в день решения или на следующий: платить отдельно не нужно",
     ]
     if demand.amount_kopecks is not None:
         lines.append(f"Сумма: {money(demand.amount_kopecks)}")

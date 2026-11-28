@@ -11,11 +11,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
-from app.core.permissions import (
-    accessible_company_ids_query,
-    business_today,
-    get_accessible_company,
-)
+from app.core.permissions import accessible_company_ids_query, get_accessible_company
 from app.models import (
     ChangedBy,
     Company,
@@ -71,8 +67,8 @@ async def calculate(db: AsyncSession, terms: Terms) -> Dates:
     kind = book.kind(terms.knd)
     workdays = terms.response_workdays or kind.response_workdays
     response = terms.response_date
-    if response is None and kind.due_on_upload and not terms.response_workdays:
-        response = business_today()
+    if kind.no_response:
+        response = None
     elif response is None and workdays:
         response = add_workdays(calendar, receipt, workdays)
     return Dates(sent, receipt, response)
@@ -126,6 +122,11 @@ async def _sync(db: AsyncSession, demand: Demand) -> None:
     )
     for step, action, due, task_kind in wanted:
         task = existing.get((demand.id, step))
+        if due is None:
+            # вид документа изменили на тот, по которому срока нет
+            if task is not None:
+                await db.delete(task)
+            continue
         if task is None:
             task = Task(
                 company_id=demand.company_id,
@@ -188,12 +189,13 @@ async def save(
         response_date=values["response_date"],
     )
     dates = await calculate(db, terms)
-    if dates.response is None:
+    kind = get_book().kind(terms.knd)
+    if dates.response is None and not kind.no_response:
         label = get_book().kind(terms.knd).response_label.lower()
         raise DemandError(f"Укажите: {label}")
     if dates.sent < terms.doc_date:
         raise DemandError("Дата отправки раньше даты документа")
-    if dates.receipt < dates.sent or dates.response < terms.doc_date:
+    if dates.receipt < dates.sent or (dates.response and dates.response < terms.doc_date):
         raise DemandError("Проверьте даты: срок раньше самого документа")
     if values["number"]:
         same = await db.scalar(
@@ -218,10 +220,9 @@ async def save(
     demand.receipt_date = dates.receipt
     demand.response_date = dates.response
     demand.receipt_set = values["receipt_date"] is not None
-    # день загрузки запоминается как заданный: иначе при правке он сдвинулся бы на сегодня
-    demand.response_set = (
-        values["response_date"] is not None or get_book().kind(terms.knd).due_on_upload
-    )
+    demand.response_set = values["response_date"] is not None and not kind.no_response
+    if kind.no_response:
+        demand.response_workdays = None
     await db.flush()
     await _sync(db, demand)
     await db.flush()
@@ -243,7 +244,7 @@ async def save(
             "company_id": company.id,
             "knd": demand.knd,
             "receipt_date": dates.receipt.isoformat(),
-            "response_date": dates.response.isoformat(),
+            "response_date": dates.response and dates.response.isoformat(),
         },
     )
     await db.commit()

@@ -36,10 +36,11 @@ class Recipient:
     sent_at: datetime | None = None
 
 
-async def _response_task(db: AsyncSession, demand: Demand) -> int:
-    return await db.scalar(
-        select(Task.id).where(Task.demand_id == demand.id, Task.demand_step == DemandStep.RESPONSE)
-    )
+async def _anchor_task(db: AsyncSession, demand: Demand) -> int:
+    """Задача, к которой привязываются отправки: срок ответа, а если его нет — квитанция."""
+    rows = await db.execute(select(Task.demand_step, Task.id).where(Task.demand_id == demand.id))
+    found = dict(rows.all())
+    return found.get(DemandStep.RESPONSE) or found[DemandStep.RECEIPT]
 
 
 async def candidates(db: AsyncSession, demand: Demand) -> list[Recipient]:
@@ -75,7 +76,7 @@ async def recipients(db: AsyncSession, demand: Demand) -> list[Recipient]:
     rows = await db.scalars(
         select(Notification)
         .where(
-            Notification.task_id == await _response_task(db, demand),
+            Notification.task_id == await _anchor_task(db, demand),
             Notification.type == NotificationType.DEMAND_SHARE,
         )
         .order_by(Notification.scheduled_for, Notification.id)
@@ -97,7 +98,7 @@ async def send(
     ready = [user_id for user_id in sorted(user_ids) if allowed[user_id].reason is None]
     if not ready:
         raise DemandError("Некому отправить: выбранные не получают сообщения бота")
-    task_id = await _response_task(db, demand)
+    task_id = await _anchor_task(db, demand)
     for user_id in ready:
         await enqueue(
             db,

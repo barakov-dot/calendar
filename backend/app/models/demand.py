@@ -30,7 +30,8 @@ class Demand(Base):
     # дата введена вручную, а не посчитана
     receipt_set: Mapped[bool] = mapped_column(default=False, server_default="false")
     response_workdays: Mapped[int | None]
-    response_date: Mapped[date]
+    # пусто — по документу ничего делать не нужно (решение о взыскании)
+    response_date: Mapped[date | None]
     response_set: Mapped[bool] = mapped_column(default=False, server_default="false")
     amount_kopecks: Mapped[int | None] = mapped_column(BigInteger)
     note: Mapped[str] = mapped_column(Text, default="", server_default="")

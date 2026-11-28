@@ -5,7 +5,7 @@ import TextArea from '../../components/TextArea'
 import { Alert, Button, Card, Checkbox, ErrorText, Field, Select } from '../../components/ui'
 import { api } from '../../lib/api'
 import { formatDate, parseRubles } from '../../lib/company'
-import type { DemandKind, DemandValues } from '../../lib/demands'
+import { DEBIT_NOTE, type DemandKind, type DemandValues } from '../../lib/demands'
 import { todayIso } from '../../lib/tasks'
 import { useCompanies } from '../../lib/useCompanies'
 
@@ -95,6 +95,7 @@ export default function DemandForm({
     mutationFn: () =>
       onSubmit({
         ...terms,
+        ...(noResponse ? { response_date: null, response_workdays: null } : {}),
         company_id: form.company_id,
         number: form.number.trim(),
         amount_kopecks: kopecks ?? null,
@@ -102,7 +103,9 @@ export default function DemandForm({
         ...(isNew ? { receipt_done: receiptDone } : {}),
       }),
   })
-  const ready = form.company_id > 0 && !!response && kopecks !== undefined
+  const noResponse = !!kind?.no_response
+  const ready =
+    form.company_id > 0 && (noResponse ? !!receipt : !!response) && kopecks !== undefined
 
   return (
     <Card title={isNew ? 'Новое требование' : 'Изменить требование'}>
@@ -168,6 +171,8 @@ export default function DemandForm({
           }
           onChange={(event) => change({ receipt_date: event.target.value })}
         />
+        {!noResponse && (
+          <>
         <Field
           label="Срок ответа, рабочих дней"
           type="number"
@@ -193,17 +198,17 @@ export default function DemandForm({
             <DateOrigin
               manual={form.response_date !== ''}
               auto={
-                kind?.due_on_upload
-                  ? 'День загрузки: решение исполняется сразу'
-                  : response
-                    ? 'Считается от даты квитанции'
-                    : 'Укажите дату из документа или срок в рабочих днях'
+                response
+                  ? 'Считается от даты квитанции'
+                  : 'Укажите дату из документа или срок в рабочих днях'
               }
               reset={() => change({ response_date: '' })}
             />
           }
           onChange={(event) => change({ response_date: event.target.value })}
         />
+          </>
+        )}
         <Field
           label="Сумма, ₽"
           inputMode="decimal"
@@ -215,9 +220,13 @@ export default function DemandForm({
       {kopecks === undefined && <Alert kind="error">Сумма — число, например 36 000,50.</Alert>}
       <TextArea label="Комментарий" value={form.note} onChange={(note) => change({ note })} />
       {receipt && (
-        <Alert kind={response ? 'success' : 'warning'}>
+        <Alert kind={response || noResponse ? 'success' : 'warning'}>
           Квитанция — {formatDate(receipt)}.{' '}
-          {response ? `${label} — ${formatDate(response)}.` : `Укажите: ${label.toLowerCase()}.`}
+          {noResponse
+            ? DEBIT_NOTE
+            : response
+              ? `${label} — ${formatDate(response)}.`
+              : `Укажите: ${label.toLowerCase()}.`}
         </Alert>
       )}
       {isNew && (

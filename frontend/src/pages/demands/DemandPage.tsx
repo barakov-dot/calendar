@@ -7,7 +7,7 @@ import FilePreview from '../../components/FilePreview'
 import { Alert, Button, Card, ErrorText } from '../../components/ui'
 import { api, apiFile } from '../../lib/api'
 import { formatDate, formatKopecks, toRublesText } from '../../lib/company'
-import type { Demand, DemandStep } from '../../lib/demands'
+import { DEBIT_NOTE, type Demand, type DemandStep } from '../../lib/demands'
 import { saveBlob } from '../../lib/files'
 import { canEdit } from '../../lib/roles'
 import { relativeDay, STATUS_NAMES, todayIso } from '../../lib/tasks'
@@ -89,7 +89,7 @@ function Loaded({
           // посчитанные даты оставляем пустыми, чтобы они пересчитывались
           receipt_date: demand.receipt_set ? demand.receipt_date : '',
           response_workdays: demand.response_workdays ? String(demand.response_workdays) : '',
-          response_date: demand.response_set ? demand.response_date : '',
+          response_date: demand.response_set ? (demand.response_date ?? '') : '',
           amount: toRublesText(demand.amount_kopecks),
           note: demand.note,
         }}
@@ -139,13 +139,17 @@ function Loaded({
             doneLabel="Квитанция подписана"
             editable={editable}
           />
-          <Step
-            title={demand.action}
-            step={demand.response}
-            done={demand.is_payment ? 'paid' : 'done'}
-            doneLabel={demand.is_payment ? 'Уплачено' : 'Выполнено'}
-            editable={editable}
-          />
+          {demand.no_response ? (
+            <Alert kind="warning">{DEBIT_NOTE}</Alert>
+          ) : (
+            <Step
+              title={demand.action}
+              step={demand.response}
+              done={demand.is_payment ? 'paid' : 'done'}
+              doneLabel={demand.is_payment ? 'Уплачено' : 'Выполнено'}
+              editable={editable}
+            />
+          )}
         </Card>
       </div>
       <div className="min-w-0 space-y-4">

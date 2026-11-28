@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 
 import { formatDate, formatKopecks } from '../../lib/company'
-import type { Demand, DemandStep } from '../../lib/demands'
+import { DEBIT_NOTE, type Demand, type DemandStep } from '../../lib/demands'
 import { relativeDay, todayIso } from '../../lib/tasks'
 
 function Step({ title, step, today }: { title: string; step: DemandStep | null; today: string }) {
@@ -62,6 +62,9 @@ export default function DemandCards({
             )}
             <Step title="Квитанция" step={item.receipt} today={today} />
             <Step title={item.response_label} step={item.response} today={today} />
+            {item.no_response && (
+              <span className="block text-sm text-amber-700 dark:text-amber-300">{DEBIT_NOTE}</span>
+            )}
           </Link>
         </li>
       ))}

@@ -63,7 +63,7 @@ class KindOut(BaseModel):
     response_label: str
     response_workdays: int | None
     is_payment: bool
-    due_on_upload: bool
+    no_response: bool
 
 
 class DatesOut(BaseModel):
@@ -101,6 +101,7 @@ class DemandOut(BaseModel):
     name: str
     action: str
     is_payment: bool
+    no_response: bool
     response_label: str
     number: str
     doc_date: date
@@ -108,7 +109,7 @@ class DemandOut(BaseModel):
     receipt_date: date
     receipt_set: bool
     response_workdays: int | None
-    response_date: date
+    response_date: date | None
     response_set: bool
     amount_kopecks: int | None
     note: str
@@ -172,8 +173,12 @@ async def _out(db: Database, user: User, rows: list[tuple[Demand, Company]]) -> 
                 name=kind.name,
                 action=kind.action,
                 is_payment=kind.task_kind == "payment",
+                no_response=kind.no_response,
                 response_label=kind.response_label,
-                closed=response is not None and response.status != TaskStatus.PLANNED,
+                # без срока исполнения требование закрывается подписанной квитанцией
+                closed=(last := steps[DemandStep.RECEIPT] if kind.no_response else response)
+                is not None
+                and last.status != TaskStatus.PLANNED,
                 receipt=steps[DemandStep.RECEIPT],
                 response=response,
             )
@@ -210,7 +215,7 @@ async def types(_: Employee) -> list[KindOut]:
             response_label=kind.response_label,
             response_workdays=kind.response_workdays,
             is_payment=kind.task_kind == "payment",
-            due_on_upload=kind.due_on_upload,
+            no_response=kind.no_response,
         )
         for kind in [*book.types, book.other]
     ]

@@ -11,7 +11,6 @@ from app.core.config import get_config
 from app.core.settings_store import NotificationSettings, get_store
 from app.models import CompanyMember, Demand, Notification, Role, Task, User
 from app.services.calendar.workdays import load_calendar, load_missing_years
-from app.services.demands import service
 from app.services.demands.recognize import pdf_text, read
 from app.services.demands.types import add_workdays, get_book
 from app.services.notify import sender
@@ -219,35 +218,39 @@ async def test_visit_without_date_is_rejected(client, world):
     assert response.json()["detail"] == "Укажите: дата явки"
 
 
-async def test_collection_decision_is_due_on_upload_day(client, db, world, monkeypatch):
-    today = date(2026, 12, 1)
-    monkeypatch.setattr(service, "business_today", lambda: today)
+async def test_collection_decision_has_only_the_receipt(client, db, world):
     data = body(world["company"], knd="1165001", doc_date="2026-11-24", amount_kopecks=36_40)
 
     got = await create(client, world["accountant"], data)
 
-    assert (got["response_date"], got["response_set"], got["is_payment"]) == (
-        "2026-12-01",
-        True,
-        True,
-    )
-    # квитанция — как у требований: 6-й рабочий день после получения
-    assert got["receipt_date"] == "2026-12-02"
-    task = await db.get(Task, got["response"]["task_id"])
-    assert (task.kind, task.amount_kopecks, task.title) == (
-        "payment",
-        36_40,
-        "Погасить задолженность: решение о взыскании № 100",
-    )
-    # позже при правке дата остаётся прежней
-    monkeypatch.setattr(service, "business_today", lambda: date(2026, 12, 9))
+    # платить самим не нужно: задачи оплаты и срока нет
+    assert (got["response_date"], got["response"], got["no_response"]) == (None, None, True)
+    assert got["amount_kopecks"] == 36_40 and got["closed"] is False
+    tasks_made = (await db.scalars(select(Task).where(Task.demand_id == got["id"]))).all()
+    assert [(task.demand_step, task.amount_kopecks) for task in tasks_made] == [("receipt", None)]
+    # квитанция подписана — по решению больше ничего не ждут
     url = f"/api/demands/{got['id']}"
-    changed = await client.put(
-        url,
-        json=data | {"response_date": got["response_date"], "note": "уточнение"},
-        headers=auth(world["accountant"]),
+    headers = auth(world["accountant"])
+    await client.patch(f"/api/tasks/{tasks_made[0].id}", json={"status": "done"}, headers=headers)
+    assert (await client.get(url, headers=headers)).json()["closed"] is True
+    shared = await client.post(
+        f"{url}/share", json={"user_ids": [world["client_user"].id]}, headers=headers
     )
-    assert changed.json()["response_date"] == "2026-12-01", changed.text
+    assert shared.status_code == 200, shared.text
+    telegram = await deliver_all(db)
+    assert "спишут со счёта" in telegram.sent[0][1]
+
+
+async def test_change_of_kind_removes_and_restores_the_deadline(client, db, world):
+    data = body(world["company"])
+    got = await create(client, world["accountant"], data)
+    url, headers = f"/api/demands/{got['id']}", auth(world["accountant"])
+
+    decision = await client.put(url, json=data | {"knd": "1165001"}, headers=headers)
+    again = await client.put(url, json=data, headers=headers)
+
+    assert decision.json()["response"] is None, decision.text
+    assert again.json()["response"]["due_date"] == got["response_date"], again.text
 
 
 async def test_duplicate_is_rejected(client, world):
