@@ -41,6 +41,7 @@ class SummaryOut(BaseModel):
 
     accountant: str
     company: str
+    company_id: int
     on_time: int
     late: int
     not_required: int
@@ -48,9 +49,28 @@ class SummaryOut(BaseModel):
     paid_kopecks: int
 
 
+class RowOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    task_id: int
+    company_id: int
+    result: Literal["on_time", "late", "not_required", "overdue"]
+    accountant: str
+    company: str
+    title: str
+    kind: str
+    due: date
+    status: str
+    marked: date | None
+    marked_by: str
+    timing: str
+    amount_kopecks: int | None
+
+
 class ReportOut(BaseModel):
     summary: list[SummaryOut]
     tasks: int
+    rows: list[RowOut]
 
 
 def period(
@@ -85,6 +105,7 @@ async def preview(asked: Asked, user: Reader, db: Database) -> ReportOut:
     return ReportOut(
         summary=[SummaryOut.model_validate(row) for row in report.summary],
         tasks=len(report.rows),
+        rows=[RowOut.model_validate(row) for row in report.rows],
     )
 
 

@@ -78,6 +78,7 @@ async def test_summary(client, world):
     assert body["summary"][0] == {
         "accountant": "Анна",
         "company": "=HYPERLINK(1)",
+        "company_id": world["company"].id,
         "on_time": 1,
         "late": 1,
         "not_required": 1,
@@ -103,11 +104,30 @@ async def test_filters_and_access(client, world):
     assert (await get(client, world, "first", accountant_id=world["second"].id)).json() == {
         "summary": [],
         "tasks": 0,
+        "rows": [],
     }
     for extension in ("", "xlsx", "pdf"):
         assert (await get(client, world, "payer", extension)).status_code == 403
     backwards = await get(client, world, **{"from": "2027-01-02", "to": "2027-01-01"})
     assert backwards.status_code == 422
+
+
+async def test_rows_match_the_totals(client, db, world):
+    body = (await get(client, world)).json()
+
+    # каждая цифра итогов раскрывается ровно в столько задач
+    for total in body["summary"]:
+        for result in ("on_time", "late", "not_required", "overdue"):
+            found = [
+                row
+                for row in body["rows"]
+                if (row["company_id"], row["result"]) == (total["company_id"], result)
+            ]
+            assert len(found) == total[result], (total["company"], result)
+    late = next(row for row in body["rows"] if row["title"] == "Поздно")
+    assert (late["result"], late["status"]) == ("late", "Оплачено")
+    task = await db.get(Task, late["task_id"])
+    assert (task.title, task.company_id) == ("Поздно", late["company_id"])
 
 
 async def test_xlsx(client, world):

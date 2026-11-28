@@ -1,7 +1,7 @@
 """Отчёт о выполненном за период: по компаниям и ответственным бухгалтерам."""
 
 import io
-from dataclasses import astuple, dataclass, field
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -73,17 +73,48 @@ class Row:
     marked_by: str
     timing: str
     amount_kopecks: int | None
+    # для экрана: в файлы не выводятся
+    task_id: int
+    company_id: int
+    # колонка итогов, в которой посчитана задача: on_time, late, not_required, overdue
+    result: str
+
+    def cells(self) -> list:
+        """Значения колонок DETAIL_HEADER без суммы."""
+        return [
+            self.accountant,
+            self.company,
+            self.title,
+            self.kind,
+            self.due,
+            self.status,
+            self.marked,
+            self.marked_by,
+            self.timing,
+        ]
 
 
 @dataclass
 class Summary:
     accountant: str
     company: str
+    company_id: int
     on_time: int = 0
     late: int = 0
     not_required: int = 0
     overdue: int = 0
     paid_kopecks: int = 0
+
+    def cells(self) -> list:
+        """Значения колонок SUMMARY_HEADER без суммы."""
+        return [
+            self.accountant,
+            self.company,
+            self.on_time,
+            self.late,
+            self.not_required,
+            self.overdue,
+        ]
 
 
 @dataclass
@@ -154,28 +185,27 @@ async def build(
     def total_for(company: Company) -> Summary:
         team = teams.get(company.id, staff.Team())
         names = ", ".join(person_name(user) for user in team.accountants)
-        return totals.setdefault(
-            company.id, Summary(names or NO_ACCOUNTANT, company.short_name or company.name)
-        )
+        name = company.short_name or company.name
+        return totals.setdefault(company.id, Summary(names or NO_ACCOUNTANT, name, company.id))
 
     for task, company in [*done, *missed]:
         total = total_for(company)
         marked = None
         if task.status == TaskStatus.PLANNED:
-            total.overdue += 1
+            result = "overdue"
             status, timing = "Не отмечено", "Просрочено"
         else:
             status = STATUSES[task.status]
             marked = task.status_changed_at.astimezone(zone).date()
             late = (marked - task.due_date).days
             if task.status == TaskStatus.NOT_REQUIRED:
-                total.not_required += 1
+                result = "not_required"
                 timing = "—"
             elif late > 0:
-                total.late += 1
+                result = "late"
                 timing = f"С опозданием на {late} дн."
             else:
-                total.on_time += 1
+                result = "on_time"
                 timing = "В срок"
             if task.status == TaskStatus.PAID:
                 total.paid_kopecks += task.amount_kopecks or 0
@@ -191,8 +221,12 @@ async def build(
                 person_name(users.get(task.status_changed_by)) if marked else "",
                 timing,
                 task.amount_kopecks,
+                task.id,
+                company.id,
+                result,
             )
         )
+        setattr(total, result, getattr(total, result) + 1)
     report.rows.sort(key=lambda row: (row.accountant, row.company, row.due, row.title))
     report.summary = sorted(totals.values(), key=lambda row: (row.accountant, row.company))
     return report
@@ -229,17 +263,14 @@ def to_xlsx(report: Report) -> bytes:
     fill(
         summary,
         SUMMARY_HEADER,
-        [[*astuple(row)[:-1], row.paid_kopecks / 100] for row in report.summary],
+        [[*row.cells(), row.paid_kopecks / 100] for row in report.summary],
         (24, 32, 14, 14, 14, 14, 16),
     )
     fill(
         book.create_sheet("Задачи"),
         DETAIL_HEADER,
         [
-            [
-                *astuple(row)[:-1],
-                None if row.amount_kopecks is None else row.amount_kopecks / 100,
-            ]
+            [*row.cells(), None if row.amount_kopecks is None else row.amount_kopecks / 100]
             for row in report.rows
         ],
         (22, 28, 48, 14, 12, 14, 12, 20, 24, 14),
@@ -287,7 +318,7 @@ def to_pdf(report: Report) -> bytes:
     table(
         "Итоги",
         SUMMARY_HEADER,
-        [[*astuple(row)[:-1], money(row.paid_kopecks)] for row in report.summary],
+        [[*row.cells(), money(row.paid_kopecks)] for row in report.summary],
         (22, 30, 10, 10, 10, 10, 14),
     )
     table(
