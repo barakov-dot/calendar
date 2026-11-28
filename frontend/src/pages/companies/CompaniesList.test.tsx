@@ -57,4 +57,7 @@ it('отмечает кружком только организации, пос�
   expect((await card('Спокойная')).queryByRole('img')).toBeNull()
   ;(await card('Без суммы')).getByRole('img', { name: /есть задачи без суммы/ })
   ;(await card('Заблокировал')).getByRole('img', { name: /клиент заблокировал бота/ })
+  screen.getByRole('heading', { name: 'Организации · 3' })
+  ;(await card('Спокойная')).getByText('1')
+  ;(await card('Заблокировал')).getByText('3')
 })

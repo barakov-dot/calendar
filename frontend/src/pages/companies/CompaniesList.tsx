@@ -39,7 +39,9 @@ export default function CompaniesList({ user }: { user: User }) {
   })
 
   return (
-    <Card title="Организации">
+    <Card
+      title={companies.data ? `Организации · ${companies.data.length}` : 'Организации'}
+    >
       {canEdit(user.role) && (
         <Link
           to="/companies/new"
@@ -64,7 +66,7 @@ export default function CompaniesList({ user }: { user: User }) {
         </p>
       )}
       <ul className="grid gap-3 lg:grid-cols-2">
-        {companies.data?.map((company) => (
+        {companies.data?.map((company, index) => (
           <li key={company.id}>
             <Link
               to={`/companies/${company.id}`}
@@ -75,6 +77,10 @@ export default function CompaniesList({ user }: { user: User }) {
                   {company.short_name || company.name}
                 </span>
                 {!archived && <AttentionDot reasons={attentionReasons(company)} />}
+                {/* порядковый номер: по последнему видно, сколько организаций в списке */}
+                <span className="shrink-0 text-xs text-slate-400 tabular-nums dark:text-slate-500">
+                  {index + 1}
+                </span>
               </div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
                 ИНН {company.inn}
