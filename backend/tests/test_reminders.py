@@ -194,6 +194,54 @@ async def test_endless_reminder_keeps_going(client, db, world, monkeypatch, unti
     assert (max(dates) > date(2026, 12, 31)) == continues
 
 
+async def test_amount_goes_to_tasks_and_follows_changes(client, db, world):
+    headers = auth(world["first"])
+    data = body(world["company"].id, kind="payment", title="Аренда", amount_kopecks=25_000_00)
+
+    created = await client.post("/api/reminders", json=data, headers=headers)
+
+    assert created.json()["amount_kopecks"] == 25_000_00, created.text
+    first, second = (await instances(db))[:2]
+    assert [(t.amount_kopecks, t.needs_amount) for t in (first, second)] == [(25_000_00, True)] * 2
+    # сумму одной задачи изменили вручную: она остаётся как есть
+    edited = await client.patch(
+        f"/api/tasks/{first.id}", json={"amount_kopecks": 100_00}, headers=headers
+    )
+    assert edited.status_code == 200, edited.text
+
+    url = f"/api/reminders/{created.json()['id']}"
+    await client.patch(url, json=data | {"amount_kopecks": 150_000_00}, headers=headers)
+
+    amounts = [task.amount_kopecks for task in await instances(db)]
+    assert amounts[0] == 100_00 and set(amounts[1:]) == {150_000_00}
+
+    await client.delete(url, headers=headers)
+    assert [task.amount_kopecks for task in await instances(db)] == [100_00]
+
+
+async def test_amount_is_added_to_existing_reminder(client, db, world):
+    headers = auth(world["first"])
+    data = body(world["company"].id, kind="payment")
+    created = await client.post("/api/reminders", json=data, headers=headers)
+
+    await client.patch(
+        f"/api/reminders/{created.json()['id']}",
+        json=data | {"amount_kopecks": 500_00},
+        headers=headers,
+    )
+
+    assert {task.amount_kopecks for task in await instances(db)} == {500_00}
+
+
+@pytest.mark.parametrize(("kind", "stored"), [("other", 100), ("report", None)])
+async def test_amount_only_where_it_makes_sense(client, world, kind, stored):
+    data = body(world["company"].id, kind=kind, amount_kopecks=100)
+
+    response = await client.post("/api/reminders", json=data, headers=auth(world["first"]))
+
+    assert response.json()["amount_kopecks"] == stored
+
+
 async def test_personal_reminder_and_access(client, db, world):
     first = auth(world["first"])
     personal = await client.post("/api/reminders", json=body(), headers=first)

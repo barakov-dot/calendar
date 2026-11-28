@@ -152,6 +152,7 @@ async def expand(
                 description=reminder.description,
                 due_date=shift(day, reminder.shift_rule, work_calendar),
                 original_due_date=day,
+                amount_kopecks=reminder.amount_kopecks,
                 needs_amount=reminder.kind == TaskKind.PAYMENT,
                 client_visible=reminder.client_visible,
                 status=TaskStatus.PLANNED,
@@ -178,6 +179,6 @@ async def expand_where(
 async def drop_future(db: AsyncSession, reminder: RecurringReminder, current: date) -> None:
     """Удаляет будущие задачи напоминания, которые никто не менял."""
     for task in await _instances(db, reminder.id):
-        if task.original_due_date >= current and is_untouched(task):
+        if task.original_due_date >= current and is_untouched(task, reminder.amount_kopecks):
             await db.delete(task)
     await db.flush()

@@ -13,6 +13,7 @@ export interface ReminderData {
   title: string
   description: string
   kind: TaskKind
+  amount_kopecks: number | null
   schedule: Schedule
   dtstart: string
   until: string | null
@@ -56,12 +57,13 @@ export function describeSchedule(schedule: Schedule): string {
 /** Только поля, которые принимает сервер. */
 export function toData(reminder: Reminder): ReminderData {
   const { company_id, title, description, kind, schedule, dtstart, until } = reminder
-  const { shift_rule, audience, is_active } = reminder
+  const { amount_kopecks, shift_rule, audience, is_active } = reminder
   return {
     company_id,
     title,
     description,
     kind,
+    amount_kopecks,
     schedule,
     dtstart,
     until,

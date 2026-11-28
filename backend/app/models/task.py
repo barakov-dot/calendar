@@ -151,6 +151,8 @@ class RecurringReminder(Base):
     title: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(Text, default="", server_default="")
     kind: Mapped[str] = mapped_column(String(16))
+    # сумма, которая подставляется в каждую задачу (аренда и другие постоянные платежи)
+    amount_kopecks: Mapped[int | None] = mapped_column(BigInteger)
     rrule: Mapped[str] = mapped_column(String(200))
     dtstart: Mapped[date]
     until: Mapped[date | None]

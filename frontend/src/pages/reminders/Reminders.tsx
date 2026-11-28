@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 
 import { Badge, Button, Card, ErrorText } from '../../components/ui'
 import { api } from '../../lib/api'
-import { formatDate } from '../../lib/company'
+import { formatDate, formatKopecks } from '../../lib/company'
 import { describeSchedule, type Reminder, type ReminderData, toData } from '../../lib/reminders'
 import { canEdit } from '../../lib/roles'
 import type { User } from '../../lib/types'
@@ -77,6 +77,7 @@ export function ReminderBlock({
                   ))}
                 {companyId === null && ' · '}
                 {describeSchedule(item.schedule)}
+                {item.amount_kopecks !== null && `, ${formatKopecks(item.amount_kopecks)}`}
                 {item.until ? `, до ${formatDate(item.until)}` : ', бессрочно'}
                 {item.next_dates.length > 0 &&
                   ` · ближайшие: ${item.next_dates.map(formatDate).join(', ')}`}

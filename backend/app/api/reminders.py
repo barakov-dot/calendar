@@ -13,7 +13,7 @@ from sqlalchemy import or_, select
 from app.api.companies import NOT_FOUND, Staff
 from app.api.deps import Database, require_role
 from app.core.permissions import accessible_company_ids_query, get_accessible_company
-from app.models import EDITORS, Audience, Company, RecurringReminder, Role, User
+from app.models import EDITORS, Audience, Company, RecurringReminder, Role, TaskKind, User
 from app.schemas.task import ReminderIn, ReminderOut
 from app.services import audit, reminders, tasks
 from app.services.calendar.workdays import load_calendar
@@ -60,6 +60,7 @@ async def _out(db: Database, user: User, reminder: RecurringReminder) -> Reminde
         title=reminder.title,
         description=reminder.description,
         kind=reminder.kind,
+        amount_kopecks=reminder.amount_kopecks,
         schedule=schedule,
         dtstart=reminder.dtstart,
         until=reminder.until,
@@ -84,6 +85,10 @@ def _values(body: ReminderIn) -> dict:
         "rrule": body.schedule.to_rrule(),
         "audience": audience,
         "client_visible": audience != Audience.ACCOUNTANT,
+        # у отчётов и уведомлений суммы не бывает
+        "amount_kopecks": (
+            body.amount_kopecks if body.kind in (TaskKind.PAYMENT, TaskKind.OTHER) else None
+        ),
     }
 
 

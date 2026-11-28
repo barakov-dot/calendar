@@ -9,6 +9,7 @@ import {
   type ReminderData,
   SHIFT_NAMES,
 } from '../../lib/reminders'
+import { parseRubles, toRublesText } from '../../lib/company'
 import { addDays, KIND_NAMES, todayIso, type TaskKind } from '../../lib/tasks'
 
 const options = (names: Record<string, string>) =>
@@ -35,6 +36,7 @@ export default function ReminderForm({
       title: '',
       description: '',
       kind: 'other',
+      amount_kopecks: null,
       schedule: { frequency: 'monthly', day_of_month: 10, interval_weeks: null },
       dtstart: todayIso(),
       until: null,
@@ -44,11 +46,15 @@ export default function ReminderForm({
     },
   )
   const change = (patch: Partial<ReminderData>) => setForm({ ...form, ...patch })
+  const [amount, setAmount] = useState(() => toRublesText(form.amount_kopecks))
+  const hasAmount = form.kind === 'payment' || form.kind === 'other'
+  const kopecks = hasAmount ? parseRubles(amount) : null
   const weekly = form.schedule.frequency === 'weekly'
   const number = weekly ? form.schedule.interval_weeks : form.schedule.day_of_month
   const endless = form.until === null
   const endsEarly = !!form.until && form.until < form.dtstart
   const valid =
+    kopecks !== undefined &&
     form.title.trim() !== '' &&
     form.dtstart !== '' &&
     (endless || (form.until !== '' && !endsEarly)) &&
@@ -63,6 +69,18 @@ export default function ReminderForm({
       <Select label="Тип" value={form.kind} onChange={(e) => change({ kind: e.target.value as TaskKind })}>
         {options(KIND_NAMES)}
       </Select>
+      {hasAmount && (
+        <Field
+          label="Сумма, ₽ (необязательно)"
+          inputMode="decimal"
+          value={amount}
+          hint="Подставится в каждую задачу. В отдельной задаче сумму можно изменить."
+          onChange={(event) => setAmount(event.target.value)}
+        />
+      )}
+      {kopecks === undefined && (
+        <Alert kind="error">Сумма — число, например 25000 или 25000,50.</Alert>
+      )}
       <Select
         label="Повторять"
         value={form.schedule.frequency}
@@ -137,7 +155,7 @@ export default function ReminderForm({
       )}
       <Checkbox label="Включено" checked={form.is_active} onChange={(is_active) => change({ is_active })} />
       <div className="flex gap-2">
-        <Button disabled={!valid} onClick={() => onSubmit(form)}>
+        <Button disabled={!valid} onClick={() => onSubmit({ ...form, amount_kopecks: kopecks ?? null })}>
           Сохранить напоминание
         </Button>
         <Button variant="secondary" onClick={onCancel}>

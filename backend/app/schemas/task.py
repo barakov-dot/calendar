@@ -123,6 +123,7 @@ class ReminderIn(Input):
     title: str = Title
     description: str = Text
     kind: TaskKind = TaskKind.OTHER
+    amount_kopecks: int | None = Amount
     schedule: Schedule
     dtstart: date
     until: date | None = None

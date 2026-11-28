@@ -6,12 +6,15 @@ from app.models import Company, Task, TaskSource, TaskStatus
 PAYDAY_RULES = ("salary_advance", "salary_payment")
 
 
-def is_untouched(task: Task) -> bool:
-    """Задачу никто не менял: автоматика вправе её удалить."""
+def is_untouched(task: Task, filled_amount: int | None = None) -> bool:
+    """Задачу никто не менял: автоматика вправе её удалить.
+
+    filled_amount — сумма, которую подставила сама автоматика (из напоминания).
+    """
     return (
         task.status == TaskStatus.PLANNED
         and task.status_changed_at is None
-        and task.amount_kopecks is None
+        and task.amount_kopecks in (None, filled_amount)
         and not task.amount_overridden
         and not task.due_overridden
         and not task.comment

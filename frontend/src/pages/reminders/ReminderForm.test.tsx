@@ -42,4 +42,25 @@ describe('форма напоминания', () => {
 
     expect(onSubmit.mock.calls[0][0].until).toBeNull()
   })
+
+  it('передаёт сумму платежа в копейках и не принимает неверную', async () => {
+    const { onSubmit, user, save } = await setup()
+    await user.selectOptions(screen.getByLabelText('Тип'), 'payment')
+    const field = screen.getByLabelText(/^Сумма, ₽/)
+
+    await user.type(field, 'много')
+    await save()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.clear(field)
+    await user.type(field, '25 000,00')
+    await save()
+    expect(onSubmit.mock.calls[0][0].amount_kopecks).toBe(2_500_000)
+
+    // у отчёта суммы нет
+    await user.selectOptions(screen.getByLabelText('Тип'), 'report')
+    expect(screen.queryByLabelText(/^Сумма, ₽/)).toBeNull()
+    await save()
+    expect(onSubmit.mock.calls[1][0].amount_kopecks).toBeNull()
+  })
 })
