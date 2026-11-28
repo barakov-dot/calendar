@@ -10,6 +10,12 @@ export const useCompanies = () =>
     queryFn: () => api<CompanyListItem[]>('/companies'),
   })
 
-/** Организации, где нужно что-то сделать: нет суммы или клиент не получает напоминания. */
-export const needsAttention = (company: CompanyListItem) =>
-  company.has_missing_amount || company.has_blocked_member
+/** Что нужно сделать по организации: нет суммы или клиент не получает напоминания. */
+export const attentionReasons = (company: CompanyListItem) =>
+  [
+    company.has_missing_amount && 'есть задачи без суммы',
+    company.has_blocked_member && 'клиент заблокировал бота',
+  ].filter((reason): reason is string => !!reason)
+
+/** Эти организации считает число в меню, и они отмечены в списке. */
+export const needsAttention = (company: CompanyListItem) => attentionReasons(company).length > 0

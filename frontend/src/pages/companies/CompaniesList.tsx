@@ -7,6 +7,23 @@ import { api } from '../../lib/api'
 import { ENTITY_NAMES, REGIME_NAMES } from '../../lib/company'
 import { canEdit } from '../../lib/roles'
 import type { CompanyListItem, User } from '../../lib/types'
+import { attentionReasons } from '../../lib/useCompanies'
+
+/** Тот же кружок, что и число в меню: показывает, какая организация посчитана. */
+function AttentionDot({ reasons }: { reasons: string[] }) {
+  if (reasons.length === 0) return null
+  const text = `Требует внимания: ${reasons.join(', ')}`
+  return (
+    <span
+      role="img"
+      aria-label={text}
+      title={text}
+      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-orange-600 text-xs font-bold text-white"
+    >
+      !
+    </span>
+  )
+}
 
 export default function CompaniesList({ user }: { user: User }) {
   const [search, setSearch] = useState('')
@@ -47,7 +64,12 @@ export default function CompaniesList({ user }: { user: User }) {
               to={`/companies/${company.id}`}
               className="block h-full space-y-1 rounded-lg border border-slate-200 p-3 hover:border-blue-400 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-blue-700 dark:hover:bg-slate-800/50"
             >
-              <div className="font-medium">{company.short_name || company.name}</div>
+              <div className="flex items-start gap-2">
+                <span className="min-w-0 flex-1 font-medium break-words">
+                  {company.short_name || company.name}
+                </span>
+                {!archived && <AttentionDot reasons={attentionReasons(company)} />}
+              </div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
                 ИНН {company.inn}
                 {user.role !== 'accountant' && ` · ${company.accountant_name || 'без бухгалтера'}`}
