@@ -14,7 +14,6 @@ from app.core.permissions import client_task_condition
 from app.core.settings_store import AppSettings
 from app.models import (
     EDITORS,
-    MANAGERS,
     ChangedBy,
     Company,
     CompanyMember,
@@ -101,15 +100,26 @@ class _Staff:
 
     def recipients(self, company_id: int, assistants: bool = True) -> list[int]:
         """Бухгалтеры компании (или замещающие) и, если включено, её помощники."""
+        found = self.accountants(company_id)
+        if assistants and self.assistant_reminders:
+            found += self.assistants(company_id)
+        return found
+
+    def accountants(self, company_id: int) -> list[int]:
+        """Бухгалтеры компании или замещающие их."""
         team = self.teams.get(company_id, staff_service.Team())
-        found = [
+        return self._reachable(
             user_id
             for accountant in team.accountants
             for user_id in substitutions.recipients(self.substitutes, accountant.id)
-        ]
-        if assistants and self.assistant_reminders:
-            found += [user.id for user in team.assistants]
-        return [user_id for user_id in dict.fromkeys(found) if user_id in self.reachable]
+        )
+
+    def assistants(self, company_id: int) -> list[int]:
+        team = self.teams.get(company_id, staff_service.Team())
+        return self._reachable(user.id for user in team.assistants)
+
+    def _reachable(self, ids) -> list[int]:
+        return [user_id for user_id in dict.fromkeys(ids) if user_id in self.reachable]
 
 
 async def _staff(db: AsyncSession, settings: AppSettings, current: date) -> _Staff:
@@ -250,10 +260,13 @@ async def _demands(
         DemandStep.RECEIPT: sorted(notifications.demand_receipt_offsets_days),
         DemandStep.RESPONSE: sorted(notifications.demand_response_offsets_days),
     }
-    admins = []
-    if notifications.demand_notify_admin:
-        query = select(User.id).where(User.role.in_(MANAGERS), *reachable())
-        admins = list(await db.scalars(query))
+    wanted = (
+        (Role.ADMIN, notifications.demand_notify_admin),
+        (Role.CHIEF, notifications.demand_notify_chief),
+    )
+    roles = [role for role, enabled in wanted if enabled]
+    # администратору и главному бухгалтеру — по всем организациям
+    managers = list(await db.scalars(select(User.id).where(User.role.in_(roles), *reachable())))
     rows = await db.execute(
         # 200 дней — с запасом: пороги не больше 60 рабочих дней
         _open_company_tasks().where(
@@ -266,7 +279,11 @@ async def _demands(
         threshold = next((days for days in offsets[task.demand_step] if days >= left), None)
         if threshold is None:
             continue
-        recipients = {*staff.recipients(company.id), *admins}
+        recipients = set(managers)
+        if notifications.demand_notify_accountants:
+            recipients |= set(staff.accountants(company.id))
+        if notifications.demand_notify_assistants:
+            recipients |= set(staff.assistants(company.id))
         # клиент не подписывает квитанцию, ему напоминают только о сроке исполнения
         if notifications.demand_notify_clients and task.demand_step == DemandStep.RESPONSE:
             recipients |= set(

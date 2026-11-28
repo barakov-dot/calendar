@@ -69,6 +69,9 @@ export interface AppSettings {
     demand_receipt_offsets_days: number[]
     demand_response_offsets_days: number[]
     demand_notify_admin: boolean
+    demand_notify_chief: boolean
+    demand_notify_accountants: boolean
+    demand_notify_assistants: boolean
     demand_notify_clients: boolean
     assistant_reminders: boolean
     backup_alert: boolean

@@ -5,6 +5,14 @@ import { parseOffsets } from '../../lib/format'
 import type { AppSettings } from '../../lib/types'
 import { useSaveSettings } from './useSettings'
 
+const DEMAND_RECIPIENTS = [
+  ['demand_notify_admin', 'Администратору'],
+  ['demand_notify_chief', 'Главному бухгалтеру'],
+  ['demand_notify_accountants', 'Бухгалтерам организации'],
+  ['demand_notify_assistants', 'Помощникам организации'],
+  ['demand_notify_clients', 'Клиентам'],
+] as const
+
 export default function NotificationsTab({
   saved,
   tasks,
@@ -93,16 +101,21 @@ export default function NotificationsTab({
       {(receiptDays === null || responseDays === null) && (
         <Alert kind="error">Укажите целые числа от 0 до 60 через запятую.</Alert>
       )}
-      <Checkbox
-        label="Напоминать о требованиях администратору и главному бухгалтеру"
-        checked={form.demand_notify_admin}
-        onChange={(demand_notify_admin) => change({ demand_notify_admin })}
-      />
-      <Checkbox
-        label="Напоминать клиентам о сроке исполнения требования"
-        checked={form.demand_notify_clients}
-        onChange={(demand_notify_clients) => change({ demand_notify_clients })}
-      />
+      <fieldset className="space-y-2">
+        <legend className="mb-1 text-sm font-medium">Кому напоминать о требованиях</legend>
+        {DEMAND_RECIPIENTS.map(([key, label]) => (
+          <Checkbox
+            key={key}
+            label={label}
+            checked={form[key]}
+            onChange={(checked) => change({ [key]: checked })}
+          />
+        ))}
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Администратор и главный бухгалтер получают напоминания по всем организациям, бухгалтеры
+          и помощники — по своим. Клиентам напоминают только о сроке исполнения.
+        </p>
+      </fieldset>
       <h3 className="pt-2 font-semibold">Прочее</h3>
       <Checkbox
         label="Показывать клиентам уведомления в ФНС"

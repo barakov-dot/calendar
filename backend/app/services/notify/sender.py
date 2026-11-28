@@ -200,6 +200,20 @@ async def _demand(
                 )
             )
         ).first()
+    elif user.role == Role.ASSISTANT:
+        # требования помощникам — своя галочка, общие напоминания тут ни при чём
+        found = None
+        if settings.notifications.demand_notify_assistants:
+            condition = visible_task_condition(
+                user, settings.tasks.show_notices_to_clients, current
+            )
+            found = (
+                await db.execute(
+                    select(Task, Company)
+                    .join(Company, Company.id == Task.company_id)
+                    .where(Task.id == row.task_id, condition, Company.is_archived.is_(False))
+                )
+            ).first()
     else:
         found = await _task_for(db, settings, user, row.task_id, current)
     if found is None:

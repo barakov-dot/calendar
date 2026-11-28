@@ -129,14 +129,25 @@ class NotificationSettings(Section):
     # требования инспекции: за сколько рабочих дней напоминать; 0 — в сам день
     demand_receipt_offsets_days: list[int] = Field(default_factory=lambda: [2, 1, 0])
     demand_response_offsets_days: list[int] = Field(default_factory=lambda: [5, 3, 1, 0])
-    # напоминать о требованиях и администратору с главным бухгалтером, а не только ответственному
+    # кому напоминать о требованиях инспекции
     demand_notify_admin: bool = True
+    demand_notify_chief: bool = True
+    demand_notify_accountants: bool = True
+    demand_notify_assistants: bool = True
     # присылать помощникам напоминания о сроках по их компаниям
     assistant_reminders: bool = False
     # напоминать клиентам о сроке исполнения требования
     demand_notify_clients: bool = True
     # напоминать администратору, если «make backup» давно не создавал копию
     backup_alert: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def chief_follows_admin(cls, data):
+        """Раньше одна галочка отвечала и за администратора, и за главного бухгалтера."""
+        if isinstance(data, dict) and "demand_notify_admin" in data:
+            return {"demand_notify_chief": data["demand_notify_admin"]} | data
+        return data
 
     @field_validator("demand_receipt_offsets_days", "demand_response_offsets_days")
     @classmethod

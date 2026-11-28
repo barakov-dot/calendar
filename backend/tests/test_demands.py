@@ -8,11 +8,12 @@ from fpdf import FPDF
 from sqlalchemy import select
 
 from app.core.config import get_config
-from app.core.settings_store import get_store
-from app.models import CompanyMember, Demand, Notification, Role, Task
+from app.core.settings_store import NotificationSettings, get_store
+from app.models import CompanyMember, Demand, Notification, Role, Task, User
 from app.services.calendar.workdays import load_calendar, load_missing_years
 from app.services.demands.recognize import pdf_text, read
 from app.services.demands.types import add_workdays, get_book
+from app.services.notify import sender
 from app.services.notify.planner import plan
 from app.services.notify.sender import deliver
 from app.services.reports import FONTS
@@ -320,9 +321,10 @@ async def test_reminders_use_own_workday_thresholds(client, db, world):
     await plan(db, settings, morning)
 
     rows = (await db.scalars(select(Notification).where(Notification.type == "demand"))).all()
-    # бухгалтеру, администратору и клиенту организации
+    # бухгалтеру и помощнику организации, администратору и клиенту
     assert {row.user_id for row in rows} == {
         world["accountant"].id,
+        world["helper"].id,
         world["admin"].id,
         world["client_user"].id,
     }
@@ -338,7 +340,7 @@ async def test_reminders_use_own_workday_thresholds(client, db, world):
         finally:
             await bot.session.close()
     texts = [text for _, text in telegram.sent if "📄" in text]
-    assert len(texts) == 3
+    assert len(texts) == 4
     assert "Представить пояснения" in texts[0] and "осталось рабочих дней: 2" in texts[0]
 
 
@@ -350,9 +352,61 @@ async def test_admin_reminders_can_be_switched_off(client, db, world):
 
     rows = (await db.scalars(select(Notification).where(Notification.type == "demand"))).all()
     # квитанция 07.12 — за 2 рабочих дня; ответ 14.12 ещё далеко
-    assert [(row.user_id, row.scheduled_for) for row in rows] == [
-        (world["accountant"].id, date(2026, 12, 5))
+    assert sorted((row.user_id, row.scheduled_for) for row in rows) == [
+        (world["accountant"].id, date(2026, 12, 5)),
+        (world["helper"].id, date(2026, 12, 5)),
     ]
+
+
+@pytest.mark.parametrize(
+    ("switches", "expected"),
+    [
+        ({}, {"admin", "chief", "accountant", "helper"}),
+        ({"demand_notify_admin": False}, {"chief", "accountant", "helper"}),
+        (
+            {"demand_notify_chief": False, "demand_notify_accountants": False},
+            {"admin", "helper"},
+        ),
+        ({"demand_notify_assistants": False}, {"admin", "chief", "accountant"}),
+        # общая галочка напоминаний помощникам на требования не влияет
+        (
+            {
+                "demand_notify_admin": False,
+                "demand_notify_chief": False,
+                "demand_notify_accountants": False,
+                "assistant_reminders": False,
+            },
+            {"helper"},
+        ),
+    ],
+)
+async def test_reminders_go_to_chosen_roles(client, db, world, switches, expected):
+    world["chief"] = await make_user(db, 20, Role.CHIEF)
+    await create(client, world["accountant"], body(world["company"]))
+    get_store().update({"notifications": switches})
+    settings = get_store().get()
+    now = datetime(2026, 12, 3, 7, 0, tzinfo=UTC)
+
+    await plan(db, settings, now)
+
+    rows = (await db.scalars(select(Notification).where(Notification.type == "demand"))).all()
+    names = ("admin", "chief", "accountant", "helper", "stranger")
+    got = {name for name in names for row in rows if row.user_id == world[name].id}
+    assert got == expected
+    # перед отправкой права получателя проверяются ещё раз: каждое сообщение уходит
+    for row in rows:
+        user = await db.get(User, row.user_id)
+        message = await sender._compose(db, settings, user, [row], now.date())
+        assert message is not None, user.role
+
+
+def test_old_admin_switch_also_covers_chief():
+    old = NotificationSettings.model_validate({"demand_notify_admin": False})
+    split = NotificationSettings.model_validate(
+        {"demand_notify_admin": False, "demand_notify_chief": True}
+    )
+
+    assert (old.demand_notify_chief, split.demand_notify_chief) == (False, True)
 
 
 async def test_client_sees_own_demand_without_note_and_tasks(client, db, world):
