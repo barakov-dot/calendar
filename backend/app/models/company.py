@@ -79,6 +79,10 @@ class Company(Base):
 
     # с какой даты ведётся календарь: более ранние сроки не считаются пропущенными
     calendar_start: Mapped[date | None]
+    # последний поиск форм Росстата; пусто — стоит в очереди
+    rosstat_checked_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    rosstat_error: Mapped[str] = mapped_column(Text, default="", server_default="")
+    rosstat_okpo: Mapped[str] = mapped_column(String(14), default="", server_default="")
     region_code: Mapped[str] = mapped_column(String(2), default="", server_default="")
     accountant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     is_archived: Mapped[bool] = mapped_column(default=False, server_default="false")

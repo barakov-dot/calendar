@@ -86,6 +86,8 @@ COMPANY_ENDPOINTS = [
         {"holder": "Чужой", "expires_on": "2027-01-01"},
     ),
     ("DELETE", "/api/companies/{company_id}/signatures/{signature_id}", None),
+    ("GET", "/api/companies/{company_id}/rosstat", None),
+    ("POST", "/api/companies/{company_id}/rosstat/refresh", None),
 ]
 
 
@@ -133,8 +135,8 @@ async def test_foreign_company_is_not_available(client, db, world, method, path,
         assert response.status_code == 403
         # помощник тоже только читает: изменить ничего не может
         response = await client.request(method, url, json=body, headers=auth(world["helper"]))
-        reads_signatures = method == "GET" and path.endswith("/signatures")
-        assert response.status_code == (200 if reads_signatures else 403)
+        helper_reads = method == "GET" and path.endswith(("/signatures", "/rosstat"))
+        assert response.status_code == (200 if helper_reads else 403)
 
     assert await snapshot(db) == before
 

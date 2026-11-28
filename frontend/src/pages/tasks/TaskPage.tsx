@@ -65,7 +65,8 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
     task.source === 'custom' &&
     !task.recurring_reminder_id &&
     !task.signature_id &&
-    !task.demand_id
+    !task.demand_id &&
+    !task.rosstat_form_id
 
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
@@ -144,6 +145,12 @@ function Loaded({ task, editable }: { task: TaskDetail; editable: boolean }) {
           .
         </Alert>
       )}
+      {task.rosstat_form_id && (
+        <Alert>
+          Форма статистики из перечня Росстата: он обновляется поиском по ИНН, вкладка
+          «Росстат» в карточке компании.
+        </Alert>
+      )}
       {task.nds_parts.length > 0 && <NdsBlock task={task} editable={editable} />}
       {task.kind === 'payment' && <Attachments taskId={task.id} />}
       {task.source === 'rule' && (
@@ -211,7 +218,7 @@ function EditForm({ task }: { task: TaskDetail }) {
   const refresh = useRefreshTasks()
   const change = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
   // эти поля меняются через подпись или требование
-  const owned = !!task.signature_id || !!task.demand_id
+  const owned = !!task.signature_id || !!task.demand_id || !!task.rosstat_form_id
   const hasAmount =
     !task.demand_id && (task.kind === 'payment' || task.kind === 'other') && usesAmount(task)
   const kopecks = parseRubles(form.amount)

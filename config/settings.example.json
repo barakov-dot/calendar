@@ -44,5 +44,10 @@
     "generation_horizon_months_ahead": 15,
     "client_can_unmark_own_paid_hours": 24,
     "show_notices_to_clients": true
+  },
+  "rosstat": {
+    "enabled": false,
+    "search_time": "03:00",
+    "timeout_seconds": 30
   }
 }

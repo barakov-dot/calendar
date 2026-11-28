@@ -204,6 +204,8 @@ async def patch(db: AsyncSession, actor: User, task: Task, body: TaskPatch) -> N
     locked = {"title", "description", "due_date", "reset_due", "client_visible"}
     if task.signature_id and sent & locked:
         raise TaskError("Это напоминание об ЭЦП: измените подпись в карточке компании")
+    if task.rosstat_form_id and sent & {"title", "description", "client_visible"}:
+        raise TaskError("Это задача по форме Росстата: название и описание берутся из перечня")
     if task.demand_id and sent & (locked | {"amount_kopecks"}):
         raise TaskError("Это задача по требованию: измените само требование")
     if task.source != TaskSource.CUSTOM and sent & {"title", "description"}:
@@ -298,6 +300,8 @@ async def delete(db: AsyncSession, actor: User, task: Task) -> None:
         raise TaskError("Это напоминание об ЭЦП: удалите подпись в карточке компании")
     if task.demand_id:
         raise TaskError("Это задача по требованию: удалите само требование")
+    if task.rosstat_form_id:
+        raise TaskError("Задача из перечня Росстата: отметьте «Не требуется»")
     if task.source != TaskSource.CUSTOM:
         raise TaskError("Задачу из налоговых правил удалить нельзя: отметьте «Не требуется»")
     if task.recurring_reminder_id:

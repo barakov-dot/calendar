@@ -124,7 +124,11 @@ export default function TaskTable({
                 <span className="block text-xs text-slate-500 dark:text-slate-400">
                   <span className="@xl:hidden">{formatDate(task.due_date)} · </span>
                   {showCompany && `${task.company_name} · `}
-                  {task.demand_id ? 'Требование' : KIND_NAMES[task.kind]}
+                  {task.demand_id
+                    ? 'Требование'
+                    : task.rosstat_form_id
+                      ? 'Росстат'
+                      : KIND_NAMES[task.kind]}
                 </span>
               </span>
               <span className="hidden text-right text-sm tabular-nums @xl:block">

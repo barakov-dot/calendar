@@ -98,6 +98,14 @@ class DadataSettings(Section):
     timeout_seconds: int = Field(10, ge=1, le=120)
 
 
+class RosstatSettings(Section):
+    # включают после загрузки корневого сертификата Минцифры
+    enabled: bool = False
+    # время ежедневного поиска форм по Москве
+    search_time: str = Field("03:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    timeout_seconds: int = Field(30, ge=5, le=120)
+
+
 class NotificationSettings(Section):
     digest_time: str = Field("09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     digest_workdays_only: bool = True
@@ -144,6 +152,7 @@ class AppSettings(Section):
     dadata: DadataSettings = Field(default_factory=DadataSettings)
     notifications: NotificationSettings = Field(default_factory=NotificationSettings)
     tasks: TaskSettings = Field(default_factory=TaskSettings)
+    rosstat: RosstatSettings = Field(default_factory=RosstatSettings)
 
 
 class SettingsError(Exception):

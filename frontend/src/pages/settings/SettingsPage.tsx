@@ -10,12 +10,14 @@ import CalendarTab from './CalendarTab'
 import CompanyTab from './CompanyTab'
 import DadataTab from './DadataTab'
 import NotificationsTab from './NotificationsTab'
+import RosstatTab from './RosstatTab'
 import TelegramTab from './TelegramTab'
 import { SETTINGS_KEY } from './useSettings'
 
 const TABS = [
   ['telegram', 'Telegram и прокси'],
   ['dadata', 'DaData'],
+  ['rosstat', 'Росстат'],
   ['notifications', 'Уведомления'],
   ['company', 'Компания'],
   ['calendar', 'Производственный календарь'],
@@ -71,6 +73,10 @@ export default function SettingsPage() {
           <Route
             path="company"
             element={<CompanyTab key={JSON.stringify(settings.company)} saved={settings.company} />}
+          />
+          <Route
+            path="rosstat"
+            element={<RosstatTab key={JSON.stringify(settings.rosstat)} saved={settings.rosstat} />}
           />
           <Route path="calendar" element={<CalendarTab />} />
           <Route path="backups" element={<BackupsTab />} />

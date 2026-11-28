@@ -1,4 +1,4 @@
-from sqlalchemy import ColumnElement, and_, func
+from sqlalchemy import ColumnElement, and_, func, or_
 
 from app.models import Company, Task, TaskSource, TaskStatus
 
@@ -20,7 +20,7 @@ def is_untouched(task: Task) -> bool:
 
 
 def before_start(task: Task, company: Company | None) -> bool:
-    """Срок по налоговым правилам раньше начала ведения календаря этой организации.
+    """Срок по правилам или перечню Росстата раньше начала ведения календаря организации.
 
     Такая задача остаётся и меняется как обычно, но не считается пропущенной и не
     напоминает о себе. Задачи, заведённые людьми, это не затрагивает.
@@ -28,13 +28,12 @@ def before_start(task: Task, company: Company | None) -> bool:
     return (
         company is not None
         and company.calendar_start is not None
-        and task.source == TaskSource.RULE
+        and (task.source == TaskSource.RULE or task.rosstat_form_id is not None)
         and task.due_date < company.calendar_start
     )
 
 
 def before_start_condition() -> ColumnElement[bool]:
     """То же для запроса, в котором есть Company (можно через outerjoin)."""
-    return func.coalesce(
-        and_(Task.source == TaskSource.RULE, Task.due_date < Company.calendar_start), False
-    )
+    generated = or_(Task.source == TaskSource.RULE, Task.rosstat_form_id.is_not(None))
+    return func.coalesce(and_(generated, Task.due_date < Company.calendar_start), False)

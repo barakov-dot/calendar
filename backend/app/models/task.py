@@ -88,6 +88,10 @@ class Task(Base):
     signature_id: Mapped[int | None] = mapped_column(
         ForeignKey("signatures.id", ondelete="CASCADE"), unique=True
     )
+    # срок сдачи формы статистики; ведётся по перечню Росстата
+    rosstat_form_id: Mapped[int | None] = mapped_column(
+        ForeignKey("rosstat_forms.id", ondelete="CASCADE"), unique=True
+    )
     # шаг требования инспекции; меняется только через требование
     demand_id: Mapped[int | None] = mapped_column(ForeignKey("demands.id", ondelete="CASCADE"))
     demand_step: Mapped[str | None] = mapped_column(String(16))

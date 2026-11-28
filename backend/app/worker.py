@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import contextlib
 import logging
 import time
 from collections.abc import Sequence
@@ -31,6 +32,8 @@ from app.services.monitoring import (
 )
 from app.services.notify.planner import plan
 from app.services.notify.sender import deliver
+from app.services.rosstat import client as rosstat
+from app.services.rosstat import sync as rosstat_sync
 from app.services.tasks import Result, regenerate_all, today
 from app.services.telegram.admin import admin_sender
 from app.services.telegram.client import TelegramClient
@@ -42,6 +45,7 @@ logger = logging.getLogger("worker")
 
 GENERATION_HOUR = 3
 PLAN_SECONDS = 60
+ROSSTAT_RETRY = timedelta(hours=1)
 SEND_SECONDS = 5
 # Об отсутствии правил и календаря на следующий год напоминаем незадолго до его начала.
 WARNING_AHEAD = timedelta(days=60)
@@ -203,6 +207,29 @@ async def run_telegram_check(
         await client.close()
 
 
+async def run_rosstat(stop: asyncio.Event, store: SettingsStore) -> None:
+    """Раз в сутки в заданное время обновляет формы Росстата; новые компании — сразу."""
+    retry_after = datetime.min.replace(tzinfo=UTC)
+    while not stop.is_set():
+        settings = store.get()
+        now = datetime.now(UTC)
+        if settings.rosstat.enabled and now >= retry_after:
+            try:
+                async with get_sessionmaker()() as db:
+                    async with rosstat.Client(settings.rosstat.timeout_seconds) as client:
+                        count = await rosstat_sync.run_due(db, settings, now, client)
+                if count:
+                    logger.info("Формы Росстата обновлены: организаций %s", count)
+            except rosstat.Unavailable as error:
+                logger.warning("Росстат недоступен (%s), повтор через час", error)
+                retry_after = now + ROSSTAT_RETRY
+            except Exception:
+                logger.exception("Не удалось обновить формы Росстата")
+                retry_after = now + ROSSTAT_RETRY
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(stop.wait(), PLAN_SECONDS)
+
+
 async def main(stop: asyncio.Event) -> None:
     config = get_config()
     store = get_store()
@@ -226,6 +253,7 @@ async def main(stop: asyncio.Event) -> None:
         asyncio.create_task(heartbeat(status)),
         asyncio.create_task(run_notifications(stop, store, config, sender, status=status)),
         asyncio.create_task(run_monitor(store, config, alerts)),
+        asyncio.create_task(run_rosstat(stop, store)),
     ]
     try:
         await run_telegram_check(stop, store, config, client)

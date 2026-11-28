@@ -54,6 +54,7 @@ class TaskOut(ClientTaskOut):
     recurring_reminder_id: int | None
     signature_id: int | None
     demand_id: int | None
+    rosstat_form_id: int | None
 
 
 class NdsPart(BaseModel):

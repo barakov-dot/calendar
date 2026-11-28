@@ -49,6 +49,11 @@ export interface AppSettings {
     has_secret_key: boolean
     timeout_seconds: number
   }
+  rosstat: {
+    enabled: boolean
+    search_time: string
+    timeout_seconds: number
+  }
   tasks: {
     show_notices_to_clients: boolean
   }

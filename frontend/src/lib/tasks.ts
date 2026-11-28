@@ -35,6 +35,8 @@ export interface Task {
   before_start?: boolean
   /** Задача по требованию инспекции; клиенту не отдаётся. */
   demand_id?: number | null
+  /** Срок сдачи формы Росстата. */
+  rosstat_form_id?: number | null
   /** «Что сделать» и «за какой период» из налогового правила; клиенту не отдаются. */
   action_title?: string
   period_label?: string

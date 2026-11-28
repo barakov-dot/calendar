@@ -18,6 +18,7 @@ from app.models.notification import (
     NotificationStatus,
     NotificationType,
 )
+from app.models.rosstat import RosstatForm
 from app.models.task import (
     Audience,
     ChangedBy,
@@ -66,6 +67,7 @@ __all__ = [
     "RecurringReminder",
     "Regime",
     "Role",
+    "RosstatForm",
     "ShiftRule",
     "Signature",
     "Substitution",

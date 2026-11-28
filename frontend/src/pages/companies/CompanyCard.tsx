@@ -15,6 +15,7 @@ import ClientsBlock from './ClientsBlock'
 import { RequisiteFields, TaxFields } from './CompanyFields'
 import type { PatentData } from './PatentForm'
 import PatentList from './PatentList'
+import RosstatBlock from './RosstatBlock'
 import SignaturesBlock from './SignaturesBlock'
 import { useStaff } from './useStaff'
 
@@ -37,7 +38,7 @@ export default function CompanyCard({ user }: { user: User }) {
   )
 }
 
-type Tab = 'tasks' | 'demands' | 'params' | 'clients' | 'reminders' | 'signatures'
+type Tab = 'rosstat' | 'tasks' | 'demands' | 'params' | 'clients' | 'reminders' | 'signatures'
 
 function useCompanyAction<T>(id: number, action: (input: T) => Promise<unknown>) {
   const queryClient = useQueryClient()
@@ -65,6 +66,7 @@ function Loaded({ company, user }: { company: Company; user: User }) {
   const tabs: [Tab, string][] = [
     ['tasks', 'Задачи'],
     ['demands', 'Требования'],
+    ['rosstat', 'Росстат'],
     ['params', 'Реквизиты и налоги'],
     ['clients', `Клиенты · ${company.members.length}`],
     ['reminders', 'Напоминания'],
@@ -84,6 +86,7 @@ function Loaded({ company, user }: { company: Company; user: User }) {
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       {tab === 'tasks' && <CompanyTasks companyId={company.id} editable={active} />}
       {tab === 'demands' && <CompanyDemands companyId={company.id} editable={active} />}
+      {tab === 'rosstat' && <RosstatBlock companyId={company.id} editable={active} />}
       {tab === 'reminders' && <ReminderBlock companyId={company.id} editable={active} />}
       {tab === 'clients' && <ClientsBlock company={company} user={user} />}
       {tab === 'signatures' && <SignaturesBlock companyId={company.id} editable={active} />}
