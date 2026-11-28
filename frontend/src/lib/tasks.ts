@@ -75,12 +75,21 @@ export interface TaskListResponse {
   today: string
 }
 
+/** Что нужно сделать и что сделано, по типам задач. */
+const CLIENT_STATUS: Record<TaskKind, [string, string]> = {
+  payment: ['К оплате', 'Оплачено ✓'],
+  notice: ['Сдать уведомление', 'Уведомление сдано ✓'],
+  report: ['Сдать отчёт', 'Отчёт сдан ✓'],
+  other: ['Запланировано', 'Выполнено ✓'],
+}
+
 /** Как статус называется для клиента. */
 export function clientStatus(task: Pick<Task, 'kind' | 'status'>): string {
-  if (task.status === 'paid') return 'Оплачено ✓'
-  if (task.status === 'done') return task.kind === 'report' ? 'Сдано ✓' : 'Выполнено ✓'
   if (task.status === 'not_required') return 'Не требуется'
-  return task.kind === 'payment' ? 'К оплате' : 'Готовится'
+  // платёж и сдача документов называются по-разному, чтобы их нельзя было спутать
+  const [planned, completed] = CLIENT_STATUS[task.kind]
+  if (task.status === 'planned') return planned
+  return task.status === 'paid' ? 'Оплачено ✓' : completed
 }
 
 /** Статусы, применимые к задаче такого типа (так же проверяет сервер). */

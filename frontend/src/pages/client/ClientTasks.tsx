@@ -8,6 +8,8 @@ import { clientStatus, type Task, toneOf } from '../../lib/tasks'
 import { TONE_STYLES } from '../../lib/toneStyles'
 import { useRefreshTasks } from '../../lib/useTasks'
 
+const DOCUMENT_STYLE = 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200'
+
 /** Задачи глазами клиента: что, сколько, до какого числа и оплачено ли. */
 export default function ClientTasks({ tasks, today }: { tasks: Task[]; today: string }) {
   if (tasks.length === 0) return <p className="text-sm">Ничего нет.</p>
@@ -43,7 +45,12 @@ function ClientTask({ task, today }: { task: Task; today: string }) {
       </Link>
       {task.client_note && <p className="text-sm break-words">{task.client_note}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-2 py-0.5 text-xs ${TONE_STYLES[tone]}`}>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs ${
+            // ещё не сданное отличается цветом от ещё не оплаченного
+            tone === 'planned' && task.kind !== 'payment' ? DOCUMENT_STYLE : TONE_STYLES[tone]
+          }`}
+        >
           {tone === 'overdue' && task.kind === 'payment'
             ? 'Срок прошёл'
             : tone === 'history'

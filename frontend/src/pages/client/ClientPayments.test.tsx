@@ -67,8 +67,11 @@ describe('платежи клиента', () => {
 
   it('называет статусы по-клиентски', () => {
     expect(clientStatus({ kind: 'payment', status: 'planned' })).toBe('К оплате')
-    expect(clientStatus({ kind: 'report', status: 'planned' })).toBe('Готовится')
-    expect(clientStatus({ kind: 'report', status: 'done' })).toBe('Сдано ✓')
+    expect(clientStatus({ kind: 'notice', status: 'planned' })).toBe('Сдать уведомление')
+    expect(clientStatus({ kind: 'report', status: 'planned' })).toBe('Сдать отчёт')
+    expect(clientStatus({ kind: 'notice', status: 'done' })).toBe('Уведомление сдано ✓')
+    expect(clientStatus({ kind: 'report', status: 'done' })).toBe('Отчёт сдан ✓')
+    expect(clientStatus({ kind: 'other', status: 'planned' })).toBe('Запланировано')
     expect(clientStatus({ kind: 'payment', status: 'paid' })).toBe('Оплачено ✓')
   })
 })
