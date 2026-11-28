@@ -437,3 +437,52 @@ async def test_switching_salary_off_removes_future_ndfl_tasks(db, calendar, acco
     left = [task for task in (await all_tasks(db)).values() if task.due_date >= TODAY]
     assert not [t for t in left if t.rule_code.startswith(("ndfl", "salary"))]
     assert any(t.rule_code == "insurance_payment" for t in left)
+
+
+async def test_inactive_ausn_company_pays_zero_from_now(db, calendar, accountant):
+    company = await make_company(db, accountant, main_regime="ausn_income")
+    await generate(db, company)
+    items = await all_tasks(db)
+    past, entered, future = (
+        items[("ausn_tax", period, 1)] for period in ("2026-01", "2026-10", "2026-11")
+    )
+    assert past.due_date < TODAY <= entered.due_date
+    tasks.override_amount(entered, 500)
+    company.no_activity = True
+    await db.commit()
+
+    await generate(db, company)
+    await generate(db, company)
+
+    for task in (past, entered, future):
+        await db.refresh(task)
+    assert (future.status, future.amount_kopecks, future.needs_amount) == (
+        "not_required",
+        0,
+        False,
+    )
+    assert (past.status, past.amount_kopecks, past.needs_amount) == ("planned", None, True)
+    assert (entered.status, entered.amount_kopecks) == ("planned", 500)
+
+    # деятельность возобновилась: будущие платежи возвращаются
+    company.no_activity = False
+    await db.commit()
+    await generate(db, company)
+    await db.refresh(future)
+    assert (future.status, future.amount_kopecks, future.needs_amount) == ("planned", None, True)
+
+
+async def test_past_zero_months_stay_zero_after_activity_returns(db, calendar, accountant):
+    company = await make_company(db, accountant, main_regime="ausn_income", no_activity=True)
+    await generate(db, company)
+    key = ("ausn_tax", "2026-11", 1)
+    task = (await all_tasks(db))[key]
+    assert task.amount_kopecks == 0
+
+    company.no_activity = False
+    await db.commit()
+    later = date(task.due_date.year + 1, 1, 15)
+    await generate(db, company, today=later)
+
+    await db.refresh(task)
+    assert (task.status, task.amount_kopecks) == ("not_required", 0)

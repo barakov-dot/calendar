@@ -117,6 +117,8 @@ class Rule(Strict):
     needs_amount: bool = False
     # годовая сумма по закону, ₽: за неполный первый год — пропорционально дате регистрации
     annual_amount: int | None = Field(None, ge=1)
+    # у компании без деятельности этот платёж равен нулю
+    zero_when_inactive: bool = False
     # за годы до года регистрации задача не создаётся
     from_registration: bool = False
     client_visible: bool = True

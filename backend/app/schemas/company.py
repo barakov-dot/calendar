@@ -63,6 +63,7 @@ class CompanyData(Input):
     nds_payer: bool | None = None
     has_employees: bool = False
     no_salary: bool = False
+    no_activity: bool = False
     profit_advances_mode: ProfitAdvances | None = None
     has_property_avg: bool = False
     has_property_cadastral: bool = False
@@ -110,6 +111,7 @@ class CompanyData(Input):
             self.has_property_advances = False
         if not ausn:
             self.ausn_ndfl_tasks = True
+            self.no_activity = False
         if not self.has_employees:
             self.no_salary = False
         if not self.has_employees or self.no_salary:
@@ -199,6 +201,7 @@ class CompanyOut(BaseModel):
     nds_payer: bool
     has_employees: bool
     no_salary: bool
+    no_activity: bool
     profit_advances_mode: str | None
     has_property_avg: bool
     has_property_cadastral: bool

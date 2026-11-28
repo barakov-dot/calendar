@@ -105,6 +105,47 @@ def _set_status(task: Task, status: TaskStatus) -> None:
     task.status_changed_at = datetime.now(UTC)
 
 
+def _is_zeroed(task: Task) -> bool:
+    """Платёж, обнулённый сервисом: деятельность не ведётся."""
+    return (
+        task.status == TaskStatus.NOT_REQUIRED
+        and task.status_changed_by_role == ChangedBy.SYSTEM
+        and task.amount_kopecks == 0
+        and not task.amount_overridden
+    )
+
+
+def _make_zero(task: Task) -> None:
+    task.amount_kopecks = 0
+    task.needs_amount = False
+    _set_status(task, TaskStatus.NOT_REQUIRED)
+
+
+def _follow_activity(task: Task, item: Occurrence, current: date) -> bool:
+    """Обнуляет предстоящий платёж без деятельности и возвращает его, когда она появилась.
+
+    Прошедшие сроки не меняются: тогда деятельность могла быть другой. Введённые суммы
+    и отметки людей остаются. True — задача уже обнулена, обычное восстановление не нужно.
+    """
+    ahead = item.due_date >= current
+    if _is_zeroed(task):
+        if item.inactive or not ahead:
+            task.needs_amount = False
+            return True
+        task.amount_kopecks = None
+        return False
+    untouched = (
+        task.status == TaskStatus.PLANNED
+        and task.status_changed_at is None
+        and task.amount_kopecks is None
+        and not task.amount_overridden
+    )
+    if item.inactive and ahead and untouched:
+        _make_zero(task)
+        return True
+    return False
+
+
 async def generate_tasks(
     db: AsyncSession,
     company_id: int,
@@ -140,9 +181,13 @@ async def generate_tasks(
         if task is not None and item.payday and task.status != TaskStatus.PLANNED:
             continue  # состоявшуюся выплату новое расписание не двигает
         if task is None:
-            db.add(_new_task(company_id, item))
+            task = _new_task(company_id, item)
+            if item.inactive and item.due_date >= current:
+                _make_zero(task)
+            db.add(task)
             result.created += 1
             continue
+        zeroed = _is_zeroed(task) if item.zero_rule else False
         changed = False
         texts = ("title", "action_title", "period_label", "source_ref", "description")
         for name in ("due_date", "original_due_date", "needs_amount", *texts):
@@ -162,6 +207,10 @@ async def generate_tasks(
         ):
             task.amount_kopecks = item.amount_kopecks
             changed = True
+        if item.zero_rule and _follow_activity(task, item, current):
+            # обнулённый платёж сумму не спрашивает
+            result.updated += changed or not zeroed
+            continue
         if (
             task.status == TaskStatus.NOT_REQUIRED
             and task.status_changed_by_role == ChangedBy.SYSTEM

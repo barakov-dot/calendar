@@ -58,6 +58,8 @@ class Company(Base):
     main_regime: Mapped[str] = mapped_column(String(32))
     nds_payer: Mapped[bool] = mapped_column(default=False, server_default="false")
     has_employees: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # АУСН без деятельности: налог равен нулю и не вводится
+    no_activity: Mapped[bool] = mapped_column(default=False, server_default="false")
     # сотрудники есть (взносы платятся), но выплат им нет: без зарплаты и НДФЛ
     no_salary: Mapped[bool] = mapped_column(default=False, server_default="false")
     profit_advances_mode: Mapped[str | None] = mapped_column(String(32))

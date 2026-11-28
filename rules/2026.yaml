@@ -447,6 +447,7 @@ rules:
     applies: { main_regime: [ausn_income, ausn_income_expense] }
     schedule: { type: monthly, day: 25, month_offset: 1 }
     needs_amount: true
+    zero_when_inactive: true
     client_visible: true
     source: "ч. 8 ст. 12 Федерального закона № 17-ФЗ"
     description: "Сумму сообщает налоговый орган до 15-го числа."

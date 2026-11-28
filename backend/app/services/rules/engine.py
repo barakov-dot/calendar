@@ -66,6 +66,9 @@ class Occurrence:
     amount_kopecks: int | None = None
     # сумма установлена законом: пересчитывается, пока её не изменили вручную
     fixed_amount: bool = False
+    # платёж, который без деятельности равен нулю, и признак, что деятельности нет
+    zero_rule: bool = False
+    inactive: bool = False
     # выплата по расписанию компании: перенос назад, прошедшие сроки не создаются задним числом
     payday: bool = False
     action_title: str = ""
@@ -326,6 +329,9 @@ def occurrences(
                         client_visible=rule.client_visible,
                         amount_kopecks=draft.amount if amount is None else amount,
                         fixed_amount=amount is not None,
+                        zero_rule=rule.zero_when_inactive,
+                        inactive=rule.zero_when_inactive
+                        and getattr(company, "no_activity", False),
                         payday=draft.backwards,
                     )
                 )

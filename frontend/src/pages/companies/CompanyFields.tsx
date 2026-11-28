@@ -109,6 +109,19 @@ export function TaxFields({ form, onChange }: Props) {
         disabled={isAusn(form.main_regime)}
         onChange={(nds_payer) => change({ nds_payer })}
       />
+      {isAusn(form.main_regime) && (
+        <div className="space-y-1">
+          <Checkbox
+            label="Деятельность не ведётся"
+            checked={form.no_activity}
+            onChange={(no_activity) => change({ no_activity })}
+          />
+          <p className="pl-6 text-sm text-slate-500 dark:text-slate-400">
+            Предстоящие платежи налога АУСН будут 0 ₽ и «Не требуется»: вписывать их не
+            нужно. Прошедшие сроки и введённые суммы не меняются.
+          </p>
+        </div>
+      )}
       <Checkbox
         label="Есть сотрудники"
         checked={form.has_employees}

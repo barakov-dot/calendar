@@ -460,3 +460,8 @@ def test_no_salary_keeps_contributions_without_ndfl_and_paydays(regime):
 
 def test_no_salary_needs_employees():
     assert company("ooo", "osno", no_salary=True).no_salary is False
+
+
+def test_no_activity_only_matters_for_ausn():
+    assert company("ooo", "ausn_income", no_activity=True).no_activity is True
+    assert company("ooo", "usn6", no_activity=True).no_activity is False
