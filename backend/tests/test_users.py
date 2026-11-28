@@ -9,7 +9,7 @@ from app.models import AuditLog, Notification, Role, Substitution, User
 from app.services import invites
 from app.services.notify.sender import deliver
 from app.services.telegram.factory import create_bot
-from tests.factories import auth, link_client, make_company, make_user
+from tests.factories import assign, auth, link_client, make_company, make_user
 from tests.fakes import FakeTelegram
 
 pytestmark = pytest.mark.usefixtures("secrets")
@@ -38,6 +38,8 @@ async def world(db):
         ("GET", "/api/admin/broadcasts/1/deliveries", None),
         ("POST", "/api/admin/broadcasts/preview", {"roles": ["client"]}),
         ("POST", "/api/admin/broadcasts", {"roles": ["client"], "text": "т"}),
+        ("POST", "/api/admin/broadcasts/archive", {"ids": [1]}),
+        ("DELETE", "/api/admin/broadcasts/1", None),
     ],
 )
 async def test_only_admin(client, db, method, url, body):
@@ -232,3 +234,64 @@ async def test_broadcast_is_delivered_as_plain_text(client, db, world):
         "Дина": "failed",
         "Пётр": "sent",
     }
+
+
+async def test_broadcast_by_companies_reaches_chosen_groups(client, db, world):
+    second = await make_user(db, 7, Role.CLIENT, first_name="Вера")
+    stranger = await make_user(db, 8, Role.CLIENT, first_name="Чужой")
+    other = await make_company(db, None, 2, short_name="ООО «Вторая»")
+    await link_client(db, world["company"], second)
+    await link_client(db, other, stranger)
+    await assign(db, world["company"], world["helper"])
+    url = "/api/admin/broadcasts"
+    chosen = {"company_ids": [world["company"].id]}
+
+    async def names(groups):
+        found = await post(client, world, f"{url}/preview", **chosen, company_groups=groups)
+        return found.json()["recipients"]
+
+    assert await names(["client"]) == ["Пётр", "Вера"]
+    assert await names(["accountant", "assistant"]) == ["Борис Иванов", "Дина"]
+    assert await names([]) == []
+
+    created = await post(client, world, url, text="Привет", **chosen, company_groups=["client"])
+
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert (body["total"], body["company_names"], body["company_groups"]) == (
+        2,
+        ["ООО «Ромашка»"],
+        ["client"],
+    )
+    rows = await db.scalars(select(Notification.user_id))
+    assert set(rows) == {world["client_user"].id, second.id}
+
+
+async def test_broadcast_goes_to_archive_and_back(client, db, world):
+    url, headers = "/api/admin/broadcasts", auth(world["admin"])
+    first = (await post(client, world, url, text="Раз", roles=["client"])).json()["id"]
+    await post(client, world, url, text="Два", roles=["client"])
+
+    async def texts(**params):
+        found = await client.get(url, params=params, headers=headers)
+        return [item["text"] for item in found.json()]
+
+    assert (await post(client, world, f"{url}/archive", ids=[first])).status_code == 204
+    assert (await texts(), await texts(archived=True)) == (["Два"], ["Раз"])
+    # из очереди сообщение не пропадает
+    assert len((await db.scalars(select(Notification))).all()) == 2
+
+    await post(client, world, f"{url}/archive", ids=[first], archived=False)
+
+    assert (await texts(), await texts(archived=True)) == (["Два", "Раз"], [])
+
+
+async def test_deleted_broadcast_is_not_sent(client, db, world):
+    url, headers = "/api/admin/broadcasts", auth(world["admin"])
+    created = (await post(client, world, url, text="Лишнее", roles=["client"])).json()["id"]
+
+    assert (await client.delete(f"{url}/{created}", headers=headers)).status_code == 204
+
+    assert (await client.get(url, headers=headers)).json() == []
+    assert await db.scalar(select(Notification)) is None
+    assert (await client.delete(f"{url}/{created}", headers=headers)).status_code == 404

@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.api.deps import Database, ManagerUser
@@ -80,10 +80,21 @@ class Audience(BaseModel):
 
     roles: list[Role] = Field(default_factory=list, max_length=5)
     user_ids: list[int] = Field(default_factory=list, max_length=1000)
+    company_ids: list[int] = Field(default_factory=list, max_length=500)
+    company_groups: list[Literal["client", "accountant", "assistant"]] = Field(
+        default_factory=list, max_length=3
+    )
 
 
 class BroadcastIn(Audience):
     text: Message
+
+
+class ArchiveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ids: list[int] = Field(min_length=1, max_length=500)
+    archived: bool = True
 
 
 class Unreachable(BaseModel):
@@ -101,6 +112,9 @@ class BroadcastOut(BaseModel):
     id: int
     text: str
     roles: list[str]
+    company_names: list[str]
+    company_groups: list[str]
+    archived: bool
     author_name: str
     created_at: datetime
     total: int
@@ -209,7 +223,7 @@ async def update_user(
 
 @router.post("/broadcasts/preview")
 async def preview(body: Audience, admin: ManagerUser, db: Database) -> Preview:
-    found = await broadcasts.recipients(db, admin, body.roles, body.user_ids)
+    found = await broadcasts.recipients(db, admin, **body.model_dump())
     return Preview(
         recipients=[person_name(user) for user in found.ready],
         unreachable=[
@@ -219,8 +233,13 @@ async def preview(body: Audience, admin: ManagerUser, db: Database) -> Preview:
     )
 
 
-def _broadcast(item: Broadcast, author: str, counts: dict[str, int]) -> BroadcastOut:
+def _broadcast(
+    item: Broadcast, author: str, counts: dict[str, int], names: dict[int, str]
+) -> BroadcastOut:
     return BroadcastOut(
+        company_names=[names[i] for i in item.company_ids if i in names],
+        company_groups=item.company_groups,
+        archived=item.archived_at is not None,
         id=item.id,
         text=item.text,
         roles=item.roles,
@@ -235,8 +254,27 @@ def _broadcast(item: Broadcast, author: str, counts: dict[str, int]) -> Broadcas
 
 
 @router.get("/broadcasts")
-async def list_broadcasts(_: ManagerUser, db: Database) -> list[BroadcastOut]:
-    return [_broadcast(*row) for row in await broadcasts.history(db)]
+async def list_broadcasts(
+    _: ManagerUser, db: Database, archived: bool = False
+) -> list[BroadcastOut]:
+    rows = await broadcasts.history(db, archived)
+    names = await broadcasts.company_names(db, {i for row in rows for i in row[0].company_ids})
+    return [_broadcast(*row, names) for row in rows]
+
+
+@router.post("/broadcasts/archive", status_code=status.HTTP_204_NO_CONTENT)
+async def archive_broadcasts(body: ArchiveIn, admin: ManagerUser, db: Database) -> Response:
+    await broadcasts.archive(db, admin, body.ids, body.archived)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/broadcasts/{broadcast_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_broadcast(broadcast_id: int, admin: ManagerUser, db: Database) -> Response:
+    item = await db.get(Broadcast, broadcast_id)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Рассылка не найдена")
+    await broadcasts.delete(db, admin, item)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/broadcasts/{broadcast_id}/deliveries")
@@ -252,9 +290,10 @@ async def list_deliveries(broadcast_id: int, _: ManagerUser, db: Database) -> li
 @router.post("/broadcasts", status_code=status.HTTP_201_CREATED)
 async def send_broadcast(body: BroadcastIn, admin: ManagerUser, db: Database) -> BroadcastOut:
     try:
-        item = await broadcasts.create(db, admin, body.text, body.roles, body.user_ids)
+        item = await broadcasts.create(db, admin, **body.model_dump())
     except broadcasts.BroadcastError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     queued = await broadcasts.deliveries(db, item.id)
     await db.refresh(item)
-    return _broadcast(item, person_name(admin), {"pending": len(queued)})
+    names = await broadcasts.company_names(db, set(item.company_ids))
+    return _broadcast(item, person_name(admin), {"pending": len(queued)}, names)

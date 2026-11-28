@@ -193,9 +193,11 @@ export default function DemandForm({
             <DateOrigin
               manual={form.response_date !== ''}
               auto={
-                response
-                  ? 'Считается от даты квитанции'
-                  : 'Укажите дату из документа или срок в рабочих днях'
+                kind?.due_on_upload
+                  ? 'День загрузки: решение исполняется сразу'
+                  : response
+                    ? 'Считается от даты квитанции'
+                    : 'Укажите дату из документа или срок в рабочих днях'
               }
               reset={() => change({ response_date: '' })}
             />

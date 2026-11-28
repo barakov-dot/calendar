@@ -11,7 +11,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
-from app.core.permissions import accessible_company_ids_query, get_accessible_company
+from app.core.permissions import (
+    accessible_company_ids_query,
+    business_today,
+    get_accessible_company,
+)
 from app.models import (
     ChangedBy,
     Company,
@@ -64,9 +68,12 @@ async def calculate(db: AsyncSession, terms: Terms) -> Dates:
     calendar = await load_calendar(db)
     sent = terms.sent_date or terms.doc_date
     receipt = terms.receipt_date or add_workdays(calendar, sent, book.receipt.workdays)
-    workdays = terms.response_workdays or book.kind(terms.knd).response_workdays
+    kind = book.kind(terms.knd)
+    workdays = terms.response_workdays or kind.response_workdays
     response = terms.response_date
-    if response is None and workdays:
+    if response is None and kind.due_on_upload and not terms.response_workdays:
+        response = business_today()
+    elif response is None and workdays:
         response = add_workdays(calendar, receipt, workdays)
     return Dates(sent, receipt, response)
 
@@ -211,7 +218,10 @@ async def save(
     demand.receipt_date = dates.receipt
     demand.response_date = dates.response
     demand.receipt_set = values["receipt_date"] is not None
-    demand.response_set = values["response_date"] is not None
+    # день загрузки запоминается как заданный: иначе при правке он сдвинулся бы на сегодня
+    demand.response_set = (
+        values["response_date"] is not None or get_book().kind(terms.knd).due_on_upload
+    )
     await db.flush()
     await _sync(db, demand)
     await db.flush()

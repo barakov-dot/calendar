@@ -142,8 +142,8 @@ function Loaded({
           <Step
             title={demand.action}
             step={demand.response}
-            done={demand.knd === '1160001' ? 'paid' : 'done'}
-            doneLabel={demand.knd === '1160001' ? 'Уплачено' : 'Выполнено'}
+            done={demand.is_payment ? 'paid' : 'done'}
+            doneLabel={demand.is_payment ? 'Уплачено' : 'Выполнено'}
             editable={editable}
           />
         </Card>

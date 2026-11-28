@@ -17,6 +17,7 @@ export interface Demand {
   knd: string
   name: string
   action: string
+  is_payment: boolean
   response_label: string
   number: string
   doc_date: string
@@ -42,6 +43,7 @@ export interface DemandKind {
   response_label: string
   response_workdays: number | null
   is_payment: boolean
+  due_on_upload: boolean
 }
 
 export interface Recognized {

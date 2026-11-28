@@ -24,6 +24,8 @@ class Kind(Strict):
     task_kind: Literal["payment", "other"]
     response_workdays: int | None = Field(None, ge=1, le=60)
     response_label: str = "Срок исполнения"
+    # срок исполнения — день загрузки документа, а не расчёт от квитанции
+    due_on_upload: bool = False
     source: str = Field(min_length=1)
 
 

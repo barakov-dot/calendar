@@ -63,7 +63,12 @@ class Broadcast(Base):
     text: Mapped[str] = mapped_column(Text)
     # выбранные группы; пусто — получателей отмечали по одному
     roles: Mapped[list[str]] = mapped_column(ARRAY(String(16)))
+    # рассылка по организациям: каким и кому из привязанных к ним
+    company_ids: Mapped[list[int]] = mapped_column(ARRAY(Integer), server_default="{}")
+    company_groups: Mapped[list[str]] = mapped_column(ARRAY(String(16)), server_default="{}")
     created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
+    # убранные в архив не показываются в списке
+    archived_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
 
 class Notification(Base):

@@ -11,6 +11,7 @@ from app.core.config import get_config
 from app.core.settings_store import NotificationSettings, get_store
 from app.models import CompanyMember, Demand, Notification, Role, Task, User
 from app.services.calendar.workdays import load_calendar, load_missing_years
+from app.services.demands import service
 from app.services.demands.recognize import pdf_text, read
 from app.services.demands.types import add_workdays, get_book
 from app.services.notify import sender
@@ -102,6 +103,12 @@ async def test_golden_dates(db, world, sent, workdays, receipt, response):
             "«30» октября 2026 г. Сумма 1234,56 Статус 01 "
             "если в срок до «20» ноября 2026 года настоящее требование",
             ("1160001", "55", date(2026, 10, 30), None, date(2026, 11, 20), 123_456),
+        ),
+        (
+            "Форма по КНД 1165001 Решение № 7 о взыскании задолженности «17» ноября 2026 г. "
+            "в связи с неисполнением требования об уплате задолженности от «9» октября "
+            "2026 г. № 55 в размере 45,6 рублей. Сумма 45,6 Статус 01",
+            ("1165001", "7", date(2026, 11, 17), None, None, 4560),
         ),
         (
             "Форма по КНД 1165009 Уведомление № 10/1 о вызове 16.10.2026 (адрес и номер "
@@ -210,6 +217,37 @@ async def test_visit_without_date_is_rejected(client, world):
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Укажите: дата явки"
+
+
+async def test_collection_decision_is_due_on_upload_day(client, db, world, monkeypatch):
+    today = date(2026, 12, 1)
+    monkeypatch.setattr(service, "business_today", lambda: today)
+    data = body(world["company"], knd="1165001", doc_date="2026-11-24", amount_kopecks=36_40)
+
+    got = await create(client, world["accountant"], data)
+
+    assert (got["response_date"], got["response_set"], got["is_payment"]) == (
+        "2026-12-01",
+        True,
+        True,
+    )
+    # квитанция — как у требований: 6-й рабочий день после получения
+    assert got["receipt_date"] == "2026-12-02"
+    task = await db.get(Task, got["response"]["task_id"])
+    assert (task.kind, task.amount_kopecks, task.title) == (
+        "payment",
+        36_40,
+        "Погасить задолженность: решение о взыскании № 100",
+    )
+    # позже при правке дата остаётся прежней
+    monkeypatch.setattr(service, "business_today", lambda: date(2026, 12, 9))
+    url = f"/api/demands/{got['id']}"
+    changed = await client.put(
+        url,
+        json=data | {"response_date": got["response_date"], "note": "уточнение"},
+        headers=auth(world["accountant"]),
+    )
+    assert changed.json()["response_date"] == "2026-12-01", changed.text
 
 
 async def test_duplicate_is_rejected(client, world):

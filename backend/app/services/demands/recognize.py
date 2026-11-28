@@ -70,10 +70,14 @@ def read(text: str) -> Found:
     found = Found()
     if match := re.search(r"КНД\s*(\d{7})", text):
         found.knd = match[1]
-    if match := re.search(r"(?:Требование|Уведомление)\s*№\s*([0-9A-Za-zА-Яа-я/\-_.]{1,64})", text):
+    document = r"(?:Требование|Уведомление|Решение)"
+    if match := re.search(document + r"\s*№\s*([0-9A-Za-zА-Яа-я/\-_.]{1,64})", text):
         found.number = match[1].rstrip(".")
-    # у требования об уплате дата — «по состоянию на», у остальных — первая в тексте
-    state = re.search(r"по состоянию на\s*«(\d{1,2})»\s*([а-я]+)\s*(\d{4})", text)
+    # у требования об уплате дата — «по состоянию на», у решения о взыскании — под
+    # заголовком, у остальных — первая в тексте
+    state = re.search(
+        r"(?:по состоянию на|о взыскании задолженности)\s*«(\d{1,2})»\s*([а-я]+)\s*(\d{4})", text
+    )
     if state:
         found.doc_date = _date(*state.groups())
     elif match := re.search(r"(?<!\d)(\d{2})\.(\d{2})\.(20\d\d)(?!\d)", text):
@@ -85,6 +89,13 @@ def read(text: str) -> Found:
             found.response_date = _date(*match.groups())
         if match := re.search(r"Сумма\s*(\d{1,13})[.,](\d\d)(?!\d)", text):
             found.amount_kopecks = int(match[1]) * 100 + int(match[2])
+    elif found.knd == "1165001":
+        # сумма бывает с одним знаком после запятой: «45,6»
+        if match := re.search(r"Сумма\s*(\d{1,13})(?:[.,](\d{1,2}))?(?!\d)", text):
+            found.amount_kopecks = int(match[1]) * 100 + int((match[2] or "").ljust(2, "0"))
+        unpaid = re.search(r"от\s*«(\d{1,2})»\s*([а-я]+)\s*(\d{4})\s*г\.\s*№\s*([0-9]{1,30})", text)
+        if unpaid and (when := _date(*unpaid.groups()[:3])):
+            found.note = f"Не исполнено требование № {unpaid[4]} от {when:%d.%m.%Y}"
     elif found.knd == "1165009":
         # дата явки стоит перед подписью поля; часто там только приёмные часы
         before, mark, _ = text.partition("(дата и время")
