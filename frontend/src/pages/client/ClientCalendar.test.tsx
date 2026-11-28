@@ -20,8 +20,8 @@ const task = (id: number, kind: Task['kind'], title: string) =>
     can_unmark_paid: false,
   }) as Task
 
-it('разделяет платежи и документы, которые не нужно оплачивать', async () => {
-  const items = [task(1, 'payment', 'Налог'), task(2, 'notice', 'Уведомление об авансе')]
+it('показывает платежи и документы подряд по датам, различая их подписью', async () => {
+  const items = [task(2, 'notice', 'Уведомление об авансе'), task(1, 'payment', 'Налог')]
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) =>
@@ -39,15 +39,16 @@ it('разделяет платежи и документы, которые не
       </MemoryRouter>
     </QueryClientProvider>,
   )
-  const card = async (name: string) =>
-    within((await screen.findByRole('heading', { name })).parentElement!)
-
-  const payments = await card('Платежи')
-  const documents = await card('Уведомления и отчёты')
-
-  payments.getByText('Налог')
-  payments.getByText('К оплате')
-  expect(payments.queryByText('Уведомление об авансе')).toBeNull()
-  documents.getByText('Уведомление об авансе')
-  documents.getByText('Сдать уведомление')
+  await screen.findByText('Налог')
+  // один список по датам, как прислал сервер; тип виден по подписи
+  expect(
+    within(screen.getByRole('list'))
+      .getAllByRole('listitem')
+      .map((item) => item.textContent),
+  ).toEqual([
+    expect.stringContaining('Уведомление об авансе'),
+    expect.stringContaining('Налог'),
+  ])
+  screen.getByText('К оплате')
+  screen.getByText('Сдать уведомление')
 })

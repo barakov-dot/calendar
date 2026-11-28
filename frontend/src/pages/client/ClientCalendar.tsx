@@ -21,9 +21,6 @@ export default function ClientCalendar() {
   })
   const items = tasks.data?.items ?? []
   const selected = day?.startsWith(month) ? day : null
-  const listed = selected ? items.filter((task) => task.due_date === selected) : items
-  const payments = listed.filter((task) => task.kind === 'payment')
-  const documents = listed.filter((task) => task.kind !== 'payment')
   const move = (delta: number) => {
     setMonth(addMonths(month, delta))
     setDay(null)
@@ -49,21 +46,11 @@ export default function ClientCalendar() {
             Показать весь месяц
           </Button>
         )}
-        {listed.length === 0 && <p className="text-sm">Ничего нет.</p>}
+        <ClientTasks
+          tasks={selected ? items.filter((task) => task.due_date === selected) : items}
+          today={today}
+        />
       </Card>
-      {payments.length > 0 && (
-        <Card title="Платежи">
-          <ClientTasks tasks={payments} today={today} />
-        </Card>
-      )}
-      {documents.length > 0 && (
-        <Card title="Уведомления и отчёты">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Это не платежи: документы сдаются в инспекцию и фонды, платить по ним не нужно.
-          </p>
-          <ClientTasks tasks={documents} today={today} />
-        </Card>
-      )}
     </div>
   )
 }
