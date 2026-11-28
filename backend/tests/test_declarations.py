@@ -425,7 +425,7 @@ def test_usn_reduction_means_nothing_to_pay():
         (usn(base="2"), "только декларация УСН «Доходы»"),
         (usn(period="21"), "налоговый период"),
         (notice(), "нет сумм"),
-        (notice(line(kbk="18210102010011000110")), "нет квартальных авансов"),
+        (notice(line(kbk="18210102010011000110")), "нет авансов по УСН"),
         (notice(line("abc")), "целым числом"),
     ],
 )
@@ -448,3 +448,120 @@ async def test_usn_files_fill_ip_payments(client, db, world):  # noqa: F811
 
     assert (await fresh(db, advance)).amount_kopecks == 500_00
     assert (await fresh(db, yearly)).amount_kopecks == 1000_00
+
+
+PROPERTY_KBK = "18210602010021000110"
+TRANSPORT_KBK = "18210604011021000110"
+LAND_KBK = "18210606032041000110"
+
+
+def company_notice(*lines) -> bytes:
+    return notice(*lines).replace(
+        f'<НПИП ИННФЛ="{IP_INN}"/>'.encode("cp1251"),
+        f'<НПЮЛ ИННЮЛ="{INN}" КПП="000001001"/>'.encode("cp1251"),
+    )
+
+
+def test_notice_reads_property_transport_and_land():
+    found = parse(
+        company_notice(
+            line("100", kbk=PROPERTY_KBK),
+            line("20", kbk=TRANSPORT_KBK),
+            line("3", kbk=LAND_KBK),
+            line("40", kbk=TRANSPORT_KBK, quarter="04"),
+            # транспортный налог физлиц сюда не относится, у УСН номера 04 нет
+            line("9", kbk="18210604012021000110"),
+            line("8", quarter="04"),
+        )
+    )
+
+    assert {(item.rule_code, item.period_key): item.amount_kopecks for item in found.items} == {
+        ("property_advance", "2026-Q3"): 100_00,
+        ("transport_advance", "2026-Q3"): 20_00,
+        ("land_advance", "2026-Q3"): 3_00,
+        ("transport_year", "2026"): 40_00,
+    }
+    assert ("Аванс: транспортный налог за III квартал 2026", 20_00) in found.totals
+    assert "2" in found.warnings[0]
+
+
+async def osno_company(db, world, **flags):  # noqa: F811
+    company = world["company"]
+    company.main_regime = "osno"
+    for name, value in flags.items():
+        setattr(company, name, value)
+    await db.commit()
+    await tasks.regenerate_company(db, company.id)
+    return company
+
+
+async def written(db, company) -> dict:
+    rows = await db.scalars(
+        select(Task)
+        .where(Task.company_id == company.id, Task.amount_kopecks.is_not(None))
+        .execution_options(populate_existing=True)
+    )
+    return {(task.rule_code, task.period_key): task.amount_kopecks for task in rows}
+
+
+async def test_notice_marks_missing_taxes_only_when_applied(client, db, world, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(tasks, "today", lambda: date(2026, 11, 28))
+    company = await osno_company(db, world)
+    data = company_notice(line("100", kbk=PROPERTY_KBK), line("20", kbk=TRANSPORT_KBK))
+
+    preview = (await send(client, world["accountant"], data)).json()
+
+    assert preview["enables"] == [
+        "Имущество по среднегодовой стоимости",
+        "Транспортный налог",
+        "Платит авансы по имущественным налогам",
+    ]
+    assert [part["task_id"] for part in preview["parts"]] == [None, None]
+    await db.refresh(company)
+    assert company.has_transport_tax is False
+
+    await send(client, world["accountant"], data, "apply")
+
+    await db.refresh(company)
+    assert (company.has_property_avg, company.has_transport_tax, company.has_property_advances) == (
+        True,
+        True,
+        True,
+    )
+    assert await written(db, company) == {
+        ("property_avg_advance", "2026-Q3"): 100_00,
+        ("transport_advance", "2026-Q3"): 20_00,
+    }
+
+
+@pytest.mark.parametrize(
+    ("flags", "rule", "warned"),
+    [
+        ({"has_property_cadastral": True}, "property_cad_advance", False),
+        ({"has_property_avg": True}, "property_avg_advance", False),
+        (
+            {"has_property_avg": True, "has_property_cadastral": True},
+            "property_avg_advance",
+            True,
+        ),
+    ],
+)
+async def test_property_goes_to_the_kind_in_company_card(
+    client,
+    db,
+    world,  # noqa: F811
+    monkeypatch,
+    flags,
+    rule,
+    warned,  # noqa: F811
+):
+    monkeypatch.setattr(tasks, "today", lambda: date(2026, 11, 28))
+    company = await osno_company(db, world, has_property_advances=True, **flags)
+
+    response = await send(
+        client, world["accountant"], company_notice(line("100", kbk=PROPERTY_KBK)), "apply"
+    )
+
+    assert response.json()["enables"] == [], response.text
+    assert await written(db, company) == {(rule, "2026-Q3"): 100_00}
+    assert any("кадастровой" in text for text in response.json()["warnings"]) == warned

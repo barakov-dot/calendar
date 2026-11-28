@@ -15,6 +15,7 @@ const found: Declaration = {
   totals: [{ label: 'К уплате за квартал', kopecks: 30_000_00 }],
   warnings: ['Есть раздел 2 (налоговый агент).'],
   switches_to_monthly: false,
+  enables: [],
   parts: [
     {
       task_id: 1,
@@ -99,6 +100,15 @@ describe('загрузка декларации', () => {
     await screen.findByText(/При записи порядок изменится/)
     screen.getByText('Аванс за июль (новый)')
     expect(screen.queryByRole('link', { name: /Аванс за июль/ })).toBeNull()
+  })
+
+  it('предупреждает, что отметит налоги в карточке', async () => {
+    const reply = { ...found, enables: ['Транспортный налог'] }
+    const { user } = setup(() => new Response(JSON.stringify(reply)))
+
+    await choose(user)
+
+    await screen.findByText(/При записи в карточке организации будет отмечено: «Транспортный налог»/)
   })
 
   it('объясняет, почему файл не подошёл', async () => {

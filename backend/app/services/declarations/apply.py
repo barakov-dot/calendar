@@ -1,6 +1,6 @@
 """Куда попадут суммы из декларации и запись их в платежи."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,14 @@ from app.services import audit, tasks
 from app.services.calendar.workdays import load_calendar
 from app.services.declarations.parser import Declaration, DeclarationError
 from app.services.notify.messages import money
+
+# названия признаков карточки, как они подписаны на экране
+FLAG_NAMES = {
+    "has_property_avg": "Имущество по среднегодовой стоимости",
+    "has_transport_tax": "Транспортный налог",
+    "has_land_tax": "Земельный налог",
+    "has_property_advances": "Платит авансы по имущественным налогам",
+}
 
 
 @dataclass(frozen=True)
@@ -30,6 +38,8 @@ class Plan:
     company: Company
     parts: list[Part]
     switches_to_monthly: bool = False
+    # что будет отмечено в карточке компании при записи
+    enables: list[str] = field(default_factory=list)
 
 
 def _kept(task: Task) -> str:
@@ -44,18 +54,37 @@ def _kept(task: Task) -> str:
     return ""
 
 
-async def _pay_monthly(db: AsyncSession, user: User, company: Company) -> set[int]:
-    """Переводит на ежемесячные авансы и создаёт платежи. Возвращает id прежних задач."""
+def _needed_changes(company: Company, declaration: Declaration) -> dict:
+    """Что отметить в карточке, чтобы появились платежи для сумм из файла.
+
+    Сумма в декларации или уведомлении означает, что налог организация платит.
+    """
+    amounts = {item.rule_code for item in declaration.items if item.amount_kopecks}
+    changes: dict = {}
+    if "profit_monthly" in amounts and company.profit_advances_mode == ProfitAdvances.QUARTERLY:
+        changes["profit_advances_mode"] = ProfitAdvances.MONTHLY_BY_QUARTER
+    if company.entity_type != "ooo":
+        return changes
+    taxed = {code.split("_")[0] for code in amounts}
+    if "property" in taxed and not (company.has_property_avg or company.has_property_cadastral):
+        changes["has_property_avg"] = True
+    for tax, flag in (("transport", "has_transport_tax"), ("land", "has_land_tax")):
+        if tax in taxed and not getattr(company, flag):
+            changes[flag] = True
+    advances = {"property_advance", "transport_advance", "land_advance"}
+    if amounts & advances and not company.has_property_advances:
+        changes["has_property_advances"] = True
+    return changes
+
+
+async def _change_company(
+    db: AsyncSession, user: User, company: Company, changes: dict
+) -> set[int]:
+    """Меняет карточку и создаёт появившиеся платежи. Возвращает id прежних задач."""
     before = set(await db.scalars(select(Task.id).where(Task.company_id == company.id)))
-    company.profit_advances_mode = ProfitAdvances.MONTHLY_BY_QUARTER
-    audit.record(
-        db,
-        user.id,
-        "company.update",
-        "company",
-        company.id,
-        {"profit_advances_mode": [ProfitAdvances.QUARTERLY, company.profit_advances_mode]},
-    )
+    for name, value in changes.items():
+        setattr(company, name, value)
+    audit.record(db, user.id, "company.update", "company", company.id, {"changes": changes})
     await db.flush()
     current = tasks.today()
     await tasks.generate_tasks(
@@ -64,12 +93,35 @@ async def _pay_monthly(db: AsyncSession, user: User, company: Company) -> set[in
     return before
 
 
+def _property_kind(company: Company, declaration: Declaration) -> tuple[Declaration, list[str]]:
+    """В уведомлении имущество не разделено по виду стоимости: решает карточка компании."""
+    generic = ("property_advance", "property_year")
+    if not any(item.rule_code in generic for item in declaration.items):
+        return declaration, []
+    average = company.has_property_avg or not company.has_property_cadastral
+    prefix = "property_avg" if average else "property_cad"
+    items = tuple(
+        replace(item, rule_code=item.rule_code.replace("property", prefix, 1))
+        if item.rule_code in generic
+        else item
+        for item in declaration.items
+    )
+    warnings = []
+    if company.has_property_avg and company.has_property_cadastral:
+        warnings.append(
+            "Сумма налога на имущество записана в платёж по среднегодовой стоимости: в "
+            "уведомлении она одна. Платёж по кадастровой стоимости отметьте «Не требуется» или "
+            "разделите сумму вручную."
+        )
+    return replace(declaration, items=items), warnings
+
+
 async def plan(db: AsyncSession, user: User, declaration: Declaration, lock: bool = False) -> Plan:
     """Находит организацию по ИНН и платежи, к которым относятся суммы декларации.
 
-    Ежемесячные авансы в декларации означают, что организация платит помесячно. Если в
-    карточке стоят только квартальные, настройка меняется в текущей транзакции: apply её
-    сохраняет, а предпросмотр должен откатить.
+    Если для сумм нет платежей из-за настроек (помесячные авансы по прибыли, транспортный
+    налог и т. п.), карточка меняется в текущей транзакции: apply это сохраняет, а
+    предпросмотр должен откатить.
     """
     company = await db.scalar(
         select(Company).where(
@@ -82,10 +134,9 @@ async def plan(db: AsyncSession, user: User, declaration: Declaration, lock: boo
         raise DeclarationError(f"Организации с ИНН {declaration.inn} нет среди ваших")
     if company.is_archived:
         raise DeclarationError("Организация в архиве")
-    switch = company.profit_advances_mode == ProfitAdvances.QUARTERLY and any(
-        item.rule_code == "profit_monthly" and item.amount_kopecks for item in declaration.items
-    )
-    before = await _pay_monthly(db, user, company) if switch else None
+    changes = _needed_changes(company, declaration)
+    before = await _change_company(db, user, company, changes) if changes else None
+    declaration, property_warnings = _property_kind(company, declaration)
     keys = [(item.rule_code, item.period_key, item.part) for item in declaration.items]
     query = select(Task).where(
         Task.company_id == company.id,
@@ -102,7 +153,7 @@ async def plan(db: AsyncSession, user: User, declaration: Declaration, lock: boo
             "авансов по прибыли."
         )
 
-    parts, warnings = [], list(declaration.warnings)
+    parts, warnings = [], [*declaration.warnings, *property_warnings]
     for item, key in zip(declaration.items, keys, strict=True):
         task = found.get(key)
         if task is not None:
@@ -118,7 +169,13 @@ async def plan(db: AsyncSession, user: User, declaration: Declaration, lock: boo
         warnings.append(
             "Часть платежей не меняется, и их суммы отличаются от декларации. Проверьте разницу."
         )
-    return Plan(replace(declaration, warnings=tuple(warnings)), company, parts, switch)
+    return Plan(
+        replace(declaration, warnings=tuple(warnings)),
+        company,
+        parts,
+        switches_to_monthly="profit_advances_mode" in changes,
+        enables=[FLAG_NAMES[name] for name in changes if name in FLAG_NAMES],
+    )
 
 
 async def apply(db: AsyncSession, user: User, found: Plan) -> None:

@@ -19,11 +19,24 @@ PROFIT_KND = "1151006"
 USN_KND = "1152017"
 NOTICE_KND = "1110355"
 USN_YEAR = ("34", "50")  # 50 — последний период при прекращении деятельности
-# начало КБК → (правило аванса, название налога); остальные суммы уведомления не нужны
-NOTICE_TAXES = {
-    "182105010": ("usn_advance", "УСН"),
-    "18210102020": ("ndfl_ip_advance", "НДФЛ ИП"),
+# начало КБК → вид налога в уведомлении; суммы остальных налогов сервис не загружает
+NOTICE_KBK = {
+    "182105010": "usn",
+    "18210102020": "ndfl_ip",
+    # налоги организаций: имущество, транспорт, земля
+    "18210602": "property",
+    "18210604011": "transport",
+    "1821060603": "land",
 }
+NOTICE_NAMES = {
+    "usn": "аванс УСН",
+    "ndfl_ip": "аванс НДФЛ ИП",
+    "property": "налог на имущество",
+    "transport": "транспортный налог",
+    "land": "земельный налог",
+}
+# у этих налогов в уведомлении бывает и годовая сумма (номер квартала 04)
+PROPERTY_TAXES = ("property", "transport", "land")
 # код налогового периода → квартал; 5х — последний период при реорганизации и ликвидации
 QUARTERS = {"21": 1, "22": 2, "23": 3, "24": 4, "51": 1, "54": 2, "55": 3, "56": 4}
 # прибыль: отчётные периоды нарастающим итогом
@@ -262,7 +275,9 @@ def _usn(
 def _notice(
     document: ElementTree.Element,
 ) -> tuple[str, list[Item], list[tuple[str, int]], list[str]]:
-    """Уведомление об исчисленных суммах: квартальные авансы по УСН и НДФЛ ИП."""
+    """Уведомление об исчисленных суммах: авансы по УСН, НДФЛ ИП, имуществу, транспорту
+    и земле. Налог на имущество пока без уточнения стоимости: это решает карточка компании.
+    """
     found: dict[tuple[str, int, int], int] = {}
     skipped = 0
     lines = document.findall("УвИсчСумНалог")
@@ -270,12 +285,15 @@ def _notice(
         raise DeclarationError("В уведомлении нет сумм")
     for line in lines:
         kbk = line.get("КБК", "")
-        tax = next(
-            (rule for start, (rule, _) in NOTICE_TAXES.items() if kbk.startswith(start)), None
-        )
-        # квартальные авансы: период 34, номер квартала 01–03
-        quarter = {"01": 1, "02": 2, "03": 3}.get(line.get("НомерМесКварт", ""))
-        if tax is None or line.get("Период") != "34" or quarter is None:
+        tax = next((name for start, name in NOTICE_KBK.items() if kbk.startswith(start)), None)
+        # период 34, номер квартала 01–03; 04 — налог за год
+        quarter = {"01": 1, "02": 2, "03": 3, "04": 4}.get(line.get("НомерМесКварт", ""))
+        if (
+            tax is None
+            or line.get("Период") != "34"
+            or quarter is None
+            or (quarter == 4 and tax not in PROPERTY_TAXES)
+        ):
             skipped += 1
             continue
         year = line.get("Год", "")
@@ -285,22 +303,30 @@ def _notice(
         found[key] = found.get(key, 0) + _rubles(line, "СумНалогАванс", signed=True) * 100
     if not found:
         raise DeclarationError(
-            "В уведомлении нет квартальных авансов по УСН или НДФЛ ИП: суммы других налогов "
-            "сервис не загружает"
+            "В уведомлении нет авансов по УСН, НДФЛ ИП, имуществу, транспорту или земле: суммы "
+            "других налогов сервис не загружает"
         )
 
     items, totals, warnings = [], [], []
-    names = dict(NOTICE_TAXES.values())
-    for (rule, year, quarter), amount in sorted(found.items(), key=lambda pair: pair[0][1:]):
-        label = f"аванс {names[rule]} за {CUMULATIVE[quarter - 1]} {year}"
-        items.append(Item(rule, f"{year}-Q{quarter}", 1, max(amount, 0), label))
+    for (tax, year, quarter), amount in sorted(found.items(), key=lambda pair: pair[0][1:]):
+        if quarter == 4:
+            rule, period_key = f"{tax}_year", str(year)
+            label = f"{NOTICE_NAMES[tax]} за {year} год"
+        else:
+            rule, period_key = f"{tax}_advance", f"{year}-Q{quarter}"
+            if tax in PROPERTY_TAXES:
+                label = f"аванс: {NOTICE_NAMES[tax]} за {ROMAN[quarter - 1]} квартал {year}"
+            else:
+                label = f"{NOTICE_NAMES[tax]} за {CUMULATIVE[quarter - 1]} {year}"
+        items.append(Item(rule, period_key, 1, max(amount, 0), label))
         shown = label[0].upper() + label[1:]
         totals.append((shown if amount >= 0 else f"{shown}: к уменьшению", abs(amount)))
     if skipped:
         warnings.append(f"Строк с другими налогами или периодами: {skipped}. Они не загружаются.")
     periods = sorted({(year, quarter) for _, year, quarter in found})
     title = "Уведомление об авансах за " + ", ".join(
-        f"{CUMULATIVE[quarter - 1]} {year}" for year, quarter in periods
+        f"{CUMULATIVE[quarter - 1]} {year}" if quarter < 4 else f"{year} год"
+        for year, quarter in periods
     )
     return title, items, totals, warnings
 

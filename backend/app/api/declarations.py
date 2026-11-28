@@ -44,6 +44,8 @@ class DeclarationOut(BaseModel):
     warnings: list[str]
     # при записи организация перейдёт на ежемесячные авансы по прибыли
     switches_to_monthly: bool
+    # что будет отмечено в карточке компании при записи
+    enables: list[str]
 
 
 async def _body(request: Request) -> bytes:
@@ -66,6 +68,7 @@ def _out(found: declarations.Plan) -> DeclarationOut:
         totals=[TotalOut(label=label, kopecks=kopecks) for label, kopecks in source.totals],
         warnings=list(source.warnings),
         switches_to_monthly=found.switches_to_monthly,
+        enables=found.enables,
         parts=[
             PartOut(
                 task_id=None if part.created else part.task.id,
