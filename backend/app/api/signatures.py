@@ -9,6 +9,7 @@ from app.api.companies import Staff, StaffCompany
 from app.api.deps import Database
 from app.api.reminders import Reader
 from app.core.permissions import get_accessible_company
+from app.core.settings_store import get_settings
 from app.models import Company, Signature
 from app.schemas.company import Input
 from app.services import signatures, tasks
@@ -53,6 +54,12 @@ def _active(company: Company) -> Company:
     if company.is_archived:
         raise HTTPException(status.HTTP_409_CONFLICT, "Компания в архиве")
     return company
+
+
+@router.get("/signature-holders")
+async def holders(_: Reader) -> list[str]:
+    """На кого выпускают подписи: список задаётся в настройках."""
+    return get_settings().company.signature_holders
 
 
 @router.get("/companies/{company_id}/signatures")

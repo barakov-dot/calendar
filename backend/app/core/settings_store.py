@@ -47,6 +47,18 @@ class CompanySettings(Section):
     support_contact: str = ""
     timezone: str = "Europe/Moscow"
     privacy_policy_url: str = ""
+    # на кого выпускают электронные подписи: список для выбора в карточке компании
+    signature_holders: list[str] = Field(
+        default_factory=lambda: ["Генеральный директор", "Главный бухгалтер", "Менеджер"]
+    )
+
+    @field_validator("signature_holders")
+    @classmethod
+    def holders(cls, value: list[str]) -> list[str]:
+        cleaned = list(dict.fromkeys(name for item in value if (name := " ".join(item.split()))))
+        if len(cleaned) > 30 or any(len(name) > 100 for name in cleaned):
+            raise ValueError("не больше 30 названий, каждое не длиннее 100 знаков")
+        return cleaned
 
     @field_validator("privacy_policy_url")
     @classmethod

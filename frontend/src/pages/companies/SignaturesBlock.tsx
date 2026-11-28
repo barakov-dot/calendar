@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { Badge, Button, Card, Checkbox, ErrorText, Field } from '../../components/ui'
+import { Badge, Button, Card, Checkbox, ErrorText, Field, Select } from '../../components/ui'
 import { api } from '../../lib/api'
 import { formatDate } from '../../lib/company'
+import { type Holder, joinHolder, OTHER, splitHolder } from '../../lib/signatures'
 import { useRefreshTasks } from '../../lib/useTasks'
 
 export interface Signature {
@@ -49,8 +50,16 @@ export default function SignaturesBlock({
     mutationFn: (id: number) => api(`${base}/${id}`, { method: 'DELETE' }),
     onSuccess: changed,
   })
-  const form = (initial: Form) => (
+  const roles = useQuery({
+    queryKey: ['signature-holders'],
+    queryFn: () => api<string[]>('/signature-holders'),
+    refetchOnMount: 'always',
+    enabled: editable,
+  })
+  // форма открывается, когда список для выбора уже получен
+  const form = (initial: Form) => !roles.isPending && (
     <SignatureForm
+      roles={roles.data ?? []}
       initial={initial}
       busy={save.isPending}
       onCancel={() => setEditing(null)}
@@ -119,11 +128,13 @@ export default function SignaturesBlock({
 }
 
 function SignatureForm({
+  roles,
   initial,
   busy,
   onSubmit,
   onCancel,
 }: {
+  roles: string[]
   initial: Form
   busy: boolean
   onSubmit: (form: Form) => void
@@ -131,15 +142,32 @@ function SignatureForm({
 }) {
   const [form, setForm] = useState(initial)
   const change = (patch: Partial<Form>) => setForm({ ...form, ...patch })
+  const [holder, setHolder] = useState(() => splitHolder(initial.holder, roles))
+  const choose = (patch: Partial<Holder>) => setHolder({ ...holder, ...patch })
+  const text = joinHolder(holder)
+  const other = holder.role === OTHER
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_12rem]">
+        <Select
+          label="На кого выпущена"
+          value={holder.role}
+          // при смене варианта вписанное ФИО остаётся
+          onChange={(event) => choose({ role: event.target.value })}
+        >
+          {roles.map((role) => (
+            <option key={role} value={role}>
+              {role}
+            </option>
+          ))}
+          <option value={OTHER}>Другое — вписать вручную</option>
+        </Select>
         <Field
-          label="Чья подпись"
-          value={form.holder}
-          maxLength={200}
-          onChange={(event) => change({ holder: event.target.value })}
+          label={other ? 'Кто' : 'ФИО (необязательно)'}
+          value={holder.name}
+          maxLength={90}
+          onChange={(event) => choose({ name: event.target.value })}
         />
         <Field
           label="Действует до"
@@ -155,8 +183,8 @@ function SignatureForm({
       />
       <div className="flex gap-2">
         <Button
-          disabled={!form.holder.trim() || !form.expires_on || busy}
-          onClick={() => onSubmit(form)}
+          disabled={!text || !form.expires_on || busy}
+          onClick={() => onSubmit({ ...form, holder: text })}
         >
           Сохранить подпись
         </Button>

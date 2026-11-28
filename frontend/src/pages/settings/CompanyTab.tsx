@@ -2,13 +2,22 @@ import { useState } from 'react'
 
 import { Button, Card, ErrorText, Field } from '../../components/ui'
 import type { AppSettings } from '../../lib/types'
+import SignatureHoldersCard from './SignatureHoldersCard'
 import SiteIconCard from './SiteIconCard'
 import { useSaveSettings } from './useSettings'
 
+type Texts = Omit<AppSettings['company'], 'signature_holders'>
+
 export default function CompanyTab({ saved }: { saved: AppSettings['company'] }) {
-  const [form, setForm] = useState(saved)
+  // список для подписей сохраняется своей карточкой
+  const [form, setForm] = useState<Texts>(() => ({
+    name: saved.name,
+    support_contact: saved.support_contact,
+    timezone: saved.timezone,
+    privacy_policy_url: saved.privacy_policy_url,
+  }))
   const save = useSaveSettings()
-  const bind = (name: keyof typeof form) => ({
+  const bind = (name: keyof Texts) => ({
     value: form[name],
     onChange: (event: { target: { value: string } }) =>
       setForm({ ...form, [name]: event.target.value }),
@@ -38,6 +47,7 @@ export default function CompanyTab({ saved }: { saved: AppSettings['company'] })
           Сохранить
         </Button>
       </Card>
+      <SignatureHoldersCard saved={saved.signature_holders} />
       <SiteIconCard />
     </div>
   )

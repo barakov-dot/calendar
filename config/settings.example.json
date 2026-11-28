@@ -4,7 +4,8 @@
     "name": "ООО «Ваша бухгалтерия»",
     "support_contact": "@username",
     "timezone": "Europe/Moscow",
-    "privacy_policy_url": ""
+    "privacy_policy_url": "",
+    "signature_holders": ["Генеральный директор", "Главный бухгалтер", "Менеджер"]
   },
   "telegram": {
     "bot_username": "my_buh_calendar_bot",

@@ -34,6 +34,7 @@ export interface AppSettings {
     support_contact: string
     timezone: string
     privacy_policy_url: string
+    signature_holders: string[]
   }
   telegram: {
     bot_username: string

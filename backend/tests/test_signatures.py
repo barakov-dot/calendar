@@ -7,12 +7,12 @@ from sqlalchemy import select
 
 from app.core.permissions import business_today
 from app.core.settings_store import get_store
-from app.models import AuditLog, Notification, Task
+from app.models import AuditLog, Notification, Role, Task
 from app.services.notify.messages import days_word
 from app.services.notify.planner import plan
 from app.services.notify.sender import deliver
 from app.services.tasks import regenerate_company
-from tests.factories import auth
+from tests.factories import auth, make_user
 from tests.test_notifications import NOW, TODAY, bot, telegram, world  # noqa: F401
 
 pytestmark = pytest.mark.usefixtures("secrets")
@@ -125,3 +125,19 @@ async def test_client_gets_reminder_only_when_asked(client, db, world, telegram,
 )
 def test_days_word(count, word):
     assert days_word(count) == word
+
+
+async def test_holder_list_comes_from_settings(client, db):
+    admin = await make_user(db, 901, Role.ADMIN)
+    customer = await make_user(db, 902, Role.CLIENT)
+    url = "/api/signature-holders"
+
+    default = await client.get(url, headers=auth(admin))
+    get_store().update(
+        {"company": {"signature_holders": [" Директор ", "", "Менеджер", "Директор"]}}
+    )
+    changed = await client.get(url, headers=auth(admin))
+
+    assert default.json()[0] == "Генеральный директор"
+    assert changed.json() == ["Директор", "Менеджер"]
+    assert (await client.get(url, headers=auth(customer))).status_code == 403
