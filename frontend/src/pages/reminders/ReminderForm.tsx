@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import TextArea from '../../components/TextArea'
-import { Button, Checkbox, Field, Select } from '../../components/ui'
+import { Alert, Button, Checkbox, Field, Select } from '../../components/ui'
 import {
   AUDIENCE_NAMES,
   FREQUENCY_NAMES,
@@ -9,7 +9,7 @@ import {
   type ReminderData,
   SHIFT_NAMES,
 } from '../../lib/reminders'
-import { KIND_NAMES, todayIso, type TaskKind } from '../../lib/tasks'
+import { addDays, KIND_NAMES, todayIso, type TaskKind } from '../../lib/tasks'
 
 const options = (names: Record<string, string>) =>
   Object.entries(names).map(([value, title]) => (
@@ -46,9 +46,12 @@ export default function ReminderForm({
   const change = (patch: Partial<ReminderData>) => setForm({ ...form, ...patch })
   const weekly = form.schedule.frequency === 'weekly'
   const number = weekly ? form.schedule.interval_weeks : form.schedule.day_of_month
+  const endless = form.until === null
+  const endsEarly = !!form.until && form.until < form.dtstart
   const valid =
     form.title.trim() !== '' &&
     form.dtstart !== '' &&
+    (endless || (form.until !== '' && !endsEarly)) &&
     Number.isInteger(number) &&
     Number(number) >= 1 &&
     Number(number) <= (weekly ? 52 : 31)
@@ -93,10 +96,29 @@ export default function ReminderForm({
           })
         }}
       />
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Начиная с" type="date" value={form.dtstart} onChange={(e) => change({ dtstart: e.target.value })} />
-        <Field label="До (необязательно)" type="date" value={form.until ?? ''} onChange={(e) => change({ until: e.target.value || null })} />
-      </div>
+      <Field
+        label="Начиная с"
+        type="date"
+        value={form.dtstart}
+        onChange={(e) => change({ dtstart: e.target.value })}
+      />
+      {/* пустое поле даты Safari рисует сегодняшним числом, поэтому «без срока» — галочкой */}
+      <Checkbox
+        label="Бессрочно (без даты окончания)"
+        checked={endless}
+        onChange={(checked) =>
+          change({ until: checked ? null : addDays(form.dtstart || todayIso(), 365) })
+        }
+      />
+      {!endless && (
+        <Field
+          label="Действует до"
+          type="date"
+          value={form.until ?? ''}
+          onChange={(e) => change({ until: e.target.value })}
+        />
+      )}
+      {endsEarly && <Alert kind="error">Дата окончания раньше даты начала.</Alert>}
       <Select
         label="Если выпадает на выходной"
         value={form.shift_rule}

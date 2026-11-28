@@ -179,6 +179,21 @@ async def test_pause(client, db, world):
     assert await instances(db) == []
 
 
+@pytest.mark.parametrize(("until", "continues"), [(None, True), ("2026-12-31", False)])
+async def test_endless_reminder_keeps_going(client, db, world, monkeypatch, until, continues):
+    data = body(world["company"].id, kind="payment", title="Аренда", until=until)
+    response = await client.post("/api/reminders", json=data, headers=auth(world["first"]))
+    assert response.status_code == 201, response.text
+
+    # ночная генерация через год
+    monkeypatch.setattr(tasks, "today", lambda: date(2027, 11, 20))
+    await tasks.regenerate_all(db)
+
+    dates = [task.original_due_date for task in await instances(db)]
+    assert (date(2027, 11, 28) in dates and date(2027, 12, 28) in dates) == continues
+    assert (max(dates) > date(2026, 12, 31)) == continues
+
+
 async def test_personal_reminder_and_access(client, db, world):
     first = auth(world["first"])
     personal = await client.post("/api/reminders", json=body(), headers=first)

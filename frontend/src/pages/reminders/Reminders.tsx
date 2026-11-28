@@ -77,6 +77,7 @@ export function ReminderBlock({
                   ))}
                 {companyId === null && ' · '}
                 {describeSchedule(item.schedule)}
+                {item.until ? `, до ${formatDate(item.until)}` : ', бессрочно'}
                 {item.next_dates.length > 0 &&
                   ` · ближайшие: ${item.next_dates.map(formatDate).join(', ')}`}
               </div>
