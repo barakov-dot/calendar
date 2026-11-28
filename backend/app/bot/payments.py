@@ -13,6 +13,7 @@ from app.core.settings_store import SettingsStore
 from app.models import Company, Role, Task, TaskKind, TaskStatus
 from app.services import payments, tasks
 from app.services.notify import messages
+from app.services.task_state import before_start_condition
 from app.services.users import can_sign_in, get_by_telegram_id
 
 ACCESS_BY_INVITE = "Доступ по приглашению"
@@ -40,6 +41,8 @@ def build_router(store: SettingsStore) -> Router:
                     visible_task_condition(user, store.get().tasks.show_notices_to_clients),
                     Task.status == TaskStatus.PLANNED,
                     Task.due_date <= current + timedelta(days=days),
+                    # сроки до начала ведения календаря не пропущенные и не напоминают о себе
+                    ~before_start_condition(),
                     Company.is_archived.is_(False) | Task.company_id.is_(None),
                 )
                 .order_by(Task.due_date, Company.name, Task.title, Task.id)

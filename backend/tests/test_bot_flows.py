@@ -16,7 +16,7 @@ from app.bot.handlers import (
 from app.bot.payments import MARKED, NOTHING, UNMARKED
 from app.core.config import get_config
 from app.core.settings_store import get_store
-from app.models import AuditLog, CompanyMember, Invite, InviteKind, Role, Task, User
+from app.models import AuditLog, Company, CompanyMember, Invite, InviteKind, Role, Task, User
 from app.services import invites, login
 from app.services.tasks import today
 from app.services.telegram.factory import create_bot
@@ -306,6 +306,25 @@ async def test_today_and_week_commands(chat, db):
     assert await chat.command("/week", 999) == ACCESS_BY_INVITE
     stranger = await make_user(db, 888, Role.ACCOUNTANT)
     assert await chat.command("/week", stranger.telegram_id) == NOTHING
+
+
+@pytest.mark.parametrize("command", ["/today", "/week"])
+async def test_commands_skip_deadlines_before_calendar_start(chat, db, command):
+    accountant, payer, task_id = await payment_world(db)
+    task = await db.get(Task, task_id)
+    task.source, task.rule_code, task.period_key = "rule", "nds_payment", "2026-Q1"
+    company = await db.get(Company, task.company_id)
+    # календарь начали вести на следующий день после срока этой задачи
+    company.calendar_start = task.due_date + timedelta(days=1)
+    await db.commit()
+
+    for user in (accountant, payer):
+        assert await chat.command(command, user.telegram_id) == NOTHING
+
+    company.calendar_start = task.due_date
+    await db.commit()
+
+    assert "Ромашка: Налог" in await chat.command(command, accountant.telegram_id)
 
 
 async def test_block_and_unblock(chat, db):
