@@ -6,6 +6,7 @@ import {
   BuildingIcon,
   ChevronIcon,
   GearIcon,
+  KeyIcon,
   ReportIcon,
   SendIcon,
   UploadIcon,
@@ -31,6 +32,7 @@ function items(user: User): Item[] {
     )
   }
   list.push(
+    ['/signatures', 'ЭЦП', 'Сроки электронных подписей', KeyIcon],
     ['/reminders', 'Напоминания', 'Свои повторяющиеся задачи', BellIcon],
     ['/reports', 'Отчёты', 'Что выполнено за период: Excel и PDF', ReportIcon],
   )

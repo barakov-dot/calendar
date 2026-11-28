@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { joinHolder, OTHER, splitHolder } from './signatures'
+import { joinHolder, OTHER, splitHolder, urgencyOf } from './signatures'
 
 const roles = ['Генеральный директор', 'Менеджер']
 
@@ -21,4 +21,16 @@ describe('владелец подписи', () => {
     expect(joinHolder({ role: 'Менеджер', name: '  ' })).toBe('Менеджер')
     expect(joinHolder({ role: OTHER, name: ' ' })).toBe('')
   })
+})
+
+it.each([
+  [365, 'ok'],
+  [31, 'ok'],
+  [30, 'soon'],
+  [7, 'soon'],
+  [6, 'urgent'],
+  [0, 'urgent'],
+  [-3, 'urgent'],
+])('за %i дней срок подсвечен как %s', (days, urgency) => {
+  expect(urgencyOf(days)).toBe(urgency)
 })

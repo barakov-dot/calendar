@@ -152,6 +152,7 @@ export interface CompanyListItem {
   members_count: number
   has_blocked_member: boolean
   has_missing_amount: boolean
+  has_signature: boolean
 }
 
 export interface Party {

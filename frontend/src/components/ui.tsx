@@ -26,6 +26,15 @@ export function Button({
   )
 }
 
+/** Календарь по нажатию на всё поле, а не только на значок. */
+function openPicker(input: HTMLInputElement) {
+  try {
+    if (!input.disabled && !input.readOnly) input.showPicker?.()
+  } catch {
+    // браузер открывает календарь сам или не умеет по запросу
+  }
+}
+
 export function Field({
   label,
   hint,
@@ -37,6 +46,10 @@ export function Field({
       <input
         className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 dark:border-slate-600"
         {...props}
+        onClick={(event) => {
+          props.onClick?.(event)
+          if (props.type === 'date') openPicker(event.currentTarget)
+        }}
       />
       {hint && <span className="mt-1 block text-slate-500 dark:text-slate-400">{hint}</span>}
     </label>

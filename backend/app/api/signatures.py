@@ -25,6 +25,17 @@ class SignatureIn(Input):
     notify_client: bool = False
 
 
+class SignatureRow(BaseModel):
+    """Строка общего списка подписей."""
+
+    id: int
+    company_id: int
+    company_name: str
+    holder: str
+    expires_on: date
+    days_left: int
+
+
 class SignatureOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -60,6 +71,23 @@ def _active(company: Company) -> Company:
 async def holders(_: Reader) -> list[str]:
     """На кого выпускают подписи: список задаётся в настройках."""
     return get_settings().company.signature_holders
+
+
+@router.get("/signatures")
+async def all_signatures(user: Reader, db: Database) -> list[SignatureRow]:
+    """Подписи всех доступных действующих компаний: ближайший срок сверху."""
+    current = tasks.today()
+    return [
+        SignatureRow(
+            id=signature.id,
+            company_id=company.id,
+            company_name=company.short_name or company.name,
+            holder=signature.holder,
+            expires_on=signature.expires_on,
+            days_left=(signature.expires_on - current).days,
+        )
+        for signature, company in await signatures.list_all(db, user)
+    ]
 
 
 @router.get("/companies/{company_id}/signatures")

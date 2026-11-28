@@ -60,6 +60,9 @@ export default function CompaniesList({ user }: { user: User }) {
                 {company.patents_count > 0 && <Badge>патентов: {company.patents_count}</Badge>}
                 {company.has_missing_amount && <Badge kind="warning">есть задачи без суммы</Badge>}
                 {company.members_count === 0 && <Badge kind="warning">нет клиента в боте</Badge>}
+                {!archived && !company.has_signature && (
+                  <Badge kind="warning">не указан срок ЭЦП</Badge>
+                )}
                 {company.has_blocked_member && (
                   <Badge kind="warning">клиент заблокировал бота</Badge>
                 )}

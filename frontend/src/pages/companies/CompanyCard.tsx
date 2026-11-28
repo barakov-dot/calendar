@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 
 import { Alert, Button, Card, ErrorText, Select, Tabs } from '../../components/ui'
 import { api } from '../../lib/api'
@@ -38,7 +38,16 @@ export default function CompanyCard({ user }: { user: User }) {
   )
 }
 
-type Tab = 'rosstat' | 'tasks' | 'demands' | 'params' | 'clients' | 'reminders' | 'signatures'
+const TAB_KEYS = [
+  'tasks',
+  'demands',
+  'rosstat',
+  'params',
+  'clients',
+  'reminders',
+  'signatures',
+] as const
+type Tab = (typeof TAB_KEYS)[number]
 
 function useCompanyAction<T>(id: number, action: (input: T) => Promise<unknown>) {
   const queryClient = useQueryClient()
@@ -61,7 +70,11 @@ function Loaded({ company, user }: { company: Company; user: User }) {
     api(base, { method: 'PATCH', body: { is_archived } }),
   )
 
-  const [tab, setTab] = useState<Tab>('tasks')
+  // вкладку можно указать в адресе: так открывают подписи из раздела «ЭЦП»
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState<Tab>(
+    () => TAB_KEYS.find((key) => key === params.get('tab')) ?? 'tasks',
+  )
   const active = editable && !company.is_archived
   const tabs: [Tab, string][] = [
     ['tasks', 'Задачи'],

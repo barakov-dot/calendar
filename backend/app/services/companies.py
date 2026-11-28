@@ -10,7 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import accessible_company_ids_query
 from app.core.settings_store import get_settings
-from app.models import EDITORS, Company, CompanyMember, Invite, Patent, Task, TaskStatus, User
+from app.models import (
+    EDITORS,
+    Company,
+    CompanyMember,
+    Invite,
+    Patent,
+    Signature,
+    Task,
+    TaskStatus,
+    User,
+)
 from app.schemas.company import (
     CompanyData,
     CompanyListItem,
@@ -224,8 +234,9 @@ async def list_for(
         .correlate(Company)
         .exists()
     )
+    signed = select(Signature.id).where(Signature.company_id == Company.id).correlate(Company)
     query = (
-        select(Company, User, patents, members, blocked, missing)
+        select(Company, User, patents, members, blocked, missing, signed.exists())
         .outerjoin(User, User.id == Company.accountant_id)
         .where(
             Company.id.in_(accessible_company_ids_query(user)),
@@ -254,8 +265,17 @@ async def list_for(
             members_count=member_count,
             has_blocked_member=has_blocked,
             has_missing_amount=has_missing,
+            has_signature=has_signature,
         )
-        for company, accountant, patent_count, member_count, has_blocked, has_missing in rows
+        for (
+            company,
+            accountant,
+            patent_count,
+            member_count,
+            has_blocked,
+            has_missing,
+            has_signature,
+        ) in rows
     ]
 
 

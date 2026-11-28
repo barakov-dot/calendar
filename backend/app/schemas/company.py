@@ -179,6 +179,8 @@ class CompanyListItem(BaseModel):
     has_blocked_member: bool
     # есть платежи без суммы со сроком в ближайшие 30 дней
     has_missing_amount: bool
+    # внесён срок хотя бы одной электронной подписи
+    has_signature: bool
 
 
 class CompanyOut(BaseModel):

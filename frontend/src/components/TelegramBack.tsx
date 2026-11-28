@@ -9,7 +9,7 @@ function parentOf(path: string, client: boolean): string {
   const list = /^\/(companies|demands|users)\/./.exec(path)
   if (list) return `/${list[1]}`
   const inMore =
-    /^\/(companies|declarations|preferences|reminders|reports|users|broadcasts|accountants|settings)\b/
+    /^\/(companies|declarations|preferences|reminders|reports|users|broadcasts|accountants|settings|signatures)\b/
   return !client && inMore.test(path) ? '/more' : '/'
 }
 

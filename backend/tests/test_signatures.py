@@ -7,12 +7,12 @@ from sqlalchemy import select
 
 from app.core.permissions import business_today
 from app.core.settings_store import get_store
-from app.models import AuditLog, Notification, Role, Task
+from app.models import AuditLog, Notification, Role, Signature, Task
 from app.services.notify.messages import days_word
 from app.services.notify.planner import plan
 from app.services.notify.sender import deliver
 from app.services.tasks import regenerate_company
-from tests.factories import auth, make_user
+from tests.factories import auth, make_company, make_user
 from tests.test_notifications import NOW, TODAY, bot, telegram, world  # noqa: F401
 
 pytestmark = pytest.mark.usefixtures("secrets")
@@ -141,3 +141,33 @@ async def test_holder_list_comes_from_settings(client, db):
     assert default.json()[0] == "Генеральный директор"
     assert changed.json() == ["Директор", "Менеджер"]
     assert (await client.get(url, headers=auth(customer))).status_code == 403
+
+
+async def test_common_list_and_company_flag(client, db):
+    admin = await make_user(db, 911, Role.ADMIN)
+    own = await make_user(db, 912)
+    other = await make_user(db, 913)
+    customer = await make_user(db, 914, Role.CLIENT)
+    first = await make_company(db, own, 11, short_name="Бета")
+    second = await make_company(db, other, 12, short_name="Альфа")
+    archived = await make_company(db, own, 13, is_archived=True)
+    today = business_today()
+    for company, days in ((first, 40), (second, 5), (archived, 1)):
+        db.add(
+            Signature(company_id=company.id, holder="Директор", expires_on=today + timedelta(days))
+        )
+    await db.commit()
+    await make_company(db, own, 14, short_name="Без подписи")
+
+    everything = await client.get("/api/signatures", headers=auth(admin))
+    mine = await client.get("/api/signatures", headers=auth(own))
+
+    assert [(row["company_name"], row["days_left"]) for row in everything.json()] == [
+        ("Альфа", 5),
+        ("Бета", 40),
+    ]
+    assert [row["company_name"] for row in mine.json()] == ["Бета"]
+    assert (await client.get("/api/signatures", headers=auth(customer))).status_code == 403
+    companies = await client.get("/api/companies", headers=auth(own))
+    flags = {item["short_name"]: item["has_signature"] for item in companies.json()}
+    assert flags == {"Бета": True, "Без подписи": False}

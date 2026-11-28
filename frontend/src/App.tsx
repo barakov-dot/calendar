@@ -21,6 +21,7 @@ import Reminders from './pages/reminders/Reminders'
 import Reports from './pages/reports/Reports'
 import More from './pages/More'
 import CalendarPage from './pages/tasks/CalendarPage'
+import SignaturesPage from './pages/signatures/SignaturesPage'
 import Broadcasts from './pages/users/Broadcasts'
 import UserCard from './pages/users/UserCard'
 import UsersList from './pages/users/UsersList'
@@ -82,6 +83,7 @@ export default function App() {
                 <Route path="more" element={<More user={user} onLogout={logout} />} />
                 <Route path="reminders" element={<Reminders user={user} />} />
                 <Route path="reports" element={<Reports user={user} />} />
+                <Route path="signatures" element={<SignaturesPage />} />
                 <Route path="tasks/:id" element={<TaskPage user={user} />} />
                 <Route path="companies" element={<CompaniesList user={user} />} />
                 <Route path="companies/:id" element={<CompanyCard user={user} />} />

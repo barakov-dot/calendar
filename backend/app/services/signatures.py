@@ -1,10 +1,20 @@
 """Электронные подписи. У каждой есть задача со сроком окончания действия:
 она видна в календаре, а напоминания о ней ставит планировщик."""
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Notification, Signature, Task, TaskKind, TaskSource, TaskStatus, User
+from app.core.permissions import accessible_company_ids_query
+from app.models import (
+    Company,
+    Notification,
+    Signature,
+    Task,
+    TaskKind,
+    TaskSource,
+    TaskStatus,
+    User,
+)
 from app.services import audit
 
 DESCRIPTION = "Получите новую электронную подпись заранее, затем укажите её срок в карточке."
@@ -41,6 +51,16 @@ async def _sync(db: AsyncSession, signature: Signature) -> None:
         await db.execute(delete(Notification).where(Notification.task_id == task.id))
     task.title = title(signature.holder)
     task.client_visible = signature.notify_client
+
+
+async def list_all(db: AsyncSession, user: User) -> list[tuple[Signature, Company]]:
+    rows = await db.execute(
+        select(Signature, Company)
+        .join(Company, Company.id == Signature.company_id)
+        .where(Company.id.in_(accessible_company_ids_query(user)), Company.is_archived.is_(False))
+        .order_by(Signature.expires_on, func.lower(Company.name), Signature.id)
+    )
+    return [(signature, company) for signature, company in rows]
 
 
 async def list_for(db: AsyncSession, company_id: int) -> list[Signature]:
