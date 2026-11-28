@@ -17,6 +17,8 @@ export interface PersonCard extends Person {
   pd_consent_at: string | null
   created_at: string
   name_overridden: boolean
+  /** Логин для входа на сайт по коду. */
+  login: string | null
   companies: {
     id: number
     name: string

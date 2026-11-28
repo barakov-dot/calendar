@@ -47,6 +47,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(255), default="", server_default="")
     # имя задал администратор: данные из Telegram его не перезаписывают
     name_overridden: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # логин для входа на сайт по коду; без него годится @username
+    login: Mapped[str | None] = mapped_column(String(32), unique=True)
     role: Mapped[str] = mapped_column(String(16))
     is_active: Mapped[bool] = mapped_column(default=True, server_default="true")
     bot_blocked: Mapped[bool] = mapped_column(default=False, server_default="false")
@@ -79,6 +81,23 @@ class LoginRequest(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(Timestamp)
     expires_at: Mapped[datetime] = mapped_column(Timestamp, index=True)
     consumed_at: Mapped[datetime | None] = mapped_column(Timestamp)
+
+
+class LoginCode(Base):
+    """Запрос кода для входа на сайт. user_id пуст, если логин незнаком."""
+
+    __tablename__ = "login_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_id: Mapped[str] = mapped_column(String(64), unique=True)
+    login_key: Mapped[str] = mapped_column(String(64), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # сам код не хранится
+    code_hash: Mapped[str] = mapped_column(String(64))
+    attempts: Mapped[int] = mapped_column(default=0, server_default="0")
+    expires_at: Mapped[datetime] = mapped_column(Timestamp)
+    consumed_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now(), index=True)
 
 
 class AuditLog(Base):

@@ -21,13 +21,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_sessionmaker
 from app.core.settings_store import SettingsStore
 from app.models import Company, Invite, InviteKind, Role, User
-from app.services import invites, login
+from app.services import invites, login, login_code
 from app.services.users import can_sign_in, get_by_telegram_id
 
 ACCESS_BY_INVITE = "Доступ по приглашению"
 LOGIN_EXPIRED = "Запрос на вход устарел. Нажмите «Войти» на сайте ещё раз."
 LOGIN_CONFIRMED = "Вход подтверждён. Вернитесь на сайт."
 LOGIN_CANCELLED = "Вход отменён."
+CODE_DENIED = "Код отменён: по нему войти нельзя."
 CONSENT_TEXT = (
     "Чтобы пользоваться сервисом, нужно согласие на обработку персональных данных: "
     "имени, имени пользователя и идентификатора Telegram."
@@ -194,6 +195,15 @@ def build_router(store: SettingsStore) -> Router:
             nonce = callback.data.removeprefix("login:")
             confirmed = await login.confirm(db, nonce, callback.from_user.id)
         await finish(callback, LOGIN_CONFIRMED if confirmed else LOGIN_EXPIRED)
+
+    @router.callback_query(F.data.startswith(login_code.DENY_PREFIX))
+    async def deny_code(callback: CallbackQuery) -> None:
+        raw = callback.data.removeprefix(login_code.DENY_PREFIX)
+        async with get_sessionmaker()() as db:
+            user = await _known_user(db, callback.from_user)
+            if user is not None and raw.isdigit():
+                await login_code.deny(db, int(raw), user.id)
+        await finish(callback, CODE_DENIED)
 
     @router.callback_query(F.data == "login-cancel")
     async def cancel_login(callback: CallbackQuery) -> None:

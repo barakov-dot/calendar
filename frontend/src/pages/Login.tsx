@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 
 import TelegramLink from '../components/TelegramLink'
 import TelegramWidget from '../components/TelegramWidget'
-import { Alert, Button, Card, ErrorText } from '../components/ui'
+import { Alert, Button, Card, ErrorText, Field } from '../components/ui'
 import { api, ApiError, session, type Tokens } from '../lib/api'
 import { miniAppInitData } from '../lib/telegram'
 import { chatTarget } from '../lib/telegramLinks'
@@ -51,6 +51,90 @@ function MiniAppLogin({ initData }: { initData: string }) {
   )
 }
 
+interface CodeRequest {
+  request_id: string
+}
+
+/** Вход по коду: бот присылает его на телефон, Telegram на этом компьютере не нужен. */
+function CodeLogin() {
+  const [login, setLogin] = useState('')
+  const [code, setCode] = useState('')
+  const request = useMutation({
+    mutationFn: () =>
+      api<CodeRequest>('/auth/code-request', { method: 'POST', body: { login: login.trim() } }),
+    onSuccess: () => setCode(''),
+  })
+  const verify = useMutation({
+    mutationFn: () =>
+      api<Tokens>('/auth/code-verify', {
+        method: 'POST',
+        body: { request_id: request.data!.request_id, code },
+      }),
+    onSuccess: (tokens) => session.set(tokens),
+  })
+
+  if (!request.data) {
+    return (
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (login.trim()) request.mutate()
+        }}
+      >
+        <Field
+          label="Логин или @username"
+          autoComplete="username"
+          autoCapitalize="none"
+          value={login}
+          onChange={(event) => setLogin(event.target.value)}
+        />
+        <ErrorText error={request.error} />
+        <Button type="submit" disabled={!login.trim() || request.isPending}>
+          Получить код в Telegram
+        </Button>
+      </form>
+    )
+  }
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (code.length === 6) verify.mutate()
+      }}
+    >
+      <p className="text-sm">
+        Если такой логин есть, бот прислал код в Telegram. Он действует 5 минут.
+      </p>
+      <Field
+        label="Код из Telegram"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        autoFocus
+        maxLength={6}
+        value={code}
+        onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
+      />
+      <ErrorText error={verify.error ?? request.error} />
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={code.length !== 6 || verify.isPending}>
+          Войти
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            verify.reset()
+            request.reset()
+          }}
+        >
+          Назад
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 function SiteLogin() {
   const start = useMutation({
     mutationFn: () => api<LoginRequest>('/auth/login-request', { method: 'POST' }),
@@ -64,10 +148,16 @@ function SiteLogin() {
   return (
     <>
       <p className="text-sm">Вход по приглашению, через Telegram-бота.</p>
-      <ErrorText error={start.error} />
-      <Button onClick={() => start.mutate()} disabled={start.isPending}>
-        Войти через Telegram
-      </Button>
+      <CodeLogin />
+      <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Если Telegram установлен на этом устройстве:
+        </p>
+        <ErrorText error={start.error} />
+        <Button variant="secondary" onClick={() => start.mutate()} disabled={start.isPending}>
+          Войти через Telegram
+        </Button>
+      </div>
       <TelegramWidget />
     </>
   )

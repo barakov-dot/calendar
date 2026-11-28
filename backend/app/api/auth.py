@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, status
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.deps import AppConfig, CurrentUser, Database, JwtSecret, unauthorized
 from app.core import security
@@ -6,6 +7,9 @@ from app.core.settings_store import get_settings
 from app.models import User
 from app.schemas.auth import (
     AuthOptionsOut,
+    CodeRequestIn,
+    CodeRequestOut,
+    CodeVerifyIn,
     InitDataIn,
     LoginRequestOut,
     PollOut,
@@ -14,14 +18,16 @@ from app.schemas.auth import (
     UserOut,
     WidgetIn,
 )
-from app.services import login
+from app.services import login, login_code
 from app.services.telegram.link import bot_link, bot_username
+from app.services.telegram.messages import send_text
 from app.services.users import can_sign_in, get_by_telegram_id
 
 router = APIRouter()
 
 INVITE_ONLY = "Доступ по приглашению"
 NEEDS_CONSENT = "Отправьте боту /start и дайте согласие на обработку персональных данных"
+WRONG_CODE = "Неверный или просроченный код. Проверьте его или запросите новый"
 
 
 def issue_tokens(user: User, secret: str) -> Tokens:
@@ -110,6 +116,39 @@ async def poll(nonce: str, db: Database, secret: JwtSecret) -> PollOut:
     if await login.find_active(db, nonce) is None:
         raise HTTPException(status.HTTP_410_GONE, "Запрос на вход устарел, начните заново")
     return PollOut(status="pending")
+
+
+@router.post("/auth/code-request")
+async def code_request(
+    body: CodeRequestIn, db: Database, secret: JwtSecret, tasks: BackgroundTasks
+) -> CodeRequestOut:
+    """Бот присылает код. Ответ одинаков для знакомого и незнакомого логина."""
+    try:
+        row, user, code = await login_code.create(db, secret, body.login)
+    except login_code.TooManyRequests as error:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(error)) from None
+    if user is not None:
+        text = f"Код для входа на сайт: {code}\nДействует 5 минут. Никому его не сообщайте."
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Это не я", callback_data=f"{login_code.DENY_PREFIX}{row.id}"
+                    )
+                ]
+            ]
+        )
+        # отправка после ответа: время ответа не выдаёт, есть ли такой логин
+        tasks.add_task(send_text, user.telegram_id, text, keyboard)
+    return CodeRequestOut(request_id=row.request_id, expires_at=row.expires_at)
+
+
+@router.post("/auth/code-verify")
+async def code_verify(body: CodeVerifyIn, db: Database, secret: JwtSecret) -> Tokens:
+    user = await login_code.verify(db, secret, body.request_id, body.code)
+    if user is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, WRONG_CODE)
+    return issue_tokens(user, secret)
 
 
 @router.post("/auth/refresh")

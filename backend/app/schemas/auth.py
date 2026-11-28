@@ -60,5 +60,19 @@ class PollOut(BaseModel):
     tokens: Tokens | None = None
 
 
+class CodeRequestIn(BaseModel):
+    login: str = Field(min_length=1, max_length=64)
+
+
+class CodeRequestOut(BaseModel):
+    request_id: str
+    expires_at: datetime
+
+
+class CodeVerifyIn(BaseModel):
+    request_id: str = Field(min_length=1, max_length=64)
+    code: str = Field(pattern=r"^\d{6}$")
+
+
 class DevLoginIn(BaseModel):
     user_id: int

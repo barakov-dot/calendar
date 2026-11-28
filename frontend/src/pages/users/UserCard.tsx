@@ -87,6 +87,41 @@ function ClientCompany({
   )
 }
 
+/** Логин для входа на сайт: без него человек вводит свой @username. */
+function LoginForm({
+  person,
+  pending,
+  onSave,
+}: {
+  person: PersonCard
+  pending: boolean
+  onSave: (body: { login: string }) => void
+}) {
+  const [login, setLogin] = useState(person.login ?? '')
+  const hint = person.username
+    ? `Без логина подойдёт @${person.username}`
+    : 'У этого человека нет @username: без логина войти по коду нельзя'
+  return (
+    <Card title="Вход на сайт">
+      <Field
+        label="Логин"
+        autoCapitalize="none"
+        autoComplete="off"
+        maxLength={32}
+        hint={hint}
+        value={login}
+        onChange={(event) => setLogin(event.target.value)}
+      />
+      <Button
+        disabled={pending || login.trim() === (person.login ?? '')}
+        onClick={() => onSave({ login: login.trim() })}
+      >
+        Сохранить логин
+      </Button>
+    </Card>
+  )
+}
+
 export default function UserCard({ viewer }: { viewer: User }) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -202,6 +237,14 @@ export default function UserCard({ viewer }: { viewer: User }) {
           <NameForm
             // после сохранения поля заполняются заново
             key={`${person.first_name}|${person.last_name}`}
+            person={person}
+            pending={save.isPending}
+            onSave={(body) => save.mutate(body)}
+          />
+        )}
+        {managed && (
+          <LoginForm
+            key={person.login ?? ''}
             person={person}
             pending={save.isPending}
             onSave={(body) => save.mutate(body)}

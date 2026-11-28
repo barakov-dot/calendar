@@ -1,5 +1,7 @@
 """Пользователи глазами администратора: список, карточка, изменение имени и доступа."""
 
+import re
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,6 +9,9 @@ from app.core.permissions import business_today
 from app.models import MANAGERS, Company, CompanyMember, Role, Substitution, User
 from app.services import audit
 from app.services.companies import person_name
+from app.services.login_code import normalize
+
+LOGIN_PATTERN = re.compile(r"[a-z0-9_.-]{3,32}")
 
 
 class PersonError(Exception):
@@ -85,6 +90,28 @@ async def substitutions_of(db: AsyncSession, user: User) -> list[tuple[Substitut
     return found
 
 
+async def _set_login(db: AsyncSession, user: User, value: str) -> bool:
+    """Пустая строка убирает логин. True — изменился."""
+    key = normalize(value) or None
+    if key == user.login:
+        return False
+    if key is not None:
+        if not LOGIN_PATTERN.fullmatch(key):
+            raise PersonError(
+                "Логин: от 3 до 32 знаков, латинские буквы, цифры, точка, дефис или _"
+            )
+        # чужой @username тоже занят: иначе по нему вошли бы не в тот аккаунт
+        taken = await db.scalar(
+            select(User.id)
+            .where(User.id != user.id, or_(User.login == key, func.lower(User.username) == key))
+            .limit(1)
+        )
+        if taken is not None:
+            raise PersonError("Такой логин уже занят")
+    user.login = key
+    return True
+
+
 async def update(
     db: AsyncSession,
     actor: User,
@@ -94,6 +121,7 @@ async def update(
     last_name: str | None = None,
     is_active: bool | None = None,
     role: str | None = None,
+    login: str | None = None,
     reset_name: bool = False,
 ) -> None:
     # главный бухгалтер не управляет администратором и другими главными бухгалтерами
@@ -128,6 +156,8 @@ async def update(
             raise PersonError("Доступ администратора здесь не отключается")
         user.is_active = is_active
         changed["is_active"] = is_active
+    if login is not None and await _set_login(db, user, login):
+        changed["login"] = None  # может содержать фамилию
     if changed:
         audit.record(db, actor.id, "user.update", "user", user.id, changed)
         await db.commit()

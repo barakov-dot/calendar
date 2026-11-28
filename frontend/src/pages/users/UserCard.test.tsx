@@ -22,6 +22,7 @@ const card: PersonCard = {
   pd_consent_at: '2026-11-27T09:00:00Z',
   created_at: '2026-11-27T09:00:00Z',
   name_overridden: false,
+  login: null,
   companies: [
     {
       id: 9,
@@ -96,6 +97,15 @@ describe('карточка пользователя', () => {
         { url: '/api/admin/users/4', body: { first_name: 'Пётр', last_name: 'Смирнов' } },
       ]),
     )
+  })
+
+  it('задаёт логин для входа по коду', async () => {
+    const { patches, user } = setup()
+
+    await user.type(await screen.findByLabelText(/^Логин/), 'petrov')
+    await user.click(screen.getByRole('button', { name: 'Сохранить логин' }))
+
+    await waitFor(() => expect(patches[0].body).toEqual({ login: 'petrov' }))
   })
 
   it('меняет права клиента в организации', async () => {

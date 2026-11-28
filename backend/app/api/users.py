@@ -56,6 +56,7 @@ class PersonCard(PersonOut):
     created_at: datetime
     # имя задано администратором и не берётся из Telegram
     name_overridden: bool
+    login: str | None
     companies: list[PersonCompany]
     substitutions: list[PersonSubstitution]
 
@@ -68,6 +69,8 @@ class PersonPatch(BaseModel):
     is_active: bool | None = None
     # повышение бухгалтера и обратно: только администратор
     role: Literal["chief", "accountant"] | None = None
+    # логин для входа по коду; пустая строка убирает
+    login: Annotated[str, StringConstraints(strip_whitespace=True, max_length=64)] | None = None
     # снова брать имя из Telegram
     reset_name: bool = False
 
@@ -162,6 +165,7 @@ async def _card(db: Database, user: User) -> PersonCard:
         pd_consent_at=user.pd_consent_at,
         created_at=user.created_at,
         name_overridden=user.name_overridden,
+        login=user.login,
         companies=companies,
         substitutions=[
             PersonSubstitution(
