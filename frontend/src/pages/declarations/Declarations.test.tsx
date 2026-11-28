@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import Declarations, { type Declaration } from './Declarations'
+import { blockedReason, type Declaration } from './batch'
+import Declarations from './Declarations'
 
 const found: Declaration = {
   company_id: 1,
@@ -120,4 +121,64 @@ describe('загрузка декларации', () => {
     await screen.findByText(detail)
     expect(screen.queryByRole('button', { name: 'Вписать суммы' })).toBeNull()
   })
+
+  it('записывает всю пачку одной кнопкой, корректировку после исходной, ошибки не мешают', async () => {
+    const part = found.parts[1]
+    const replies: Record<string, Declaration> = {
+      'primary.xml': { ...found, correction: 0, parts: [part] },
+      'fix.xml': { ...found, correction: 1, parts: [{ ...part, new_kopecks: 20_000_00 }] },
+      'other.xml': { ...found, company_id: 2, company_name: 'ООО «Вторая»', parts: [part] },
+    }
+    const applied: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        const name = (init.body as File).name
+        if (url.endsWith('/apply')) applied.push(name)
+        const reply = replies[name]
+        return reply
+          ? new Response(JSON.stringify(reply))
+          : new Response(JSON.stringify({ detail: 'Это не декларация' }), { status: 422 })
+      }),
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <Declarations />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    const user = userEvent.setup()
+
+    await user.upload(
+      screen.getByLabelText(/Перетащите XML/),
+      ['primary.xml', 'fix.xml', 'other.xml', 'bad.xml'].map(
+        (name) => new File(['<Файл/>'], name, { type: 'text/xml' }),
+      ),
+    )
+
+    await screen.findByText('bad.xml: Это не декларация')
+    screen.getByText(/есть в более поздней корректировке \(«fix.xml»\)/)
+    expect(applied).toEqual([])
+    await user.click(screen.getByRole('button', { name: 'Вписать суммы из всех файлов (2)' }))
+
+    await vi.waitFor(() => expect(document.querySelector('p[role=status]')?.textContent).toContain('Записано: 2'))
+    // у обоих корректировка № 1: порядок — как выбирали
+    expect(applied).toEqual(['fix.xml', 'other.xml'])
+  })
+
+  it('не записывает вместе файлы, которые спорят об одной сумме', () => {
+    const item = (id: number, kopecks: number) => ({
+      id,
+      file: new File([''], `${id}.xml`),
+      status: 'ready' as const,
+      data: { ...found, parts: [{ ...found.parts[1], new_kopecks: kopecks }] },
+    })
+    const [first, second, same] = [item(1, 100), item(2, 200), item(3, 100)]
+
+    expect(blockedReason(first, [first, second])).toMatch('2.xml')
+    expect(blockedReason(second, [first, second])).toMatch('1.xml')
+    expect(blockedReason(first, [first, same])).toBe('')
+  })
 })
+
