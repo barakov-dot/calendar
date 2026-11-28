@@ -56,14 +56,15 @@ describe('меню', () => {
     expect(menu().queryByRole('link', { name: 'Мои дела' })).toBeNull()
   })
 
-  it('у клиента свои кнопки внизу, без рабочих разделов', () => {
+  it('у клиента свои кнопки внизу с числом открытых требований', async () => {
     const menu = setup('client')
 
+    await menu().findByLabelText('открытых требований: 1')
     expect(titles(menu().getAllByRole('link'))).toEqual([
       'Платежи',
       'Календарь',
       'История',
-      'Требования',
+      '1Требования',
       'Настройки',
     ])
   })

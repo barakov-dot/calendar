@@ -102,29 +102,35 @@ function PhoneHeader() {
   )
 }
 
+/** Пункт «Требования» с числом ещё не закрытых: их видит и сотрудник, и клиент. */
+function useDemandsEntry(): Entry {
+  const demands = useDemands()
+  const open = Array.isArray(demands.data)
+    ? demands.data.filter((demand) => !demand.closed).length
+    : 0
+  return {
+    to: '/demands',
+    title: 'Требования',
+    Symbol: DemandIcon,
+    badge: open,
+    badgeLabel: 'открытых требований',
+    also: ['/demands/'],
+  }
+}
+
 /** Сотрудник: на широком экране меню слева, на телефоне — снизу. */
 function StaffLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
   const path = useLocation().pathname
   const companies = useCompanies()
   const attention = companies.data?.filter(needsAttention).length
-  const demands = useDemands()
-  const open = Array.isArray(demands.data)
-    ? demands.data.filter((demand) => !demand.closed).length
-    : 0
+  const demands = useDemandsEntry()
 
   const shared: Entry[] = [
     { to: '/', title: 'Задачи', Symbol: ListIcon },
     { to: '/calendar', title: 'Календарь', Symbol: CalendarIcon },
     // помощник ничего не создаёт, личных дел у него нет
     ...(canEdit(user.role) ? [{ to: '/my', title: 'Мои дела', Symbol: CheckSquareIcon }] : []),
-    {
-      to: '/demands',
-      title: 'Требования',
-      Symbol: DemandIcon,
-      badge: open,
-      badgeLabel: 'открытых требований',
-      also: ['/demands/'],
-    },
+    demands,
   ]
   const organisations: Entry = {
     to: '/companies',
@@ -206,18 +212,19 @@ const CLIENT_LINKS: Entry[] = [
   { to: '/', title: 'Платежи', Symbol: ListIcon },
   { to: '/calendar', title: 'Календарь', Symbol: CalendarIcon },
   { to: '/history', title: 'История', Symbol: HistoryIcon },
-  { to: '/demands', title: 'Требования', Symbol: DemandIcon, also: ['/demands/'] },
-  { to: '/preferences', title: 'Настройки', Symbol: GearIcon },
 ]
+const CLIENT_SETTINGS: Entry = { to: '/preferences', title: 'Настройки', Symbol: GearIcon }
 
 /** Клиент: на телефоне кнопки внизу, на широком экране меню слева. */
 function ClientLayout({ user, onLogout }: { user: User; onLogout: () => void }) {
+  const demands = useDemandsEntry()
+  const entries = [...CLIENT_LINKS, demands, CLIENT_SETTINGS]
   return (
     <div className="min-h-screen lg:flex">
       <aside className="hidden border-r border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col dark:border-slate-800 dark:bg-slate-900">
         <div className="px-4 pt-5 pb-2 text-sm font-semibold">Платёжный календарь</div>
         <nav aria-label="Разделы" className="flex flex-col gap-1 p-2">
-          {CLIENT_LINKS.map((entry) => (
+          {entries.map((entry) => (
             <NavLink
               key={entry.to}
               to={entry.to}
@@ -225,7 +232,8 @@ function ClientLayout({ user, onLogout }: { user: User; onLogout: () => void }) 
               className={({ isActive }) => `${navClass({ isActive })} !flex items-center gap-2`}
             >
               <entry.Symbol className="size-5" />
-              {entry.title}
+              <span className="flex-1">{entry.title}</span>
+              <Badge count={entry.badge} label={entry.badgeLabel} />
             </NavLink>
           ))}
         </nav>
@@ -250,7 +258,7 @@ function ClientLayout({ user, onLogout }: { user: User; onLogout: () => void }) 
           <Outlet />
         </main>
       </div>
-      <BottomNav entries={CLIENT_LINKS} />
+      <BottomNav entries={entries} />
     </div>
   )
 }
